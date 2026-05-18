@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@electric-sql/pglite": "^0.4.5",
     "@playwright/test": "^1.49.1",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.2",
