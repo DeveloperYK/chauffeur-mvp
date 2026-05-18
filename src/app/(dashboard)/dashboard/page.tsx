@@ -95,27 +95,36 @@ function BookingCard({ booking }: { booking: Booking }) {
       style={{
         background: 'white',
         borderRadius: 6,
-        padding: '0.5rem 0.6rem',
         boxShadow: '0 1px 0 rgba(0,0,0,0.06)',
         fontSize: 13,
       }}
     >
-      <div style={{ fontWeight: 600 }}>
-        {booking.passengerFirstName} {booking.passengerLastName}
-      </div>
-      <div style={{ color: '#475569', fontSize: 12 }}>
-        {booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC
-      </div>
-      <div style={{ color: '#475569', fontSize: 12 }}>
-        {booking.pickupAddress.slice(0, 40)}
-        {booking.pickupAddress.length > 40 ? '…' : ''}
-        {' → '}
-        {booking.dropoffAddress.slice(0, 40)}
-        {booking.dropoffAddress.length > 40 ? '…' : ''}
-      </div>
-      <div style={{ color: '#475569', fontSize: 12 }}>
-        Account: {booking.accountCode} · £{(booking.contractPricePence / 100).toFixed(2)}
-      </div>
+      <Link
+        href={`/dashboard/bookings/${booking.id}`}
+        style={{
+          display: 'block',
+          padding: '0.5rem 0.6rem',
+          textDecoration: 'none',
+          color: 'inherit',
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>
+          {booking.passengerFirstName} {booking.passengerLastName}
+        </div>
+        <div style={{ color: '#475569', fontSize: 12 }}>
+          {booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC
+        </div>
+        <div style={{ color: '#475569', fontSize: 12 }}>
+          {booking.pickupAddress.slice(0, 40)}
+          {booking.pickupAddress.length > 40 ? '…' : ''}
+          {' → '}
+          {booking.dropoffAddress.slice(0, 40)}
+          {booking.dropoffAddress.length > 40 ? '…' : ''}
+        </div>
+        <div style={{ color: '#475569', fontSize: 12 }}>
+          Account: {booking.accountCode} · £{(booking.contractPricePence / 100).toFixed(2)}
+        </div>
+      </Link>
     </li>
   );
 }
