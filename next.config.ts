@@ -3,9 +3,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    typedRoutes: true,
-  },
+  // typedRoutes is intentionally disabled: it requires a build to refresh
+  // route types, which breaks the typecheck → build CI ordering on new pages.
+  // Revisit when Next.js makes type generation deterministic in `tsc --noEmit`.
   async headers() {
     return [
       {

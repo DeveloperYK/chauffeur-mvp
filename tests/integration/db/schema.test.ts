@@ -53,7 +53,7 @@ describe('db schema — integration (pglite)', () => {
         name: 'Tom',
         tier: 'premium',
         defaultCarType: 's_class',
-        whatsappNumber: '+447700900001',
+        whatsappNumber: '+447911000001',
       })
       .returning();
     expect(driver).toBeDefined();
@@ -67,7 +67,7 @@ describe('db schema — integration (pglite)', () => {
         dropoffAddress: 'LHR Terminal 5',
         passengerFirstName: 'Eric',
         passengerLastName: 'French',
-        execMobile: '+447700900100',
+        execMobile: '+447911123456',
         bookerName: 'Jack',
         accountCode: 'LEGO',
         carTypePreference: 's_class',
@@ -114,14 +114,14 @@ describe('db schema — integration (pglite)', () => {
       name: 'X',
       tier: 'ordinary',
       defaultCarType: 'ex',
-      whatsappNumber: '+447700900900',
+      whatsappNumber: '+447911000900',
     });
     await expect(
       db.insert(drivers).values({
         name: 'Y',
         tier: 'ordinary',
         defaultCarType: 'ex',
-        whatsappNumber: '+447700900900',
+        whatsappNumber: '+447911000900',
       }),
     ).rejects.toThrow();
   });
