@@ -3,6 +3,7 @@
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { currentSession } from '@/server/auth/current';
+import { spreadsheetMirror } from '@/server/composition';
 import { getDb } from '@/server/db';
 import { createBooking } from '@/server/services/bookings';
 import { redirect } from 'next/navigation';
@@ -37,7 +38,11 @@ export async function newBookingAction(formData: FormData): Promise<void> {
   };
 
   const { db } = getDb(url);
-  const result = await createBooking(raw, { db, operatorId: session.operator.id });
+  const result = await createBooking(raw, {
+    db,
+    operatorId: session.operator.id,
+    mirror: spreadsheetMirror(),
+  });
 
   if (!result.ok) {
     if (result.reason === 'pickup_in_past') {
