@@ -26,7 +26,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           alignItems: 'center',
         }}
       >
-        <strong>Chauffeur Dispatch</strong>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'baseline' }}>
+          <strong>Chauffeur Dispatch</strong>
+          <a href="/dashboard" style={{ color: '#0f172a', textDecoration: 'none' }}>
+            Board
+          </a>
+          <a href="/dashboard/drivers" style={{ color: '#0f172a', textDecoration: 'none' }}>
+            Drivers
+          </a>
+        </div>
         <span style={{ fontSize: 14, color: '#64748b' }}>{session.operator.name}</span>
       </header>
       <main style={{ padding: '1.5rem' }}>{children}</main>
