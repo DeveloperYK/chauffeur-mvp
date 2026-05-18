@@ -2,9 +2,11 @@ import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { mirrorBooking } from './mirror';
 
 const phoneSchema = z
   .string()
@@ -42,6 +44,7 @@ export interface CreateBookingDeps {
   db: Database;
   clock?: Clock;
   operatorId: string;
+  mirror?: SpreadsheetMirrorPort;
 }
 
 export type CreateBookingResult =
@@ -95,6 +98,8 @@ export async function createBooking(
     before: null,
     after: { state: inserted.state },
   });
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, inserted);
 
   return { ok: true, booking: inserted };
 }

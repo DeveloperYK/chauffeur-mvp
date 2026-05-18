@@ -1,7 +1,13 @@
 'use server';
 
 import { currentSession } from '@/server/auth/current';
-import { appUrl, db, driverLinkSecret, notifications } from '@/server/composition';
+import {
+  appUrl,
+  db,
+  driverLinkSecret,
+  notifications,
+  spreadsheetMirror,
+} from '@/server/composition';
 import {
   approveBooking,
   generateCompletionLink,
@@ -25,6 +31,7 @@ export async function generateLinkAction(formData: FormData): Promise<void> {
     notifications: notifications(),
     secret: driverLinkSecret(),
     appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
   });
 
   if (!result.ok) {
@@ -56,6 +63,7 @@ export async function generateCompletionLinkAction(formData: FormData): Promise<
     db: db(),
     secret: driverLinkSecret(),
     appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
   });
 
   if (!result.ok) {
@@ -74,6 +82,7 @@ export async function approveAction(formData: FormData): Promise<void> {
     db: db(),
     secret: driverLinkSecret(),
     appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
   });
   redirect(`/dashboard/bookings/${bookingId}`);
 }
@@ -87,6 +96,7 @@ export async function rejectAction(formData: FormData): Promise<void> {
     db: db(),
     secret: driverLinkSecret(),
     appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
   });
   redirect(`/dashboard/bookings/${bookingId}`);
 }

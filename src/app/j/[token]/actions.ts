@@ -1,6 +1,12 @@
 'use server';
 
-import { appUrl, db, driverLinkSecret, notifications } from '@/server/composition';
+import {
+  appUrl,
+  db,
+  driverLinkSecret,
+  notifications,
+  spreadsheetMirror,
+} from '@/server/composition';
 import { submitCompletionForm } from '@/server/services/completion';
 import { acceptDispatchLink, declineDispatchLink } from '@/server/services/dispatch';
 import { redirect } from 'next/navigation';
@@ -31,6 +37,7 @@ export async function acceptAction(formData: FormData): Promise<void> {
       notifications: notifications(),
       secret: driverLinkSecret(),
       appUrl: appUrl(),
+      mirror: spreadsheetMirror(),
     },
   );
 
@@ -79,6 +86,7 @@ export async function submitCompletionAction(formData: FormData): Promise<void> 
       db: db(),
       secret: driverLinkSecret(),
       appUrl: appUrl(),
+      mirror: spreadsheetMirror(),
     },
   );
 

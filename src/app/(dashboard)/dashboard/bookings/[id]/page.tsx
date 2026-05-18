@@ -197,7 +197,7 @@ export default async function BookingPage({
             <dt>Drop-off</dt>
             <dd>
               {booking.dropoffAt
-                ? booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+                ? `${booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`
                 : '—'}
             </dd>
           </dl>
@@ -216,7 +216,7 @@ export default async function BookingPage({
             <dt>Drop-off</dt>
             <dd>
               {booking.dropoffAt
-                ? booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+                ? `${booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`
                 : '—'}
             </dd>
           </dl>

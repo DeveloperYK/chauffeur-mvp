@@ -1,0 +1,125 @@
+import type { Booking, Driver, Operator } from '@/server/db/schema';
+
+/** Columns A–AD from the existing JJ DATA workbook. */
+export const SHEET_HEADERS = [
+  'Job #', // A
+  'Date', // B
+  'Pick Up Time (24hr)', // C
+  'Case Code', // D
+  'Booked By', // E
+  'Passenger FirstName', // F
+  'Passenger LastName', // G
+  'Address From', // H
+  'Address To', // I
+  'Customer Account', // J
+  'Car Type', // K
+  'Contract Price (£)', // L
+  'Driver Name', // M
+  'Driver Type', // N
+  'Hourly Rate', // O — reserved
+  'Car Park (£)', // P
+  'Waiting Time (hh:mm)', // Q
+  'Drop Off Time (24hr)', // R
+  'Raise an invoice??', // S
+  'Invoiced by Driver?', // T
+  'Passenger Name', // U
+  'Total Trip Time', // V
+  'Trip Details From To', // W
+  'Waiting (£)', // X
+  'Net Due (£)', // Y
+  'VAT (£)', // Z
+  'Total (£)', // AA
+  'Sub-contractor Cost', // AB
+  'Month', // AC
+  'WeekDay', // AD
+] as const;
+
+export interface MirrorRowInput {
+  booking: Booking;
+  driver?: Driver | null;
+  operator?: Operator | null;
+}
+
+export interface SpreadsheetMirrorPort {
+  upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }>;
+}
+
+function formatTimeOfDay(d: Date): string {
+  const hh = d.getUTCHours().toString().padStart(2, '0');
+  const mm = d.getUTCMinutes().toString().padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function formatDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function carLabel(c: string | null): string {
+  switch (c) {
+    case 'ex':
+      return 'EX';
+    case 's_class':
+      return 'S Class';
+    case 'mpv':
+      return 'MPV';
+    case 'mini_bus':
+      return 'Mini Bus';
+    default:
+      return '';
+  }
+}
+
+function tierLabel(t: string | null): string {
+  if (t === 'premium') return 'Employee';
+  if (t === 'ordinary') return 'Employee';
+  return '';
+}
+
+export function rowFromBooking(input: MirrorRowInput): string[] {
+  const { booking, driver } = input;
+  const car = booking.carForThisJob ?? booking.carTypePreference;
+  const pickup = booking.pickupAt;
+  const dropoff = booking.dropoffAt;
+  const totalMinutes = booking.dropoffAt
+    ? Math.max(0, Math.round((booking.dropoffAt.getTime() - pickup.getTime()) / 60_000))
+    : booking.expectedDurationMinutes;
+
+  // Job # — use a short suffix of UUID for readability; full id is the source of truth.
+  const jobNumber = booking.id.slice(-6).toUpperCase();
+  return [
+    jobNumber,
+    formatDate(pickup),
+    formatTimeOfDay(pickup),
+    '', // Case code — not captured by MVP form
+    booking.bookerName,
+    booking.passengerFirstName,
+    booking.passengerLastName,
+    booking.pickupAddress,
+    booking.dropoffAddress,
+    booking.accountCode,
+    carLabel(car),
+    (booking.contractPricePence / 100).toFixed(2),
+    driver?.name ?? '',
+    tierLabel(driver?.tier ?? null),
+    '', // hourly rate
+    booking.carParkPence != null ? (booking.carParkPence / 100).toFixed(2) : '',
+    booking.waitingTimeMinutes != null
+      ? `${Math.floor(booking.waitingTimeMinutes / 60)
+          .toString()
+          .padStart(2, '0')}:${(booking.waitingTimeMinutes % 60).toString().padStart(2, '0')}`
+      : '',
+    dropoff ? formatTimeOfDay(dropoff) : '',
+    booking.state === 'completed' ? 'Yes' : 'No',
+    '',
+    `${booking.passengerFirstName} ${booking.passengerLastName}`,
+    `${totalMinutes} min`,
+    `${booking.pickupAddress} → ${booking.dropoffAddress}`,
+    '',
+    '',
+    '',
+    '',
+    '',
+    pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' }),
+    pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'UTC' }),
+  ];
+}

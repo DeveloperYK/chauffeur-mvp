@@ -6,15 +6,18 @@ import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { mirrorBooking } from './mirror';
 
 export interface CompletionDeps {
   db: Database;
   clock?: Clock;
   secret: string;
   appUrl: string;
+  mirror?: SpreadsheetMirrorPort;
 }
 
 export type GenerateCompletionLinkResult =
@@ -54,10 +57,7 @@ export async function generateCompletionLink(
   });
 
   const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
-  const text =
-    'Please submit the completion form when you have a moment:\n' +
-    `Job: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n` +
-    `${url}`;
+  const text = `Please submit the completion form when you have a moment:\nJob: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n${url}`;
   const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 
@@ -164,6 +164,8 @@ export async function submitCompletionForm(
     },
   });
 
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+
   return { ok: true, booking: updated };
 }
 
@@ -230,6 +232,8 @@ async function reviewBooking(
     before: { state: booking.state },
     after: { state: updated.state },
   });
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
   return { ok: true, booking: updated };
 }

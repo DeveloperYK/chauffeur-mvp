@@ -14,8 +14,10 @@ import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { NotificationPort } from '@/server/ports/notifications';
+import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
+import { mirrorBooking } from './mirror';
 import { assignedSms } from './sms-templates';
 
 export interface DispatchDeps {
@@ -24,6 +26,7 @@ export interface DispatchDeps {
   notifications: NotificationPort;
   secret: string;
   appUrl: string;
+  mirror?: SpreadsheetMirrorPort;
 }
 
 export type GenerateLinkResult =
@@ -178,6 +181,8 @@ export async function acceptDispatchLink(
     to: booking.execMobile,
     body: assignedSms(updated, driver, carForJob),
   });
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
   return { ok: true, booking: updated, driver, carForJob };
 }
