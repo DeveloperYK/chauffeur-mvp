@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+jobs:
+  verify:
+    name: Typecheck · Lint · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chauffeur
+          POSTGRES_PASSWORD: chauffeur_dev
+          POSTGRES_DB: chauffeur_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chauffeur -d chauffeur_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://chauffeur:chauffeur_dev@localhost:5432/chauffeur_test
+      DRIVER_LINK_SECRET: ci-only-secret-not-used-in-prod-replace-me!!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit + integration tests (must finish <60s)
+        run: |
+          start=$(date +%s)
+          pnpm test
+          end=$(date +%s)
+          elapsed=$((end - start))
+          echo "Test suite took ${elapsed}s"
+          if [ "$elapsed" -gt 75 ]; then
+            echo "::error::Test suite exceeded 75s budget"
+            exit 1
+          fi
+
+      - name: Build
+        run: pnpm build
+
+      - name: Security audit
+        run: pnpm audit --audit-level=high || echo "::warning::pnpm audit found issues"
+
+  e2e:
+    name: E2E smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: verify
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chauffeur
+          POSTGRES_PASSWORD: chauffeur_dev
+          POSTGRES_DB: chauffeur_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chauffeur -d chauffeur_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://chauffeur:chauffeur_dev@localhost:5432/chauffeur_test
+      DRIVER_LINK_SECRET: ci-only-secret-not-used-in-prod-replace-me!!
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

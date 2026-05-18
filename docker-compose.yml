@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chauffeur-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chauffeur
+      POSTGRES_PASSWORD: chauffeur_dev
+      POSTGRES_DB: chauffeur
+    ports:
+      - '5432:5432'
+    volumes:
+      - chauffeur_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U chauffeur -d chauffeur']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  chauffeur_pg_data:

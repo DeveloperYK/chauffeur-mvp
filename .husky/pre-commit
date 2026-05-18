@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+echo "→ biome (lint + format)"
+pnpm exec biome check --write . || exit 1
+
+echo "→ typecheck"
+pnpm typecheck || exit 1
+
+echo "→ test (must be < 60s)"
+start=$(date +%s)
+pnpm test || exit 1
+end=$(date +%s)
+elapsed=$((end - start))
+echo "test suite: ${elapsed}s"
+if [ "$elapsed" -gt 60 ]; then
+  echo "ERROR: test suite exceeded 60s budget"
+  exit 1
+fi
