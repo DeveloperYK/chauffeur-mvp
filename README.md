@@ -1,43 +1,97 @@
-# Chauffeur Dispatch — MVP Design Package
+# Chauffeur Dispatch — MVP
 
-Design package for the chauffeur dispatch platform MVP, for partner review before client sign-off.
+Production-grade dispatch platform for a chauffeur company. See [`DESIGN.md`](./DESIGN.md) for the full design and [`CLAUDE.md`](./CLAUDE.md) for the engineering rules of engagement.
 
-## What's in here
+## Quick start
 
-| File | Audience | Purpose |
-|---|---|---|
-| [`EXECUTIVE-SUMMARY.md`](./EXECUTIVE-SUMMARY.md) | Partner + client (non-technical) | One-pager: problem, solution, scope, transition, timeline. Start here when sharing. |
-| [`DESIGN.md`](./DESIGN.md) | Partner + client (technical-curious) | Full design. Flows, architecture, state machine, risks, scale considerations. |
-| [`OPEN-QUESTIONS.md`](./OPEN-QUESTIONS.md) | Partner → client | Numbered questions to resolve with the client before build kicks off. |
-| `diagrams/*.md` | Anyone | Each diagram in its own file, for viewing in Obsidian or any Mermaid-aware viewer. |
+```bash
+# 1. Install dependencies
+pnpm install
 
-## How to share with the client
+# 2. Configure env
+cp .env.example .env
+# generate a secret for the driver-link JWT:
+openssl rand -base64 32   # paste into DRIVER_LINK_SECRET
 
-1. Send **`EXECUTIVE-SUMMARY.md`** first — it's the cover sheet.
-2. Walk through **`DESIGN.md`** in a working session. The diagrams render natively in Obsidian, GitHub, Notion, and most modern markdown viewers.
-3. Use **`OPEN-QUESTIONS.md`** as the agenda for the follow-up call.
+# 3. Start Postgres locally (docker-compose) OR point DATABASE_URL elsewhere
+docker compose up -d postgres
 
-## Viewing the diagrams
+# 4. Run migrations
+pnpm db:migrate
 
-- **In Obsidian:** Mermaid renders automatically inside any `.md` file. Each diagram is a standalone file under `diagrams/`.
-- **On GitHub:** same, renders natively.
-- **In VS Code:** install the "Markdown Preview Mermaid Support" extension, then Cmd+Shift+V on any markdown file.
+# 5. Create an operator account
+DATABASE_URL=postgres://chauffeur:chauffeur_dev@localhost:5432/chauffeur \
+  pnpm tsx scripts/create-operator.ts alice@example.com "Alice" "long-password-here-12+chars"
 
-## MVP at a glance
+# 6. Run the app
+pnpm dev
+```
 
-- **What changes:** operator dashboard replaces the spreadsheet; driver hand-off becomes a signed WhatsApp link with accept/decline + completion form.
-- **What stays the same (client side):** PA still phones the operator. Executive still gets the same two SMS messages (now sent automatically).
-- **Backup:** every change mirrors to a Google Sheet matching the existing layout, so the business can fall back at any time.
-- **Out of MVP:** PA portal, native driver app, GPS, auto-dispatch, backfill subcontractor workflow, billing.
+The dashboard lives at <http://localhost:3000/dashboard>.
 
-## Status
+## Architecture
 
-- **Design phase:** complete, pending partner review and client Q&A.
-- **Build phase:** not started. Begins only after partner sign-off and resolution of open questions.
+```
+                       ┌──────────────────┐
+                       │ Operator browser │
+                       └────────┬─────────┘
+                                │ HTTPS
+                                ▼
+                       ┌──────────────────┐
+                       │  Next.js app     │
+                       │  (App Router)    │
+                       └──────┬───────────┘
+   ┌─────────┐                │
+   │ SMS via │◀───────────────┤
+   │ Twilio  │                │
+   └─────────┘                │
+                              ▼
+                      ┌──────────────┐
+   ┌─────────┐        │  Postgres    │
+   │ Google  │◀──────▶│  (Drizzle)   │
+   │ Sheets  │        └──────────────┘
+   │ mirror  │                ▲
+   └─────────┘                │  Cron POST /api/clock-tick (every 60s)
+```
 
-## Next steps
+See [`docs/build-plan.md`](./docs/build-plan.md) for the stage-by-stage build log and [`docs/adr/`](./docs/adr/) for architecture decision records.
 
-1. Partner reviews `EXECUTIVE-SUMMARY.md` and `DESIGN.md`.
-2. Partner takes `OPEN-QUESTIONS.md` to the client.
-3. Once answers come back, we produce the build-side artefacts: data model (ERD), REST API contract, dashboard UI mockups, build estimate.
-4. Build.
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Dev server (HMR) |
+| `pnpm build` | Production build |
+| `pnpm start` | Run production build |
+| `pnpm test` | Unit + integration suite (must stay < 60s) |
+| `pnpm test:e2e` | Playwright smoke tests |
+| `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm lint` | Biome (lint + format) |
+| `pnpm lint:fix` | Biome auto-fix |
+| `pnpm db:generate` | Regenerate Drizzle SQL migrations from schema |
+| `pnpm db:migrate` | Apply migrations |
+| `pnpm db:studio` | Drizzle Studio (DB inspector) |
+
+## Production deploy checklist
+
+- [ ] Set `DRIVER_LINK_SECRET` to a random 32+ byte value.
+- [ ] Set `DATABASE_URL` to a managed Postgres with SSL.
+- [ ] Set `TWILIO_*` env vars (otherwise SMS no-ops via fake).
+- [ ] Set `GOOGLE_SHEETS_SPREADSHEET_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON`. Share the sheet with the service account email. Run `await mirror.ensureHeaders()` once.
+- [ ] Set `CLOCK_TICK_SECRET` and wire an external cron to POST `/api/clock-tick` with header `x-clock-secret: <value>` every 60 seconds.
+- [ ] Run `pnpm db:migrate` after each deploy.
+- [ ] Create operator accounts via `scripts/create-operator.ts`.
+
+## Repository tour
+
+- `src/app/(dashboard)/` — operator-authenticated routes
+- `src/app/j/[token]/` — public driver-link page (no login)
+- `src/app/api/` — public endpoints (clock-tick, healthz)
+- `src/server/domain/` — pure domain logic (no I/O)
+- `src/server/services/` — use-case orchestration
+- `src/server/ports/` — interface definitions
+- `src/server/adapters/` — concrete implementations (Twilio, Google Sheets, plus fakes)
+- `src/server/db/` — Drizzle schema + client
+- `tests/unit/` — pure unit tests
+- `tests/integration/` — PGlite-backed integration tests
+- `tests/e2e/` — Playwright smoke tests
