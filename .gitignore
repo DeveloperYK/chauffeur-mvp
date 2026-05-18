@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build output
+.next/
+out/
+dist/
+build/
+
+# runtime / cache
+.cache/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+playwright/.cache/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+
+# obsidian (local viewer config, not project source)
+.obsidian/
+
+# misc
+*.pem
+*.local
