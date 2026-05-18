@@ -5,7 +5,12 @@ import { listActiveDrivers } from '@/server/services/drivers';
 import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { generateLinkAction } from './actions';
+import {
+  approveAction,
+  generateCompletionLinkAction,
+  generateLinkAction,
+  rejectAction,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,9 +149,142 @@ export default async function BookingPage({
           </p>
         </section>
       ) : null}
+
+      {booking.state === 'awaiting_driver_form' ? (
+        <section style={panel}>
+          <h2 style={{ marginTop: 0 }}>Awaiting driver completion form</h2>
+          {search.url ? (
+            <div>
+              <p>Completion link:</p>
+              <p>
+                <a href={search.url} style={{ color: '#2563eb', wordBreak: 'break-all' }}>
+                  {decodeURIComponent(search.url)}
+                </a>
+              </p>
+              {search.wa ? (
+                <a
+                  href={decodeURIComponent(search.wa)}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  style={{
+                    display: 'inline-block',
+                    padding: '0.5rem 0.9rem',
+                    background: '#25d366',
+                    color: 'white',
+                    borderRadius: 6,
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                  }}
+                >
+                  Send via WhatsApp →
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <CompletionLinkForm bookingId={booking.id} />
+          )}
+        </section>
+      ) : null}
+
+      {booking.state === 'awaiting_operator_review' ? (
+        <section style={panel}>
+          <h2 style={{ marginTop: 0 }}>Review submitted form</h2>
+          <dl style={dl}>
+            <dt>Car park</dt>
+            <dd>£{((booking.carParkPence ?? 0) / 100).toFixed(2)}</dd>
+            <dt>Waiting time</dt>
+            <dd>{booking.waitingTimeMinutes ?? 0} min</dd>
+            <dt>Drop-off</dt>
+            <dd>
+              {booking.dropoffAt
+                ? booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+                : '—'}
+            </dd>
+          </dl>
+          <ReviewButtons bookingId={booking.id} />
+        </section>
+      ) : null}
+
+      {booking.state === 'completed' ? (
+        <section style={panel}>
+          <h2 style={{ marginTop: 0 }}>Completed</h2>
+          <dl style={dl}>
+            <dt>Car park</dt>
+            <dd>£{((booking.carParkPence ?? 0) / 100).toFixed(2)}</dd>
+            <dt>Waiting time</dt>
+            <dd>{booking.waitingTimeMinutes ?? 0} min</dd>
+            <dt>Drop-off</dt>
+            <dd>
+              {booking.dropoffAt
+                ? booking.dropoffAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+                : '—'}
+            </dd>
+          </dl>
+        </section>
+      ) : null}
     </div>
   );
 }
+
+function CompletionLinkForm({ bookingId }: { bookingId: string }) {
+  return (
+    <form action={generateCompletionLinkAction}>
+      <input type="hidden" name="bookingId" value={bookingId} />
+      <button type="submit" style={primaryDark}>
+        Generate completion link
+      </button>
+    </form>
+  );
+}
+
+function ReviewButtons({ bookingId }: { bookingId: string }) {
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <form action={approveAction}>
+        <input type="hidden" name="bookingId" value={bookingId} />
+        <button type="submit" style={primaryGreen}>
+          Approve
+        </button>
+      </form>
+      <form action={rejectAction}>
+        <input type="hidden" name="bookingId" value={bookingId} />
+        <button type="submit" style={secondaryRed}>
+          Reject — driver to resubmit
+        </button>
+      </form>
+    </div>
+  );
+}
+
+const primaryDark: React.CSSProperties = {
+  padding: '0.5rem 0.9rem',
+  background: '#0f172a',
+  color: 'white',
+  borderRadius: 6,
+  border: 'none',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const primaryGreen: React.CSSProperties = {
+  padding: '0.5rem 0.9rem',
+  background: '#16a34a',
+  color: 'white',
+  borderRadius: 6,
+  border: 'none',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const secondaryRed: React.CSSProperties = {
+  padding: '0.5rem 0.9rem',
+  background: 'white',
+  color: '#b91c1c',
+  border: '1px solid #fca5a5',
+  borderRadius: 6,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
 
 const panel: React.CSSProperties = {
   background: 'white',

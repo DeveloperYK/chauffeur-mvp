@@ -1,6 +1,7 @@
 'use server';
 
 import { appUrl, db, driverLinkSecret, notifications } from '@/server/composition';
+import { submitCompletionForm } from '@/server/services/completion';
 import { acceptDispatchLink, declineDispatchLink } from '@/server/services/dispatch';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -60,4 +61,40 @@ export async function declineAction(formData: FormData): Promise<void> {
     appUrl: appUrl(),
   });
   redirect(`/j/${parsed.data.token}?status=declined`);
+}
+
+export async function submitCompletionAction(formData: FormData): Promise<void> {
+  const token = String(formData.get('token') ?? '');
+  const carParkPounds = Number.parseFloat(String(formData.get('carParkPounds') ?? '0'));
+  const carParkPence = Number.isFinite(carParkPounds) ? Math.round(carParkPounds * 100) : 0;
+
+  const result = await submitCompletionForm(
+    {
+      token,
+      carParkPence,
+      waitingTimeMinutes: String(formData.get('waitingTimeMinutes') ?? '0'),
+      dropoffAt: String(formData.get('dropoffAt') ?? ''),
+    },
+    {
+      db: db(),
+      secret: driverLinkSecret(),
+      appUrl: appUrl(),
+    },
+  );
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'validation'
+        ? 'Please check your inputs.'
+        : result.reason === 'token_expired'
+          ? 'This link has expired.'
+          : result.reason === 'token_consumed'
+            ? 'Already submitted.'
+            : result.reason === 'wrong_state'
+              ? 'This form is no longer open.'
+              : 'Sorry, this link is not valid.';
+    redirect(`/j/${token}?error=${encodeURIComponent(msg)}`);
+  }
+
+  redirect(`/j/${token}?status=submitted`);
 }

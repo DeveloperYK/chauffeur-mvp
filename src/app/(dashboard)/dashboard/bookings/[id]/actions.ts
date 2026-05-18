@@ -2,6 +2,11 @@
 
 import { currentSession } from '@/server/auth/current';
 import { appUrl, db, driverLinkSecret, notifications } from '@/server/composition';
+import {
+  approveBooking,
+  generateCompletionLink,
+  rejectBooking,
+} from '@/server/services/completion';
 import { generateDispatchLink } from '@/server/services/dispatch';
 import { redirect } from 'next/navigation';
 
@@ -39,4 +44,49 @@ export async function generateLinkAction(formData: FormData): Promise<void> {
     wa: result.whatsappUrl,
   });
   redirect(`/dashboard/bookings/${bookingId}?${q.toString()}`);
+}
+
+export async function generateCompletionLinkAction(formData: FormData): Promise<void> {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  if (!bookingId) redirect('/dashboard');
+
+  const result = await generateCompletionLink(bookingId, session.operator.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+
+  if (!result.ok) {
+    redirect(`/dashboard/bookings/${bookingId}?error=${encodeURIComponent(result.reason)}`);
+  }
+  const q = new URLSearchParams({ url: result.url, wa: result.whatsappUrl });
+  redirect(`/dashboard/bookings/${bookingId}?${q.toString()}`);
+}
+
+export async function approveAction(formData: FormData): Promise<void> {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  if (!bookingId) redirect('/dashboard');
+  await approveBooking(bookingId, session.operator.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  redirect(`/dashboard/bookings/${bookingId}`);
+}
+
+export async function rejectAction(formData: FormData): Promise<void> {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  if (!bookingId) redirect('/dashboard');
+  await rejectBooking(bookingId, session.operator.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  redirect(`/dashboard/bookings/${bookingId}`);
 }
