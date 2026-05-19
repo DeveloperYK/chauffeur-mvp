@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
-import { CAR_LABEL, TIER_BADGE, TIER_LABEL } from '@/lib/labels';
+import { TIER_BADGE, TIER_LABEL, carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import { listAllDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
@@ -64,7 +64,7 @@ export default async function DriversPage() {
                   <Td>
                     <Badge className={TIER_BADGE[d.tier]}>{TIER_LABEL[d.tier]}</Badge>
                   </Td>
-                  <Td>{CAR_LABEL[d.defaultCarType]}</Td>
+                  <Td>{carLabel(d.defaultCarType)}</Td>
                   <Td>
                     <code className="font-mono text-xs text-ink-subtle">{d.whatsappNumber}</code>
                   </Td>

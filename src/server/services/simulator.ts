@@ -15,26 +15,31 @@ const SAMPLE_DRIVERS = [
   {
     name: 'Tom Wright',
     tier: 'premium',
-    defaultCarType: 's_class',
+    defaultCarType: 'Mercedes S-Class',
     whatsappNumber: '+447911100001',
   },
-  { name: 'Andy Patel', tier: 'premium', defaultCarType: 'ex', whatsappNumber: '+447911100002' },
+  {
+    name: 'Andy Patel',
+    tier: 'premium',
+    defaultCarType: 'BMW 7 Series',
+    whatsappNumber: '+447911100002',
+  },
   {
     name: 'Mario Rossi',
     tier: 'ordinary',
-    defaultCarType: 's_class',
+    defaultCarType: 'Mercedes E-Class',
     whatsappNumber: '+447911100003',
   },
   {
     name: 'Alex Mercier',
     tier: 'ordinary',
-    defaultCarType: 'mpv',
+    defaultCarType: 'Mercedes V-Class MPV',
     whatsappNumber: '+447911100004',
   },
   {
     name: 'Yuki Tanaka',
     tier: 'ordinary',
-    defaultCarType: 'mini_bus',
+    defaultCarType: 'Range Rover',
     whatsappNumber: '+447911100005',
   },
 ] as const;
@@ -50,7 +55,7 @@ const SAMPLE_BOOKINGS = [
     execMobile: '+447911999001',
     bookerName: 'Jack',
     accountCode: 'LEGO',
-    carTypePreference: 's_class',
+    carTypePreference: 'Mercedes S-Class',
     contractPricePence: 30000,
   },
   {
@@ -63,7 +68,7 @@ const SAMPLE_BOOKINGS = [
     execMobile: '+447911999002',
     bookerName: 'Simon',
     accountCode: 'MERC',
-    carTypePreference: 'ex',
+    carTypePreference: 'BMW 7 Series',
     contractPricePence: 20000,
   },
   {
@@ -76,7 +81,7 @@ const SAMPLE_BOOKINGS = [
     execMobile: '+33612345678',
     bookerName: 'Chandu',
     accountCode: 'JJ',
-    carTypePreference: 'mpv',
+    carTypePreference: 'Mercedes V-Class MPV',
     contractPricePence: 45000,
   },
 ] as const;

@@ -15,7 +15,7 @@ import { z } from 'zod';
 const acceptSchema = z
   .object({
     token: z.string().min(20).max(4096),
-    carForJob: z.enum(['ex', 's_class', 'mpv', 'mini_bus']).optional(),
+    carForJob: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 

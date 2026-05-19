@@ -32,7 +32,7 @@ export const createBookingSchema = z
     execMobile: phoneSchema,
     bookerName: z.string().min(1).max(80),
     accountCode: z.string().min(1).max(40),
-    carTypePreference: z.enum(['ex', 's_class', 'mpv', 'mini_bus']),
+    carTypePreference: z.string().trim().min(1).max(80),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })

@@ -1,11 +1,41 @@
-import type { BookingState, CarType, DriverTier } from '@/server/db/schema';
+import type { BookingState, DriverTier } from '@/server/db/schema';
 
-export const CAR_LABEL: Record<CarType, string> = {
+/**
+ * Vehicle is free text. We display it as the operator typed it, with a few
+ * convenience aliases for legacy enum-style values that may still sit in old
+ * rows. New entries should already be human-readable.
+ */
+const LEGACY_CAR_ALIAS: Record<string, string> = {
   ex: 'Executive',
-  s_class: 'S-Class',
+  s_class: 'Mercedes S-Class',
   mpv: 'MPV',
   mini_bus: 'Mini bus',
 };
+
+export function carLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  const v = value.trim();
+  return LEGACY_CAR_ALIAS[v] ?? v;
+}
+
+/**
+ * Common vehicles offered as datalist suggestions on car-type inputs. Picking
+ * one is optional — the field accepts any string.
+ */
+export const COMMON_CARS: string[] = [
+  'Mercedes S-Class',
+  'Mercedes E-Class',
+  'Mercedes V-Class MPV',
+  'BMW 7 Series',
+  'BMW 5 Series',
+  'BMW X5',
+  'Range Rover',
+  'Range Rover Sport',
+  'Audi A8',
+  'Tesla Model S',
+  'Executive saloon',
+  'Mini bus',
+];
 
 export const TIER_LABEL: Record<DriverTier, string> = {
   premium: 'Premium',

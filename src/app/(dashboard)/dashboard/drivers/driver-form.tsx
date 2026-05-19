@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select } from '@/components/ui/field';
-import { CAR_LABEL, TIER_LABEL } from '@/lib/labels';
+import { COMMON_CARS, TIER_LABEL } from '@/lib/labels';
 import type { Driver } from '@/server/db/schema';
 
 interface DriverFormProps {
@@ -33,13 +33,25 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
         </Select>
       </Field>
 
-      <Field label="Default vehicle" required>
-        <Select name="defaultCarType" required defaultValue={driver?.defaultCarType ?? 's_class'}>
-          <option value="ex">{CAR_LABEL.ex}</option>
-          <option value="s_class">{CAR_LABEL.s_class}</option>
-          <option value="mpv">{CAR_LABEL.mpv}</option>
-          <option value="mini_bus">{CAR_LABEL.mini_bus}</option>
-        </Select>
+      <Field
+        label="Default vehicle"
+        required
+        helper="Free text. Pick a suggestion or type any car."
+      >
+        <Input
+          type="text"
+          name="defaultCarType"
+          required
+          maxLength={80}
+          list="car-suggestions"
+          placeholder="e.g. Mercedes S-Class, BMW X5"
+          defaultValue={driver?.defaultCarType ?? ''}
+        />
+        <datalist id="car-suggestions">
+          {COMMON_CARS.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
       </Field>
 
       <Field

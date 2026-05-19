@@ -55,17 +55,20 @@ function formatDate(d: Date): string {
 }
 
 function carLabel(c: string | null): string {
-  switch (c) {
+  if (!c) return '';
+  const trimmed = c.trim();
+  // Legacy enum aliases so old rows still display nicely.
+  switch (trimmed) {
     case 'ex':
-      return 'EX';
+      return 'Executive';
     case 's_class':
-      return 'S Class';
+      return 'Mercedes S-Class';
     case 'mpv':
       return 'MPV';
     case 'mini_bus':
-      return 'Mini Bus';
+      return 'Mini bus';
     default:
-      return '';
+      return trimmed;
   }
 }
 
