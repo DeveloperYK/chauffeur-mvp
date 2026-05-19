@@ -53,13 +53,12 @@ export function DriverForm({ action, driver, error }: DriverFormProps) {
           <option value="mini_bus">Mini Bus</option>
         </select>
       </Row>
-      <Row label="WhatsApp number (E.164)">
+      <Row label="WhatsApp number (international format, with country code)">
         <input
           type="tel"
           name="whatsappNumber"
           required
-          placeholder="+447911123456"
-          pattern="\\+[0-9]{6,18}"
+          placeholder="+44 7911 123 456"
           defaultValue={driver?.whatsappNumber ?? ''}
           style={input}
         />
