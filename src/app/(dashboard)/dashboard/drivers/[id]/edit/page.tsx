@@ -1,3 +1,6 @@
+import { Alert } from '@/components/ui/alert';
+import { Card } from '@/components/ui/card';
+import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
 import { getDb } from '@/server/db';
 import { getDriver } from '@/server/services/drivers';
@@ -18,17 +21,35 @@ export default async function EditDriverPage({
   const { id } = await params;
   const search = await searchParams;
   const url = env().DATABASE_URL;
-  if (!url) return <p style={{ color: '#b91c1c' }}>DATABASE_URL not configured.</p>;
+  if (!url) {
+    return (
+      <PageContent>
+        <p className="text-danger-700">DATABASE_URL not configured.</p>
+      </PageContent>
+    );
+  }
   const { db } = getDb(url);
   const driver = await getDriver(db, id);
   if (!driver) notFound();
+
   return (
-    <div style={{ maxWidth: 600 }}>
-      <Link href="/dashboard/drivers" style={{ color: '#2563eb' }}>
-        ← Back to roster
-      </Link>
-      <h1>Edit driver</h1>
-      <DriverForm action={editDriverAction} driver={driver} error={search.error} />
-    </div>
+    <PageContent className="max-w-2xl">
+      <PageHeader
+        title={`Edit ${driver.name}`}
+        breadcrumb={
+          <Link href="/dashboard/drivers" className="hover:underline">
+            Drivers
+          </Link>
+        }
+      />
+      {search.error ? (
+        <Alert tone="danger" className="mb-4">
+          {decodeURIComponent(search.error)}
+        </Alert>
+      ) : null}
+      <Card>
+        <DriverForm action={editDriverAction} driver={driver} />
+      </Card>
+    </PageContent>
   );
 }

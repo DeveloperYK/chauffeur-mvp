@@ -1,3 +1,6 @@
+import { Alert } from '@/components/ui/alert';
+import { Card } from '@/components/ui/card';
+import { PageContent, PageHeader } from '@/components/ui/page';
 import Link from 'next/link';
 import { DriverForm } from '../driver-form';
 import { newDriverAction } from './actions';
@@ -11,12 +14,23 @@ export default async function NewDriverPage({
 }) {
   const params = await searchParams;
   return (
-    <div style={{ maxWidth: 600 }}>
-      <Link href="/dashboard/drivers" style={{ color: '#2563eb' }}>
-        ← Back to roster
-      </Link>
-      <h1>Add driver</h1>
-      <DriverForm action={newDriverAction} error={params.error} />
-    </div>
+    <PageContent className="max-w-2xl">
+      <PageHeader
+        title="Add driver"
+        breadcrumb={
+          <Link href="/dashboard/drivers" className="hover:underline">
+            Drivers
+          </Link>
+        }
+      />
+      {params.error ? (
+        <Alert tone="danger" className="mb-4">
+          {decodeURIComponent(params.error)}
+        </Alert>
+      ) : null}
+      <Card>
+        <DriverForm action={newDriverAction} />
+      </Card>
+    </PageContent>
   );
 }
