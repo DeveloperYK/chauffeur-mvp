@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, Input } from '@/components/ui/field';
 import { PageContent, PageHeader } from '@/components/ui/page';
-import { COMMON_CARS } from '@/lib/labels';
 import Link from 'next/link';
 import { newBookingAction } from './actions';
 
@@ -53,24 +52,14 @@ export default async function NewBookingPage({
             />
           </Field>
 
-          <Field
-            label="Vehicle preference"
-            required
-            helper="Free text. Pick a suggestion or type any car."
-          >
+          <Field label="Vehicle preference" required>
             <Input
               type="text"
               name="carTypePreference"
               required
               maxLength={80}
-              list="car-suggestions"
               placeholder="e.g. Mercedes S-Class, BMW X5"
             />
-            <datalist id="car-suggestions">
-              {COMMON_CARS.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Pickup address" required className="md:col-span-2">

@@ -18,25 +18,6 @@ export function carLabel(value: string | null | undefined): string {
   return LEGACY_CAR_ALIAS[v] ?? v;
 }
 
-/**
- * Common vehicles offered as datalist suggestions on car-type inputs. Picking
- * one is optional — the field accepts any string.
- */
-export const COMMON_CARS: string[] = [
-  'Mercedes S-Class',
-  'Mercedes E-Class',
-  'Mercedes V-Class MPV',
-  'BMW 7 Series',
-  'BMW 5 Series',
-  'BMW X5',
-  'Range Rover',
-  'Range Rover Sport',
-  'Audi A8',
-  'Tesla Model S',
-  'Executive saloon',
-  'Mini bus',
-];
-
 export const TIER_LABEL: Record<DriverTier, string> = {
   premium: 'Premium',
   ordinary: 'Ordinary',
