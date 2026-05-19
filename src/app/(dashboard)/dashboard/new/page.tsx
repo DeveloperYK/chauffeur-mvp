@@ -56,13 +56,12 @@ export default async function NewBookingPage({
         <Row label="Passenger last name">
           <input type="text" name="passengerLastName" required maxLength={80} style={input} />
         </Row>
-        <Row label="Exec mobile (E.164, e.g. +447700900123)">
+        <Row label="Exec mobile (international format, with country code)">
           <input
             type="tel"
             name="execMobile"
             required
-            placeholder="+447700900123"
-            pattern="\\+[0-9]{6,18}"
+            placeholder="+44 7911 123 456 or +1 (202) 555 0100"
             style={input}
           />
         </Row>
