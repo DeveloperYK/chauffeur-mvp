@@ -1,7 +1,6 @@
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
-import { COMMON_CARS } from '@/lib/labels';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
   bookings as bookingsTable,
@@ -122,20 +121,9 @@ export default async function DriverLinkPage({
         <input type="hidden" name="token" value={token} />
         <Field
           label="Vehicle for this job"
-          helper="Defaults to your usual. Type any car you'll use."
+          helper="Defaults to your usual. Change if you'll use a different car."
         >
-          <Input
-            type="text"
-            name="carForJob"
-            maxLength={80}
-            list="car-suggestions"
-            defaultValue={driver.defaultCarType}
-          />
-          <datalist id="car-suggestions">
-            {COMMON_CARS.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <Input type="text" name="carForJob" maxLength={80} defaultValue={driver.defaultCarType} />
         </Field>
         <Button variant="success" type="submit" className="w-full justify-center text-base h-11">
           Accept job
