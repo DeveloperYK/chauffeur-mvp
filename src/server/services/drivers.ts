@@ -23,7 +23,7 @@ export const createDriverSchema = z
   .object({
     name: z.string().min(2).max(120),
     tier: z.enum(['premium', 'ordinary']),
-    defaultCarType: z.enum(['ex', 's_class', 'mpv', 'mini_bus']),
+    defaultCarType: z.string().trim().min(1).max(80),
     whatsappNumber: phoneSchema,
   })
   .strict();

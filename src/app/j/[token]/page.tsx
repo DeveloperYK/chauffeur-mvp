@@ -1,15 +1,19 @@
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Field, Input } from '@/components/ui/field';
+import { COMMON_CARS } from '@/lib/labels';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
+import {
+  bookings as bookingsTable,
+  consumedTokens,
+  drivers as driversTable,
+} from '@/server/db/schema';
+import { verifyDriverLink } from '@/server/domain/link-tokens';
 import { previewDispatchLink } from '@/server/services/dispatch';
-import { acceptAction, declineAction } from './actions';
+import { eq } from 'drizzle-orm';
+import { acceptAction, declineAction, submitCompletionAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-
-const CAR_OPTIONS: { value: string; label: string }[] = [
-  { value: 'ex', label: 'EX' },
-  { value: 's_class', label: 'S Class' },
-  { value: 'mpv', label: 'MPV' },
-  { value: 'mini_bus', label: 'Mini Bus' },
-];
 
 export default async function DriverLinkPage({
   params,
@@ -23,19 +27,45 @@ export default async function DriverLinkPage({
 
   if (search.status === 'accepted') {
     return (
-      <Wrapper>
-        <h1>Job accepted</h1>
-        <p style={{ color: '#475569' }}>The operator and the passenger have been notified.</p>
-      </Wrapper>
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Job accepted</h1>
+        <p className="text-sm text-ink-muted">The operator and the passenger have been notified.</p>
+      </DriverShell>
     );
   }
   if (search.status === 'declined') {
     return (
-      <Wrapper>
-        <h1>Job declined</h1>
-        <p style={{ color: '#475569' }}>Thank you — the operator will reassign.</p>
-      </Wrapper>
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Job declined</h1>
+        <p className="text-sm text-ink-muted">Thank you — the operator will reassign.</p>
+      </DriverShell>
     );
+  }
+  if (search.status === 'submitted') {
+    return (
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Submitted</h1>
+        <p className="text-sm text-ink-muted">Thank you — the operator will review and approve.</p>
+      </DriverShell>
+    );
+  }
+
+  const verified = await verifyDriverLink(driverLinkSecret(), token);
+  if (!verified.ok) {
+    return (
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
+        <p className="text-sm text-ink-muted">
+          {verified.reason === 'expired'
+            ? 'This link has expired.'
+            : 'Sorry, this link is not valid.'}
+        </p>
+      </DriverShell>
+    );
+  }
+
+  if (verified.payload.type === 'completion') {
+    return <CompletionPage token={token} search={search} />;
   }
 
   const result = await previewDispatchLink(token, {
@@ -46,9 +76,9 @@ export default async function DriverLinkPage({
 
   if (!result.ok) {
     return (
-      <Wrapper>
-        <h1>Link unavailable</h1>
-        <p style={{ color: '#475569' }}>
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
+        <p className="text-sm text-ink-muted">
           {result.reason === 'token_expired'
             ? 'This link has expired.'
             : result.reason === 'token_consumed'
@@ -57,133 +87,181 @@ export default async function DriverLinkPage({
                 ? 'This job is no longer open.'
                 : 'Sorry, this link is not valid.'}
         </p>
-      </Wrapper>
+      </DriverShell>
     );
   }
 
   const { booking, driver } = result.preview;
   return (
-    <Wrapper>
-      <h1>Job offer for {driver.name}</h1>
-      <p style={{ color: '#475569' }}>
+    <DriverShell>
+      <h1 className="mb-1 text-lg font-semibold text-ink">Job offer for {driver.name}</h1>
+      <p className="mb-4 text-sm text-ink-muted">
         Please confirm you are <strong>{driver.name}</strong> before accepting.
       </p>
 
       {search.error ? (
-        <div
-          role="alert"
-          style={{
-            padding: '0.6rem 0.8rem',
-            borderRadius: 6,
-            background: '#fee2e2',
-            color: '#7f1d1d',
-            marginBottom: '0.75rem',
-          }}
-        >
+        <Alert tone="danger" className="mb-3">
           {decodeURIComponent(search.error)}
-        </div>
+        </Alert>
       ) : null}
 
-      <dl style={dlStyle}>
-        <dt>Pickup</dt>
-        <dd>{booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC</dd>
-        <dt>From</dt>
-        <dd>{booking.pickupAddress}</dd>
-        <dt>To</dt>
-        <dd>{booking.dropoffAddress}</dd>
-        <dt>Duration</dt>
-        <dd>{booking.expectedDurationMinutes} minutes</dd>
-        <dt>Price</dt>
-        <dd>£{(booking.contractPricePence / 100).toFixed(2)}</dd>
+      <dl className="mb-5 grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm">
+        <Dt>Pickup</Dt>
+        <Dd>{booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC</Dd>
+        <Dt>From</Dt>
+        <Dd>{booking.pickupAddress}</Dd>
+        <Dt>To</Dt>
+        <Dd>{booking.dropoffAddress}</Dd>
+        <Dt>Duration</Dt>
+        <Dd>{booking.expectedDurationMinutes} minutes</Dd>
+        <Dt>Price</Dt>
+        <Dd>£{(booking.contractPricePence / 100).toFixed(2)}</Dd>
       </dl>
 
-      <form action={acceptAction} style={{ marginTop: '1rem' }}>
+      <form action={acceptAction} className="space-y-3">
         <input type="hidden" name="token" value={token} />
-        <label style={{ display: 'grid', gap: 4, marginBottom: '0.75rem' }}>
-          <span style={{ fontSize: 13, color: '#334155' }}>Vehicle (defaults to your usual)</span>
-          <select name="carForJob" defaultValue={driver.defaultCarType} style={selectStyle}>
-            {CAR_OPTIONS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+        <Field
+          label="Vehicle for this job"
+          helper="Defaults to your usual. Type any car you'll use."
+        >
+          <Input
+            type="text"
+            name="carForJob"
+            maxLength={80}
+            list="car-suggestions"
+            defaultValue={driver.defaultCarType}
+          />
+          <datalist id="car-suggestions">
+            {COMMON_CARS.map((c) => (
+              <option key={c} value={c} />
             ))}
-          </select>
-        </label>
-        <button type="submit" style={primary}>
+          </datalist>
+        </Field>
+        <Button variant="success" type="submit" className="w-full justify-center text-base h-11">
           Accept job
-        </button>
+        </Button>
       </form>
-
-      <form action={declineAction} style={{ marginTop: '0.5rem' }}>
+      <form action={declineAction} className="mt-2">
         <input type="hidden" name="token" value={token} />
-        <button type="submit" style={secondary}>
+        <Button variant="ghost" type="submit" className="w-full justify-center">
           Decline
-        </button>
+        </Button>
       </form>
-    </Wrapper>
+    </DriverShell>
   );
 }
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+async function CompletionPage({
+  token,
+  search,
+}: {
+  token: string;
+  search: { error?: string };
+}) {
+  const verified = await verifyDriverLink(driverLinkSecret(), token);
+  if (!verified.ok) {
+    return (
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
+        <p className="text-sm text-ink-muted">Sorry, this link is not valid.</p>
+      </DriverShell>
+    );
+  }
+  const { jobId, driverId, jti } = verified.payload;
+  const database = db();
+  const [used] = await database
+    .select()
+    .from(consumedTokens)
+    .where(eq(consumedTokens.jti, jti))
+    .limit(1);
+  if (used) {
+    return (
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Already submitted</h1>
+        <p className="text-sm text-ink-muted">Thank you — this form has been received.</p>
+      </DriverShell>
+    );
+  }
+  const [booking] = await database
+    .select()
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, jobId))
+    .limit(1);
+  if (!booking || booking.state !== 'awaiting_driver_form') {
+    return (
+      <DriverShell>
+        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
+        <p className="text-sm text-ink-muted">This form is no longer open.</p>
+      </DriverShell>
+    );
+  }
+  const [driver] = await database
+    .select()
+    .from(driversTable)
+    .where(eq(driversTable.id, driverId))
+    .limit(1);
+
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        padding: '1.5rem',
-        fontFamily: 'system-ui, sans-serif',
-        background: '#f8fafc',
-        color: '#0f172a',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 520,
-          margin: '0 auto',
-          background: 'white',
-          borderRadius: 12,
-          padding: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-        }}
-      >
+    <DriverShell>
+      <h1 className="mb-1 text-lg font-semibold text-ink">Trip completion</h1>
+      <p className="mb-4 text-sm text-ink-muted">
+        For driver <strong>{driver?.name ?? 'unknown'}</strong>. Three quick fields and you're done.
+      </p>
+      {search.error ? (
+        <Alert tone="danger" className="mb-3">
+          {decodeURIComponent(search.error)}
+        </Alert>
+      ) : null}
+      <form action={submitCompletionAction} className="space-y-3">
+        <input type="hidden" name="token" value={token} />
+        <Field label="Car park / waiting fee (£)" required>
+          <Input
+            type="number"
+            name="carParkPounds"
+            step="0.01"
+            min={0}
+            max={1000}
+            defaultValue={0}
+            required
+          />
+        </Field>
+        <Field label="Waiting time (minutes)" required>
+          <Input
+            type="number"
+            name="waitingTimeMinutes"
+            min={0}
+            max={720}
+            defaultValue={0}
+            required
+          />
+        </Field>
+        <Field label="Drop-off time (UTC)" required>
+          <Input type="datetime-local" name="dropoffAt" required />
+        </Field>
+        <Button variant="primary" type="submit" className="w-full justify-center text-base h-11">
+          Submit
+        </Button>
+      </form>
+    </DriverShell>
+  );
+}
+
+function DriverShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-surface-sunken p-4">
+      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-card">
         {children}
       </div>
     </main>
   );
 }
 
-const dlStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '110px 1fr',
-  gap: '0.4rem 1rem',
-  margin: 0,
-};
+function Dt({ children }: { children: React.ReactNode }) {
+  return (
+    <dt className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{children}</dt>
+  );
+}
 
-const selectStyle: React.CSSProperties = {
-  padding: '0.5rem 0.6rem',
-  borderRadius: 6,
-  border: '1px solid #cbd5e1',
-  fontSize: 14,
-};
-
-const primary: React.CSSProperties = {
-  width: '100%',
-  padding: '0.75rem',
-  borderRadius: 6,
-  background: '#16a34a',
-  color: 'white',
-  border: 'none',
-  fontWeight: 700,
-  cursor: 'pointer',
-  fontSize: 16,
-};
-
-const secondary: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem',
-  borderRadius: 6,
-  background: 'white',
-  color: '#b91c1c',
-  border: '1px solid #fca5a5',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
+function Dd({ children }: { children: React.ReactNode }) {
+  return <dd className="text-sm text-ink">{children}</dd>;
+}

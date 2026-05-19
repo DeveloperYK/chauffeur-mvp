@@ -1,18 +1,27 @@
-import type { Booking, CarType, Driver } from '@/server/db/schema';
-
-const CAR_LABEL: Record<CarType, string> = {
-  ex: 'EX',
-  s_class: 'S Class',
-  mpv: 'MPV',
-  mini_bus: 'Mini Bus',
-};
+import type { Booking, Driver } from '@/server/db/schema';
 
 function timeLine(d: Date): string {
   return `${d.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
 }
 
-export function assignedSms(booking: Booking, driver: Driver, carForJob: CarType): string {
-  return `Your chauffeur for ${timeLine(booking.pickupAt)} is confirmed. Driver: ${driver.name}. Car: ${CAR_LABEL[carForJob]}. Pickup: ${booking.pickupAddress}`;
+function displayCar(value: string): string {
+  // Legacy enum-style fallback so old rows still read nicely.
+  switch (value) {
+    case 'ex':
+      return 'Executive';
+    case 's_class':
+      return 'Mercedes S-Class';
+    case 'mpv':
+      return 'MPV';
+    case 'mini_bus':
+      return 'Mini bus';
+    default:
+      return value;
+  }
+}
+
+export function assignedSms(booking: Booking, driver: Driver, carForJob: string): string {
+  return `Your chauffeur for ${timeLine(booking.pickupAt)} is confirmed. Driver: ${driver.name}. Car: ${displayCar(carForJob)}. Pickup: ${booking.pickupAddress}`;
 }
 
 export function enRouteSms(booking: Booking, driver: Driver): string {

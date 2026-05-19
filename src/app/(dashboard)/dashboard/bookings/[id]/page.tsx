@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/field';
 import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
-import { CAR_LABEL, STATE_BADGE, STATE_LABEL, TIER_LABEL } from '@/lib/labels';
+import { STATE_BADGE, STATE_LABEL, TIER_LABEL, carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { listActiveDrivers } from '@/server/services/drivers';
@@ -78,7 +78,7 @@ export default async function BookingPage({
             <DefItem label="From">{booking.pickupAddress}</DefItem>
             <DefItem label="To">{booking.dropoffAddress}</DefItem>
             <DefItem label="Duration">{booking.expectedDurationMinutes} minutes</DefItem>
-            <DefItem label="Vehicle preference">{CAR_LABEL[booking.carTypePreference]}</DefItem>
+            <DefItem label="Vehicle preference">{carLabel(booking.carTypePreference)}</DefItem>
             {booking.notes ? <DefItem label="Notes">{booking.notes}</DefItem> : null}
           </DefList>
         </Card>
@@ -139,7 +139,7 @@ export default async function BookingPage({
                 {driverList.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.tier === 'premium' ? '★ ' : ''}
-                    {d.name} · {TIER_LABEL[d.tier]} · {CAR_LABEL[d.defaultCarType]}
+                    {d.name} · {TIER_LABEL[d.tier]} · {carLabel(d.defaultCarType)}
                   </option>
                 ))}
               </Select>
@@ -230,7 +230,7 @@ export default async function BookingPage({
               {booking.assignedDriverId ? booking.assignedDriverId.slice(0, 8) : '—'}
             </DefItem>
             <DefItem label="Vehicle for this job">
-              {booking.carForThisJob ? CAR_LABEL[booking.carForThisJob] : '—'}
+              {booking.carForThisJob ? carLabel(booking.carForThisJob) : '—'}
             </DefItem>
           </DefList>
         </Card>

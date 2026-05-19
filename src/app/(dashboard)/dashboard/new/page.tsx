@@ -1,3 +1,9 @@
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, Input } from '@/components/ui/field';
+import { PageContent, PageHeader } from '@/components/ui/page';
+import { COMMON_CARS } from '@/lib/labels';
 import Link from 'next/link';
 import { newBookingAction } from './actions';
 
@@ -6,127 +12,128 @@ export const dynamic = 'force-dynamic';
 export default async function NewBookingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; issues?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
   return (
-    <div style={{ maxWidth: 720 }}>
-      <Link href="/dashboard" style={{ color: '#2563eb' }}>
-        ← Back to board
-      </Link>
-      <h1>New booking</h1>
+    <PageContent className="max-w-3xl">
+      <PageHeader
+        title="New booking"
+        breadcrumb={
+          <Link href="/dashboard" className="hover:underline">
+            Board
+          </Link>
+        }
+        description="Capture the booking exactly as the secretary describes it on the call."
+      />
+
       {params.error ? (
-        <div
-          role="alert"
-          style={{
-            padding: '0.5rem 0.75rem',
-            background: '#fee2e2',
-            border: '1px solid #fecaca',
-            borderRadius: 6,
-            marginBottom: '1rem',
-          }}
-        >
+        <Alert tone="danger" className="mb-4">
           {decodeURIComponent(params.error)}
-        </div>
+        </Alert>
       ) : null}
-      <form action={newBookingAction} style={{ display: 'grid', gap: '0.75rem' }}>
-        <Row label="Pickup (UTC)">
-          <input type="datetime-local" name="pickupAt" required style={input} />
-        </Row>
-        <Row label="Expected duration (minutes)">
-          <input
-            type="number"
-            name="expectedDurationMinutes"
-            min={15}
-            max={720}
-            defaultValue={90}
-            required
-            style={input}
-          />
-        </Row>
-        <Row label="Pickup address">
-          <input type="text" name="pickupAddress" required maxLength={500} style={input} />
-        </Row>
-        <Row label="Drop-off address">
-          <input type="text" name="dropoffAddress" required maxLength={500} style={input} />
-        </Row>
-        <Row label="Passenger first name">
-          <input type="text" name="passengerFirstName" required maxLength={80} style={input} />
-        </Row>
-        <Row label="Passenger last name">
-          <input type="text" name="passengerLastName" required maxLength={80} style={input} />
-        </Row>
-        <Row label="Exec mobile (international format, with country code)">
-          <input
-            type="tel"
-            name="execMobile"
-            required
-            placeholder="+44 7911 123 456 or +1 (202) 555 0100"
-            style={input}
-          />
-        </Row>
-        <Row label="Booker name">
-          <input type="text" name="bookerName" required maxLength={80} style={input} />
-        </Row>
-        <Row label="Account code">
-          <input type="text" name="accountCode" required maxLength={40} style={input} />
-        </Row>
-        <Row label="Car type">
-          <select name="carTypePreference" required defaultValue="s_class" style={input}>
-            <option value="ex">EX</option>
-            <option value="s_class">S Class</option>
-            <option value="mpv">MPV</option>
-            <option value="mini_bus">Mini Bus</option>
-          </select>
-        </Row>
-        <Row label="Contract price (£)">
-          <input
-            type="number"
-            name="contractPricePounds"
-            step="0.01"
-            min={0}
-            max={10000}
-            required
-            style={input}
-          />
-        </Row>
-        <Row label="Notes (optional)">
-          <textarea name="notes" maxLength={2000} rows={3} style={input} />
-        </Row>
-        <button
-          type="submit"
-          style={{
-            marginTop: '0.5rem',
-            padding: '0.6rem 1rem',
-            borderRadius: 6,
-            background: '#0f172a',
-            color: 'white',
-            border: 'none',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Create booking
-        </button>
-      </form>
-    </div>
-  );
-}
 
-const input: React.CSSProperties = {
-  padding: '0.5rem 0.6rem',
-  borderRadius: 6,
-  border: '1px solid #cbd5e1',
-  fontSize: 14,
-  width: '100%',
-};
+      <Card>
+        <CardHeader>
+          <CardTitle>Booking details</CardTitle>
+        </CardHeader>
+        <form action={newBookingAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Pickup date and time (UTC)" required className="md:col-span-2">
+            <Input type="datetime-local" name="pickupAt" required />
+          </Field>
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 13, color: '#334155' }}>{label}</span>
-      {/* biome-ignore lint/a11y/noLabelWithoutControl: wrapper renders the control via children */}
-      <label style={{ display: 'contents' }}>{children}</label>
-    </div>
+          <Field label="Expected duration (minutes)" required helper="Between 15 and 720 minutes.">
+            <Input
+              type="number"
+              name="expectedDurationMinutes"
+              min={15}
+              max={720}
+              defaultValue={90}
+              required
+            />
+          </Field>
+
+          <Field
+            label="Vehicle preference"
+            required
+            helper="Free text. Pick a suggestion or type any car."
+          >
+            <Input
+              type="text"
+              name="carTypePreference"
+              required
+              maxLength={80}
+              list="car-suggestions"
+              placeholder="e.g. Mercedes S-Class, BMW X5"
+            />
+            <datalist id="car-suggestions">
+              {COMMON_CARS.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </Field>
+
+          <Field label="Pickup address" required className="md:col-span-2">
+            <Input type="text" name="pickupAddress" required maxLength={500} />
+          </Field>
+
+          <Field label="Drop-off address" required className="md:col-span-2">
+            <Input type="text" name="dropoffAddress" required maxLength={500} />
+          </Field>
+
+          <Field label="Passenger first name" required>
+            <Input type="text" name="passengerFirstName" required maxLength={80} />
+          </Field>
+
+          <Field label="Passenger last name" required>
+            <Input type="text" name="passengerLastName" required maxLength={80} />
+          </Field>
+
+          <Field
+            label="Executive mobile"
+            required
+            helper="International format with country code: e.g. +44 7911 123 456 or +1 (202) 555 0100."
+            className="md:col-span-2"
+          >
+            <Input type="tel" name="execMobile" required placeholder="+44 7911 123 456" />
+          </Field>
+
+          <Field label="Booked by (secretary/PA)" required>
+            <Input type="text" name="bookerName" required maxLength={80} />
+          </Field>
+
+          <Field label="Account code" required helper="Customer account, e.g. LEGO or MERC.">
+            <Input type="text" name="accountCode" required maxLength={40} />
+          </Field>
+
+          <Field label="Contract price (£)" required>
+            <Input
+              type="number"
+              name="contractPricePounds"
+              step="0.01"
+              min={0}
+              max={10000}
+              required
+              defaultValue="0"
+            />
+          </Field>
+
+          <Field label="Notes" helper="Optional — special requests, flight number, etc.">
+            <Input type="text" name="notes" maxLength={2000} />
+          </Field>
+
+          <div className="md:col-span-2 flex justify-end gap-2 border-t border-border pt-4">
+            <Link href="/dashboard">
+              <Button variant="ghost" type="button">
+                Cancel
+              </Button>
+            </Link>
+            <Button variant="primary" type="submit">
+              Create booking
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </PageContent>
   );
 }

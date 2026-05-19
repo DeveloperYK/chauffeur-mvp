@@ -26,7 +26,9 @@ export const bookingStateEnum = pgEnum('booking_state', [
 
 export const driverTierEnum = pgEnum('driver_tier', ['premium', 'ordinary']);
 
-export const carTypeEnum = pgEnum('car_type', ['ex', 's_class', 'mpv', 'mini_bus']);
+// Vehicle is captured as free text — operators want to type real model names
+// (e.g. "Mercedes S-Class", "BMW X5", "Range Rover", "Mercedes V-Class MPV")
+// rather than be constrained to a closed enum.
 
 export const actorTypeEnum = pgEnum('actor_type', ['operator', 'system', 'driver']);
 
@@ -64,7 +66,7 @@ export const drivers = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
     tier: driverTierEnum('tier').notNull(),
-    defaultCarType: carTypeEnum('default_car_type').notNull(),
+    defaultCarType: text('default_car_type').notNull(),
     whatsappNumber: text('whatsapp_number').notNull(),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -94,7 +96,7 @@ export const bookings = pgTable(
     execMobile: text('exec_mobile').notNull(),
     bookerName: text('booker_name').notNull(),
     accountCode: text('account_code').notNull(),
-    carTypePreference: carTypeEnum('car_type_preference').notNull(),
+    carTypePreference: text('car_type_preference').notNull(),
     contractPricePence: integer('contract_price_pence').notNull(),
     notes: text('notes'),
 
@@ -102,7 +104,7 @@ export const bookings = pgTable(
     assignedDriverId: uuid('assigned_driver_id').references(() => drivers.id, {
       onDelete: 'restrict',
     }),
-    carForThisJob: carTypeEnum('car_for_this_job'),
+    carForThisJob: text('car_for_this_job'),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
 
     // Completion form (filled by driver)
@@ -168,7 +170,11 @@ export const consumedTokens = pgTable('consumed_tokens', {
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
 export type DriverTier = (typeof driverTierEnum.enumValues)[number];
-export type CarType = (typeof carTypeEnum.enumValues)[number];
+/**
+ * Vehicle descriptor — free text. Common values include "Mercedes S-Class",
+ * "Mercedes E-Class", "BMW X5", "Range Rover", "Mercedes V-Class MPV", etc.
+ */
+export type CarType = string;
 export type ActorType = (typeof actorTypeEnum.enumValues)[number];
 
 export type Operator = typeof operators.$inferSelect;
