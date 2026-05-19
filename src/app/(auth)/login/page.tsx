@@ -13,29 +13,21 @@ export default async function LoginPage({
   if (session) redirect('/dashboard');
   const params = await searchParams;
   const errorCode = params.error;
+
   return (
-    <main
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif',
-        background: '#0f172a',
-        color: '#f8fafc',
-      }}
-    >
-      <div
-        style={{
-          width: 380,
-          padding: '2rem',
-          borderRadius: 12,
-          background: '#1e293b',
-        }}
-      >
-        <h1 style={{ marginTop: 0 }}>Chauffeur Dispatch</h1>
-        <p style={{ color: '#94a3b8' }}>Operator sign in</p>
-        <LoginForm errorCode={errorCode} />
+    <main className="grid min-h-screen place-items-center bg-surface-sunken p-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded bg-brand-700 text-sm font-bold text-white">
+            CD
+          </span>
+          <span className="text-base font-semibold text-ink">Chauffeur Dispatch</span>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-6 shadow-card">
+          <h1 className="mb-1 text-lg font-semibold text-ink">Sign in</h1>
+          <p className="mb-4 text-sm text-ink-muted">Operator console</p>
+          <LoginForm errorCode={errorCode} />
+        </div>
       </div>
     </main>
   );

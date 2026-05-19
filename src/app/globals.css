@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply h-full bg-surface-sunken text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand-300 ring-offset-1 ring-offset-surface-sunken;
+  }
+
+  /* Inputs default look — small Atlassian style */
+  input.form-input,
+  select.form-select,
+  textarea.form-textarea {
+    @apply rounded border border-border bg-surface px-3 py-2 text-sm text-ink shadow-none
+           placeholder:text-ink-disabled
+           focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus:ring-offset-0;
+  }
+
+  input.form-input:disabled,
+  select.form-select:disabled,
+  textarea.form-textarea:disabled {
+    @apply bg-neutral-100 text-ink-disabled;
+  }
+
+  /* Native number/date inputs in form-input class */
+  input[type="datetime-local"].form-input {
+    @apply pr-2;
+  }
+}
+
+@layer components {
+  .stack {
+    @apply flex flex-col gap-2;
+  }
+  .row {
+    @apply flex flex-row items-center gap-2;
+  }
+}
