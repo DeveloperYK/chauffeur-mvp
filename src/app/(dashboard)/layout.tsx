@@ -1,3 +1,4 @@
+import { type NavItem, Sidebar } from '@/components/ui/nav';
 import { currentSession } from '@/server/auth/current';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -7,37 +8,20 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await currentSession();
   if (!session) redirect('/login');
+
+  const items: NavItem[] = [
+    { href: '/dashboard', label: 'Board', icon: '▦' },
+    { href: '/dashboard/calendar', label: 'Calendar', icon: '🗓' },
+    { href: '/dashboard/drivers', label: 'Drivers', icon: '◉' },
+  ];
+  if (process.env.NODE_ENV !== 'production') {
+    items.push({ href: '/dashboard/simulator', label: 'Simulator', icon: '⚙' });
+  }
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        fontFamily: 'system-ui, sans-serif',
-        background: '#f8fafc',
-        color: '#0f172a',
-      }}
-    >
-      <header
-        style={{
-          padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e2e8f0',
-          background: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'baseline' }}>
-          <strong>Chauffeur Dispatch</strong>
-          <a href="/dashboard" style={{ color: '#0f172a', textDecoration: 'none' }}>
-            Board
-          </a>
-          <a href="/dashboard/drivers" style={{ color: '#0f172a', textDecoration: 'none' }}>
-            Drivers
-          </a>
-        </div>
-        <span style={{ fontSize: 14, color: '#64748b' }}>{session.operator.name}</span>
-      </header>
-      <main style={{ padding: '1.5rem' }}>{children}</main>
+    <div className="flex h-full min-h-screen bg-surface-sunken">
+      <Sidebar items={items} operatorName={session.operator.name} />
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }

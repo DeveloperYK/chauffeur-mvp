@@ -62,8 +62,7 @@ export function groupByState(items: Booking[]): Board {
 }
 
 /**
- * Per-day total and unassigned counts for the given London calendar month.
- * Used by the calendar popover to render `N total · M unassigned` per cell.
+ * Per-day count breakdown for the given London calendar month.
  *
  * Strategy: pull just the {pickupAt, state} pairs from the database and
  * bucket them in JS by their London day. At 60-100 bookings/day × ~31 days
@@ -73,6 +72,11 @@ export function groupByState(items: Booking[]): Board {
 export interface DayCounts {
   total: number;
   unassigned: number;
+  /** total - unassigned: everything that's been picked up by a driver
+   *  (assigned, in progress, awaiting form, awaiting review, completed)
+   *  or has been cancelled. From the operator's perspective: no longer
+   *  waiting for them. */
+  dispatched: number;
 }
 
 export async function monthlyDayCounts(
@@ -91,9 +95,13 @@ export async function monthlyDayCounts(
   const counts = new Map<string, DayCounts>();
   for (const row of rows) {
     const day = formatLondonDay(row.pickupAt);
-    const cur = counts.get(day) ?? { total: 0, unassigned: 0 };
+    const cur = counts.get(day) ?? { total: 0, unassigned: 0, dispatched: 0 };
     cur.total += 1;
-    if (row.state === 'unassigned') cur.unassigned += 1;
+    if (row.state === 'unassigned') {
+      cur.unassigned += 1;
+    } else {
+      cur.dispatched += 1;
+    }
     counts.set(day, cur);
   }
   return counts;

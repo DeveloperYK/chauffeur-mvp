@@ -87,12 +87,12 @@ describe('bookings-query date filtering (integration)', () => {
       ]);
 
       const may = await monthlyDayCounts(db, '2026-05');
-      expect(may.get('2026-05-14')).toEqual({ total: 3, unassigned: 2 });
-      expect(may.get('2026-05-15')).toEqual({ total: 1, unassigned: 1 });
+      expect(may.get('2026-05-14')).toEqual({ total: 3, unassigned: 2, dispatched: 1 });
+      expect(may.get('2026-05-15')).toEqual({ total: 1, unassigned: 1, dispatched: 0 });
       expect(may.has('2026-06-01')).toBe(false);
 
       const jun = await monthlyDayCounts(db, '2026-06');
-      expect(jun.get('2026-06-01')).toEqual({ total: 1, unassigned: 1 });
+      expect(jun.get('2026-06-01')).toEqual({ total: 1, unassigned: 1, dispatched: 0 });
     });
 
     it('returns empty map for unknown month', async () => {
@@ -108,7 +108,7 @@ describe('bookings-query date filtering (integration)', () => {
           validBooking('2026-01-15T15:00:00Z', 'assigned'),
         ]);
       const jan = await monthlyDayCounts(db, '2026-01');
-      expect(jan.get('2026-01-15')).toEqual({ total: 2, unassigned: 1 });
+      expect(jan.get('2026-01-15')).toEqual({ total: 2, unassigned: 1, dispatched: 1 });
     });
   });
 });
