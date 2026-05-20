@@ -284,6 +284,7 @@ When Claude works on this repo:
 - **Update `docs/adr/` for non-obvious decisions.** Future Claude reads them.
 - **Do not work around failing tests by changing the test.** Find the real cause.
 - **Do not bypass pre-commit hooks.** No `--no-verify`. Ever.
+- **Restart the local dev server after every change.** After merging/applying any change that the user is testing locally, kill the running dev server on port 3000 and start it fresh (`kill $(lsof -ti:3000)`, then `pnpm dev` with the `.env` loaded). Do this without being asked — the user wants a clean restart each time so they never test against a stale process. Confirm it's healthy via `GET /api/healthz` before reporting done.
 
 When the user asks "implement stage N", the loop is:
 
