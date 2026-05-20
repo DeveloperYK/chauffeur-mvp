@@ -2,6 +2,7 @@ import { CalendarPopover } from '@/components/calendar-popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageContent, PageHeader } from '@/components/ui/page';
+import { cn } from '@/lib/cn';
 import {
   formatLondonDayLong,
   formatLondonMonth,
@@ -10,7 +11,7 @@ import {
   parseMonthString,
 } from '@/lib/dates';
 import { env } from '@/lib/env';
-import { STATE_BADGE, STATE_LABEL, carLabel } from '@/lib/labels';
+import { STATE_BADGE, STATE_LABEL } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import type { Booking, BookingState } from '@/server/db/schema';
 import {
@@ -18,6 +19,7 @@ import {
   listBookingsForDay,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
+import { listOperators, operatorsById } from '@/server/services/operators';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +37,7 @@ const COLUMNS: BookingState[] = [
 export default async function DashboardHome({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; calMonth?: string }>;
+  searchParams: Promise<{ date?: string; calMonth?: string; operator?: string }>;
 }) {
   const url = env().DATABASE_URL;
   if (!url) {
@@ -53,13 +55,25 @@ export default async function DashboardHome({
     params.calMonth && parseMonthString(params.calMonth)
       ? params.calMonth
       : formatLondonMonth(new Date(`${selectedDay}T12:00:00Z`));
+  const operatorFilter = params.operator && params.operator !== '' ? params.operator : undefined;
 
-  const [rows, counts] = await Promise.all([
-    listBookingsForDay(db, selectedDay),
+  const [rows, counts, operatorList] = await Promise.all([
+    listBookingsForDay(db, selectedDay, operatorFilter),
     monthlyDayCounts(db, visibleMonth),
+    listOperators(db),
   ]);
   const board = groupByState(rows);
   const total = rows.length;
+
+  const assigneeIds = rows.map((b) => b.assignedOperatorId).filter((x): x is string => Boolean(x));
+  const assignees = await operatorsById(db, assigneeIds);
+
+  // Build a querystring helper that preserves date + calMonth.
+  const baseQuery = (operatorId: string | undefined) => {
+    const q = new URLSearchParams({ date: selectedDay, calMonth: visibleMonth });
+    if (operatorId) q.set('operator', operatorId);
+    return q.toString();
+  };
 
   return (
     <PageContent>
@@ -73,7 +87,9 @@ export default async function DashboardHome({
               <Badge className="bg-brand-50 text-brand-700">Today</Badge>
             ) : (
               <Link
-                href={`/dashboard?date=${today}&calMonth=${today.slice(0, 7)}`}
+                href={`/dashboard?${baseQuery(operatorFilter)
+                  .replace(/date=[^&]*/, `date=${today}`)
+                  .replace(/calMonth=[^&]*/, `calMonth=${today.slice(0, 7)}`)}`}
                 className="text-xs text-brand-700 hover:underline"
               >
                 ← Back to today
@@ -99,6 +115,25 @@ export default async function DashboardHome({
         }
       />
 
+      {/* Operator filter — Jira-style assignee chips */}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Operator
+        </span>
+        <FilterChip href={`/dashboard?${baseQuery(undefined)}`} active={!operatorFilter}>
+          All
+        </FilterChip>
+        {operatorList.map((op) => (
+          <FilterChip
+            key={op.id}
+            href={`/dashboard?${baseQuery(op.id)}`}
+            active={operatorFilter === op.id}
+          >
+            {op.name}
+          </FilterChip>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
         {COLUMNS.map((state) => {
           const items = board[state];
@@ -120,7 +155,17 @@ export default async function DashboardHome({
                 {items.length === 0 ? (
                   <li className="px-1 py-2 text-xs italic text-ink-muted">No tickets.</li>
                 ) : (
-                  items.map((b) => <BookingCard key={b.id} booking={b} />)
+                  items.map((b) => (
+                    <BookingCard
+                      key={b.id}
+                      booking={b}
+                      assigneeName={
+                        b.assignedOperatorId
+                          ? (assignees.get(b.assignedOperatorId)?.name ?? null)
+                          : null
+                      }
+                    />
+                  ))
                 )}
               </ul>
             </section>
@@ -131,7 +176,37 @@ export default async function DashboardHome({
   );
 }
 
-function BookingCard({ booking }: { booking: Booking }) {
+function FilterChip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+        active
+          ? 'border-brand-500 bg-brand-50 text-brand-700'
+          : 'border-border bg-surface text-ink-subtle hover:bg-neutral-100',
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function BookingCard({
+  booking,
+  assigneeName,
+}: {
+  booking: Booking;
+  assigneeName: string | null;
+}) {
   return (
     <li>
       <Link
@@ -152,12 +227,21 @@ function BookingCard({ booking }: { booking: Booking }) {
         <p className="mt-1 truncate text-xs text-ink-muted">
           {booking.pickupAddress} → {booking.dropoffAddress}
         </p>
-        <p className="mt-1 text-xs text-ink-muted">
-          <span className="font-medium text-ink-subtle">{booking.accountCode}</span> ·{' '}
-          {carLabel(booking.carForThisJob ?? booking.carTypePreference)} · £
-          {(booking.contractPricePence / 100).toFixed(2)}
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+          <span className="font-medium text-ink-subtle">{booking.accountCode}</span>
+          <span>· £{(booking.contractPricePence / 100).toFixed(2)}</span>
+          {assigneeName ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-2xs font-medium text-ink-subtle">
+              <span aria-hidden>👤</span>
+              {assigneeName}
+            </span>
+          ) : (
+            <span className="rounded-full bg-warning-50 px-1.5 py-0.5 text-2xs font-medium text-warning-700">
+              No operator
+            </span>
+          )}
           {booking.flaggedAt ? (
-            <span className="ml-2 rounded bg-warning-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-warning-700">
+            <span className="rounded bg-warning-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-warning-700">
               Flagged
             </span>
           ) : null}

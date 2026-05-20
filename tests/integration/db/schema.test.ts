@@ -68,9 +68,7 @@ describe('db schema — integration (pglite)', () => {
         passengerFirstName: 'Eric',
         passengerLastName: 'French',
         execMobile: '+447911123456',
-        bookerName: 'Jack',
         accountCode: 'LEGO',
-        carTypePreference: 's_class',
         contractPricePence: 30000,
       })
       .returning();

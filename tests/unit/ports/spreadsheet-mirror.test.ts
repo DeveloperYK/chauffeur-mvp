@@ -1,5 +1,5 @@
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
-import type { Booking, Driver } from '@/server/db/schema';
+import type { Booking, Driver, Operator } from '@/server/db/schema';
 import { SHEET_HEADERS, rowFromBooking } from '@/server/ports/spreadsheet-mirror';
 import { describe, expect, it } from 'vitest';
 
@@ -13,13 +13,13 @@ const baseBooking: Booking = {
   passengerFirstName: 'Eric',
   passengerLastName: 'French',
   execMobile: '+447911999999',
-  bookerName: 'Jack',
   accountCode: 'LEGO',
-  carTypePreference: 's_class',
   contractPricePence: 30000,
   notes: null,
+  createdByOperatorId: 'op-1',
+  assignedOperatorId: 'op-1',
   assignedDriverId: 'driver-id-1',
-  carForThisJob: 's_class',
+  carForThisJob: 'Mercedes S-Class',
   assignedAt: new Date('2026-06-01T07:00:00.000Z'),
   carParkPence: 750,
   waitingTimeMinutes: 12,
@@ -39,8 +39,18 @@ const driver: Driver = {
   id: 'driver-id-1',
   name: 'Tom',
   tier: 'premium',
-  defaultCarType: 's_class',
+  defaultCarType: 'Mercedes S-Class',
   whatsappNumber: '+447911000001',
+  active: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const operator: Operator = {
+  id: 'op-1',
+  email: 'op@example.com',
+  passwordHash: 'x',
+  name: 'Alice',
   active: true,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -98,12 +108,24 @@ describe('rowFromBooking', () => {
     expect(assigned[18]).toBe('No');
   });
 
-  it('falls back to car type preference when carForThisJob is null', () => {
-    const row = rowFromBooking({
-      booking: { ...baseBooking, carForThisJob: null, carTypePreference: 'mpv' },
-      driver,
-    });
-    expect(row[10]).toBe('MPV');
+  it('renders the vehicle the driver brought (carForThisJob)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[10]).toBe('Mercedes S-Class');
+  });
+
+  it('leaves the vehicle column blank when carForThisJob is null', () => {
+    const row = rowFromBooking({ booking: { ...baseBooking, carForThisJob: null }, driver });
+    expect(row[10]).toBe('');
+  });
+
+  it('renders the operator name in the Booked By column', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver, operator });
+    expect(row[4]).toBe('Alice');
+  });
+
+  it('leaves Booked By blank when no operator provided', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[4]).toBe('');
   });
 
   it('leaves driver columns blank when no driver provided', () => {

@@ -52,16 +52,6 @@ export default async function NewBookingPage({
             />
           </Field>
 
-          <Field label="Vehicle preference" required>
-            <Input
-              type="text"
-              name="carTypePreference"
-              required
-              maxLength={80}
-              placeholder="e.g. Mercedes S-Class, BMW X5"
-            />
-          </Field>
-
           <Field label="Pickup address" required className="md:col-span-2">
             <Input type="text" name="pickupAddress" required maxLength={500} />
           </Field>
@@ -85,10 +75,6 @@ export default async function NewBookingPage({
             className="md:col-span-2"
           >
             <Input type="tel" name="execMobile" required placeholder="+44 7911 123 456" />
-          </Field>
-
-          <Field label="Booked by (secretary/PA)" required>
-            <Input type="text" name="bookerName" required maxLength={80} />
           </Field>
 
           <Field label="Account code" required helper="Customer account, e.g. LEGO or MERC.">

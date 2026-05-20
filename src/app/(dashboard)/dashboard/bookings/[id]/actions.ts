@@ -15,6 +15,7 @@ import {
   rejectBooking,
 } from '@/server/services/completion';
 import { generateDispatchLink } from '@/server/services/dispatch';
+import { assignOperator } from '@/server/services/operators';
 import { redirect } from 'next/navigation';
 
 export async function generateLinkAction(formData: FormData): Promise<void> {
@@ -123,5 +124,20 @@ export async function cancelAction(formData: FormData): Promise<void> {
           : `Cannot cancel from state: ${result.state}.`;
     redirect(`/dashboard/bookings/${bookingId}?error=${encodeURIComponent(msg)}`);
   }
+  redirect(`/dashboard/bookings/${bookingId}`);
+}
+
+export async function assignOperatorAction(formData: FormData): Promise<void> {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  if (!bookingId) redirect('/dashboard');
+  const raw = String(formData.get('operatorId') ?? '');
+  const targetOperatorId = raw === '' ? null : raw;
+
+  await assignOperator(bookingId, targetOperatorId, session.operator.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
   redirect(`/dashboard/bookings/${bookingId}`);
 }

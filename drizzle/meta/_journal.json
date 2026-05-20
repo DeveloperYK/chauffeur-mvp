@@ -15,6 +15,13 @@
       "when": 1779230787482,
       "tag": "0001_woozy_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779235000000,
+      "tag": "0002_operator_assignment",
+      "breakpoints": true
     }
   ]
 }

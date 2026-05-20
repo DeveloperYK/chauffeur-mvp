@@ -30,9 +30,7 @@ export const createBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().min(1).max(80),
     execMobile: phoneSchema,
-    bookerName: z.string().min(1).max(80),
     accountCode: z.string().min(1).max(40),
-    carTypePreference: z.string().trim().min(1).max(80),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })
@@ -77,11 +75,13 @@ export async function createBooking(
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName,
       execMobile: parsed.data.execMobile,
-      bookerName: parsed.data.bookerName,
       accountCode: parsed.data.accountCode,
-      carTypePreference: parsed.data.carTypePreference,
       contractPricePence: parsed.data.contractPricePence,
       notes: parsed.data.notes ?? null,
+      // The operator who creates the ticket is its "booked by" and its
+      // initial assignee (Jira-style — reassignable later).
+      createdByOperatorId: deps.operatorId,
+      assignedOperatorId: deps.operatorId,
     })
     .returning();
 
