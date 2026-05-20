@@ -17,16 +17,22 @@ const SIZE_PX: Record<AvatarSize, string> = {
   lg: 'h-10 w-10 text-sm',
 };
 
-// Atlassian Design System letter-avatar palette (background / foreground).
+// Saturated, high-contrast avatar palette — white initials on a vivid
+// background so each person is instantly distinguishable. Colour is assigned
+// deterministically per operator (stable across renders), not re-randomised.
 const PALETTE: { bg: string; fg: string }[] = [
-  { bg: '#FFECEB', fg: '#AE2A19' }, // red
-  { bg: '#FFF7D6', fg: '#946F00' }, // yellow
-  { bg: '#DCFFF1', fg: '#216E4E' }, // green
-  { bg: '#E9F2FF', fg: '#0055CC' }, // blue
-  { bg: '#F3F0FF', fg: '#5E4DB2' }, // purple
-  { bg: '#E7F9FF', fg: '#206A83' }, // teal
-  { bg: '#FFF3D6', fg: '#974F0C' }, // orange
-  { bg: '#FFECF8', fg: '#943D73' }, // magenta
+  { bg: '#DE350B', fg: '#FFFFFF' }, // red
+  { bg: '#E56910', fg: '#FFFFFF' }, // orange
+  { bg: '#FF991F', fg: '#172B4D' }, // amber
+  { bg: '#00875A', fg: '#FFFFFF' }, // green
+  { bg: '#00A3BF', fg: '#FFFFFF' }, // teal
+  { bg: '#0052CC', fg: '#FFFFFF' }, // blue
+  { bg: '#2684FF', fg: '#FFFFFF' }, // sky
+  { bg: '#5243AA', fg: '#FFFFFF' }, // purple
+  { bg: '#403294', fg: '#FFFFFF' }, // deep purple
+  { bg: '#C1326B', fg: '#FFFFFF' }, // magenta
+  { bg: '#8777D9', fg: '#FFFFFF' }, // lavender
+  { bg: '#057ABF', fg: '#FFFFFF' }, // ocean
 ];
 
 export function initialsFromName(name: string): string {
@@ -38,7 +44,7 @@ export function initialsFromName(name: string): string {
   return `${first}${last}`.toUpperCase();
 }
 
-const FALLBACK_COLOR = { bg: '#E9F2FF', fg: '#0055CC' };
+const FALLBACK_COLOR = { bg: '#0052CC', fg: '#FFFFFF' };
 
 function colorFor(key: string): { bg: string; fg: string } {
   let hash = 0;
