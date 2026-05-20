@@ -1,8 +1,9 @@
+import { AssigneeFacepile, type FacepileItem } from '@/components/board/assignee-facepile';
 import { CalendarPopover } from '@/components/calendar-popover';
+import { Avatar, UnassignedAvatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageContent, PageHeader } from '@/components/ui/page';
-import { cn } from '@/lib/cn';
 import {
   formatLondonDayLong,
   formatLondonMonth,
@@ -19,7 +20,7 @@ import {
   listBookingsForDay,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
-import { listOperators, operatorsById } from '@/server/services/operators';
+import { operatorsById } from '@/server/services/operators';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -34,10 +35,12 @@ const COLUMNS: BookingState[] = [
   'cancelled',
 ];
 
+const UNASSIGNED_TOKEN = 'unassigned';
+
 export default async function DashboardHome({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; calMonth?: string; operator?: string }>;
+  searchParams: Promise<{ date?: string; calMonth?: string; assignee?: string }>;
 }) {
   const url = env().DATABASE_URL;
   if (!url) {
@@ -55,25 +58,84 @@ export default async function DashboardHome({
     params.calMonth && parseMonthString(params.calMonth)
       ? params.calMonth
       : formatLondonMonth(new Date(`${selectedDay}T12:00:00Z`));
-  const operatorFilter = params.operator && params.operator !== '' ? params.operator : undefined;
 
-  const [rows, counts, operatorList] = await Promise.all([
-    listBookingsForDay(db, selectedDay, operatorFilter),
+  const selectedTokens = new Set(
+    (params.assignee ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+
+  const [allRows, counts] = await Promise.all([
+    listBookingsForDay(db, selectedDay),
     monthlyDayCounts(db, visibleMonth),
-    listOperators(db),
   ]);
+
+  // Resolve assignee names for everyone who owns a ticket today.
+  const assigneeIds = allRows
+    .map((b) => b.assignedOperatorId)
+    .filter((x): x is string => Boolean(x));
+  const assignees = await operatorsById(db, assigneeIds);
+
+  // Build the facepile from the FULL (unfiltered) day so it stays stable.
+  const perOperator = new Map<string, number>();
+  let unassignedCount = 0;
+  for (const b of allRows) {
+    if (b.assignedOperatorId) {
+      perOperator.set(b.assignedOperatorId, (perOperator.get(b.assignedOperatorId) ?? 0) + 1);
+    } else {
+      unassignedCount += 1;
+    }
+  }
+
+  // Apply the assignee filter in memory.
+  const rows =
+    selectedTokens.size === 0
+      ? allRows
+      : allRows.filter((b) =>
+          b.assignedOperatorId
+            ? selectedTokens.has(b.assignedOperatorId)
+            : selectedTokens.has(UNASSIGNED_TOKEN),
+        );
   const board = groupByState(rows);
   const total = rows.length;
 
-  const assigneeIds = rows.map((b) => b.assignedOperatorId).filter((x): x is string => Boolean(x));
-  const assignees = await operatorsById(db, assigneeIds);
-
-  // Build a querystring helper that preserves date + calMonth.
-  const baseQuery = (operatorId: string | undefined) => {
-    const q = new URLSearchParams({ date: selectedDay, calMonth: visibleMonth });
-    if (operatorId) q.set('operator', operatorId);
-    return q.toString();
+  // URL builders ──────────────────────────────────────────────────────────
+  const buildHref = (day: string, month: string, tokens: Set<string>) => {
+    const q = new URLSearchParams({ date: day, calMonth: month });
+    if (tokens.size > 0) q.set('assignee', [...tokens].join(','));
+    return `/dashboard?${q.toString()}`;
   };
+  const toggleHref = (token: string) => {
+    const next = new Set(selectedTokens);
+    if (next.has(token)) next.delete(token);
+    else next.add(token);
+    return buildHref(selectedDay, visibleMonth, next);
+  };
+
+  const facepile: FacepileItem[] = [
+    ...[...perOperator.entries()]
+      .map(([id, count]) => ({
+        token: id,
+        name: assignees.get(id)?.name ?? 'Unknown',
+        isUnassigned: false,
+        selected: selectedTokens.has(id),
+        href: toggleHref(id),
+        count,
+      }))
+      .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
+    ...(unassignedCount > 0
+      ? [
+          {
+            token: UNASSIGNED_TOKEN,
+            isUnassigned: true,
+            selected: selectedTokens.has(UNASSIGNED_TOKEN),
+            href: toggleHref(UNASSIGNED_TOKEN),
+            count: unassignedCount,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <PageContent>
@@ -87,9 +149,7 @@ export default async function DashboardHome({
               <Badge className="bg-brand-50 text-brand-700">Today</Badge>
             ) : (
               <Link
-                href={`/dashboard?${baseQuery(operatorFilter)
-                  .replace(/date=[^&]*/, `date=${today}`)
-                  .replace(/calMonth=[^&]*/, `calMonth=${today.slice(0, 7)}`)}`}
+                href={buildHref(today, today.slice(0, 7), selectedTokens)}
                 className="text-xs text-brand-700 hover:underline"
               >
                 ← Back to today
@@ -115,24 +175,11 @@ export default async function DashboardHome({
         }
       />
 
-      {/* Operator filter — Jira-style assignee chips */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Operator
-        </span>
-        <FilterChip href={`/dashboard?${baseQuery(undefined)}`} active={!operatorFilter}>
-          All
-        </FilterChip>
-        {operatorList.map((op) => (
-          <FilterChip
-            key={op.id}
-            href={`/dashboard?${baseQuery(op.id)}`}
-            active={operatorFilter === op.id}
-          >
-            {op.name}
-          </FilterChip>
-        ))}
-      </div>
+      <AssigneeFacepile
+        items={facepile}
+        clearHref={buildHref(selectedDay, visibleMonth, new Set())}
+        anySelected={selectedTokens.size > 0}
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
         {COLUMNS.map((state) => {
@@ -176,30 +223,6 @@ export default async function DashboardHome({
   );
 }
 
-function FilterChip({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
-        active
-          ? 'border-brand-500 bg-brand-50 text-brand-700'
-          : 'border-border bg-surface text-ink-subtle hover:bg-neutral-100',
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
 function BookingCard({
   booking,
   assigneeName,
@@ -227,25 +250,26 @@ function BookingCard({
         <p className="mt-1 truncate text-xs text-ink-muted">
           {booking.pickupAddress} → {booking.dropoffAddress}
         </p>
-        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-          <span className="font-medium text-ink-subtle">{booking.accountCode}</span>
-          <span>· £{(booking.contractPricePence / 100).toFixed(2)}</span>
+        <div className="mt-1.5 flex items-center justify-between">
+          <span className="text-xs text-ink-muted">
+            <span className="font-medium text-ink-subtle">{booking.accountCode}</span> · £
+            {(booking.contractPricePence / 100).toFixed(2)}
+            {booking.flaggedAt ? (
+              <span className="ml-2 rounded bg-warning-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-warning-700">
+                Flagged
+              </span>
+            ) : null}
+          </span>
           {assigneeName ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-2xs font-medium text-ink-subtle">
-              <span aria-hidden>👤</span>
-              {assigneeName}
-            </span>
+            <Avatar
+              name={assigneeName}
+              colorKey={booking.assignedOperatorId ?? assigneeName}
+              size="sm"
+            />
           ) : (
-            <span className="rounded-full bg-warning-50 px-1.5 py-0.5 text-2xs font-medium text-warning-700">
-              No operator
-            </span>
+            <UnassignedAvatar size="sm" />
           )}
-          {booking.flaggedAt ? (
-            <span className="rounded bg-warning-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-warning-700">
-              Flagged
-            </span>
-          ) : null}
-        </p>
+        </div>
       </Link>
     </li>
   );
