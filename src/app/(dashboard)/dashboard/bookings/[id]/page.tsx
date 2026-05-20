@@ -2,18 +2,20 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select } from '@/components/ui/field';
+import { Field, Select, Textarea } from '@/components/ui/field';
 import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
 import { STATE_BADGE, STATE_LABEL, TIER_LABEL, carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
+import { canCancel } from '@/server/domain/booking-state';
 import { listActiveDrivers } from '@/server/services/drivers';
 import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   approveAction,
+  cancelAction,
   generateCompletionLinkAction,
   generateLinkAction,
   rejectAction,
@@ -250,6 +252,58 @@ export default async function BookingPage({
                 : '—'}
             </DefItem>
           </DefList>
+        </Card>
+      ) : null}
+
+      {booking.state === 'cancelled' ? (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Cancelled</CardTitle>
+          </CardHeader>
+          <DefList>
+            <DefItem label="Cancelled at">
+              {booking.cancelledAt
+                ? `${booking.cancelledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`
+                : '—'}
+            </DefItem>
+            <DefItem label="Reason">
+              {booking.cancellationReason ? (
+                <span className="whitespace-pre-wrap">{booking.cancellationReason}</span>
+              ) : (
+                '—'
+              )}
+            </DefItem>
+          </DefList>
+        </Card>
+      ) : null}
+
+      {canCancel(booking.state) ? (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Cancel booking</CardTitle>
+          </CardHeader>
+          <form action={cancelAction} className="flex flex-col gap-3">
+            <input type="hidden" name="bookingId" value={booking.id} />
+            <Field
+              label="Reason for cancellation"
+              required
+              helper="Required. Visible in the audit log and on the spreadsheet mirror."
+            >
+              <Textarea
+                name="reason"
+                required
+                minLength={5}
+                maxLength={1000}
+                rows={3}
+                placeholder="e.g. Client cancelled the trip. Booker confirmed by phone at 14:05."
+              />
+            </Field>
+            <div className="flex justify-end border-t border-border pt-3">
+              <Button variant="danger" type="submit">
+                Confirm cancellation
+              </Button>
+            </div>
+          </form>
         </Card>
       ) : null}
     </PageContent>
