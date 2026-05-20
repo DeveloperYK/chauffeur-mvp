@@ -9,13 +9,9 @@ import {
   parseDayString,
   parseMonthString,
 } from '@/lib/dates';
-import { formatLondonDay, londonMonthRangeUtc } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { getDb } from '@/server/db';
-import type { Booking } from '@/server/db/schema';
-import { bookings as bookingsTable } from '@/server/db/schema';
 import { monthlyDayCounts } from '@/server/services/bookings-query';
-import { and, asc, gte, lt } from 'drizzle-orm';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -42,35 +38,13 @@ export default async function CalendarPage({
       ? params.calMonth
       : formatLondonMonth(new Date(`${selectedDay}T12:00:00Z`));
 
-  // Counts for the visible month + all bookings in the month so we can list
-  // a few inline per cell.
-  const monthRange = londonMonthRangeUtc(visibleMonth);
-  const [counts, monthBookings] = await Promise.all([
-    monthlyDayCounts(db, visibleMonth),
-    monthRange
-      ? db
-          .select()
-          .from(bookingsTable)
-          .where(
-            and(
-              gte(bookingsTable.pickupAt, monthRange.startUtc),
-              lt(bookingsTable.pickupAt, monthRange.endUtc),
-            ),
-          )
-          .orderBy(asc(bookingsTable.pickupAt))
-      : Promise.resolve([] as Booking[]),
-  ]);
-
-  const bookingsByDay = new Map<string, Booking[]>();
-  for (const b of monthBookings) {
-    const day = formatLondonDay(b.pickupAt);
-    const cur = bookingsByDay.get(day) ?? [];
-    cur.push(b);
-    bookingsByDay.set(day, cur);
+  const counts = await monthlyDayCounts(db, visibleMonth);
+  let totalThisMonth = 0;
+  let unassignedThisMonth = 0;
+  for (const c of counts.values()) {
+    totalThisMonth += c.total;
+    unassignedThisMonth += c.unassigned;
   }
-
-  const totalThisMonth = monthBookings.length;
-  const unassignedThisMonth = monthBookings.filter((b) => b.state === 'unassigned').length;
 
   return (
     <PageContent>
@@ -114,8 +88,8 @@ export default async function CalendarPage({
             visibleMonth={visibleMonth}
             counts={counts}
             variant="expanded"
-            baseHref="/dashboard/calendar"
-            bookingsByDay={bookingsByDay}
+            dayHref="/dashboard"
+            navHref="/dashboard/calendar"
           />
         </div>
       </Card>

@@ -8,6 +8,7 @@ import {
   notifications,
   spreadsheetMirror,
 } from '@/server/composition';
+import { cancelBooking } from '@/server/services/cancel';
 import {
   approveBooking,
   generateCompletionLink,
@@ -98,5 +99,29 @@ export async function rejectAction(formData: FormData): Promise<void> {
     appUrl: appUrl(),
     mirror: spreadsheetMirror(),
   });
+  redirect(`/dashboard/bookings/${bookingId}`);
+}
+
+export async function cancelAction(formData: FormData): Promise<void> {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!bookingId) redirect('/dashboard');
+
+  const result = await cancelBooking({ bookingId, reason }, session.operator.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'validation'
+        ? 'Please provide a reason (at least 5 characters).'
+        : result.reason === 'booking_not_found'
+          ? 'Booking not found.'
+          : `Cannot cancel from state: ${result.state}.`;
+    redirect(`/dashboard/bookings/${bookingId}?error=${encodeURIComponent(msg)}`);
+  }
   redirect(`/dashboard/bookings/${bookingId}`);
 }

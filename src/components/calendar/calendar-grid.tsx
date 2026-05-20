@@ -1,6 +1,5 @@
 import { cn } from '@/lib/cn';
 import { calendarGrid, formatLondonMonthLong, londonTodayString, offsetMonth } from '@/lib/dates';
-import type { Booking } from '@/server/db/schema';
 import type { DayCounts } from '@/server/services/bookings-query';
 import Link from 'next/link';
 import { DayCountsBadges } from './day-counts-badges';
@@ -14,39 +13,41 @@ interface Props {
   visibleMonth: string;
   counts: Map<string, DayCounts>;
   variant: CalendarVariant;
-  /** Base path the day links navigate to. Defaults to '/dashboard'. */
-  baseHref?: string;
-  /** Only for the expanded view: the bookings to render inline in each cell.
-   *  Keys are YYYY-MM-DD (London day). */
-  bookingsByDay?: Map<string, Booking[]>;
+  /** Where day-cell clicks navigate. Defaults to '/dashboard' — the focused
+   *  board view for that day. */
+  dayHref?: string;
+  /** Where prev/next-month + "Jump to today" buttons navigate. Defaults to
+   *  the same as dayHref. Use this to keep month navigation on the calendar
+   *  page while individual day clicks bounce to the board. */
+  navHref?: string;
 }
 
 /**
- * Shared calendar month grid. Renders day cells with unassigned + dispatched
- * count pills. In the expanded variant each cell is taller and shows the
- * first few booking titles.
+ * Shared calendar month grid. Day cells show two clearly differentiated
+ * count pills: unassigned (amber) and dispatched (muted blue).
  */
 export function CalendarGrid({
   selectedDay,
   visibleMonth,
   counts,
   variant,
-  baseHref = '/dashboard',
-  bookingsByDay,
+  dayHref = '/dashboard',
+  navHref,
 }: Props) {
+  const navBase = navHref ?? dayHref;
   const today = londonTodayString();
   const prevMonth = offsetMonth(visibleMonth, -1);
   const nextMonth = offsetMonth(visibleMonth, 1);
   const days = calendarGrid(visibleMonth);
   const expanded = variant === 'expanded';
 
-  const cellHeight = expanded ? 'min-h-[110px]' : 'aspect-square min-h-12';
+  const cellHeight = expanded ? 'min-h-[96px]' : 'aspect-square min-h-12';
 
   return (
     <div className={cn(expanded ? 'w-full' : 'w-[340px]')}>
       <div className="mb-3 flex items-center justify-between">
         <Link
-          href={`${baseHref}?date=${selectedDay}&calMonth=${prevMonth}`}
+          href={`${navBase}?date=${selectedDay}&calMonth=${prevMonth}`}
           className="rounded p-1 text-ink-subtle hover:bg-neutral-100"
           aria-label="Previous month"
         >
@@ -56,7 +57,7 @@ export function CalendarGrid({
           {formatLondonMonthLong(visibleMonth)}
         </div>
         <Link
-          href={`${baseHref}?date=${selectedDay}&calMonth=${nextMonth}`}
+          href={`${navBase}?date=${selectedDay}&calMonth=${nextMonth}`}
           className="rounded p-1 text-ink-subtle hover:bg-neutral-100"
           aria-label="Next month"
         >
@@ -77,14 +78,11 @@ export function CalendarGrid({
           const isSelected = day === selectedDay;
           const c = counts.get(day);
           const dayNumber = Number(day.slice(8, 10));
-          const bookings = bookingsByDay?.get(day) ?? [];
-          const previewBookings = bookings.slice(0, expanded ? 3 : 0);
-          const remaining = bookings.length - previewBookings.length;
 
           return (
             <Link
               key={day}
-              href={`${baseHref}?date=${day}&calMonth=${day.slice(0, 7)}`}
+              href={`${dayHref}?date=${day}&calMonth=${day.slice(0, 7)}`}
               aria-label={`${day}${
                 c
                   ? `, ${c.total} bookings — ${c.unassigned} unassigned, ${c.dispatched} dispatched`
@@ -119,22 +117,6 @@ export function CalendarGrid({
               </div>
 
               <DayCountsBadges counts={c} size={expanded ? 'expanded' : 'compact'} />
-
-              {expanded && previewBookings.length > 0 ? (
-                <ul className="mt-1.5 space-y-0.5 overflow-hidden text-2xs text-ink-subtle">
-                  {previewBookings.map((b) => (
-                    <li key={b.id} className="truncate">
-                      <span className="font-mono text-ink-muted">
-                        {b.pickupAt.toISOString().replace('T', ' ').slice(11, 16)}
-                      </span>{' '}
-                      {b.passengerLastName}
-                    </li>
-                  ))}
-                  {remaining > 0 ? (
-                    <li className="italic text-ink-muted">+{remaining} more</li>
-                  ) : null}
-                </ul>
-              ) : null}
             </Link>
           );
         })}
@@ -142,7 +124,7 @@ export function CalendarGrid({
 
       <div className="mt-3 flex items-center justify-between text-xs">
         <Link
-          href={`${baseHref}?date=${today}&calMonth=${today.slice(0, 7)}`}
+          href={`${navBase}?date=${today}&calMonth=${today.slice(0, 7)}`}
           className="font-medium text-brand-700 hover:underline"
         >
           Jump to today
