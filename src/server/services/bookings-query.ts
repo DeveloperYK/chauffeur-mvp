@@ -1,7 +1,7 @@
 import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings } from '@/server/db/schema';
-import { type SQL, and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, gte, lt, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -18,26 +18,18 @@ export async function listActiveBookings(db: Database): Promise<Booking[]> {
 /**
  * All bookings whose pickup falls within the given London day, sorted by
  * pickup time. Includes every state so the board can render its 7 columns.
- * Optionally scope to a single owning operator.
+ *
+ * The board derives its assignee facepile from this full set and filters by
+ * selected assignee in memory, so the facepile stays stable regardless of
+ * which assignees are selected (matching Jira).
  */
-export async function listBookingsForDay(
-  db: Database,
-  dayStr: string,
-  operatorId?: string,
-): Promise<Booking[]> {
+export async function listBookingsForDay(db: Database, dayStr: string): Promise<Booking[]> {
   const range = londonDayRangeUtc(dayStr);
   if (!range) return [];
-  const conditions: SQL[] = [
-    gte(bookings.pickupAt, range.startUtc),
-    lt(bookings.pickupAt, range.endUtc),
-  ];
-  if (operatorId) {
-    conditions.push(eq(bookings.assignedOperatorId, operatorId));
-  }
   return db
     .select()
     .from(bookings)
-    .where(and(...conditions))
+    .where(and(gte(bookings.pickupAt, range.startUtc), lt(bookings.pickupAt, range.endUtc)))
     .orderBy(asc(bookings.pickupAt))
     .limit(500);
 }

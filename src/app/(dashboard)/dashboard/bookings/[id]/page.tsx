@@ -1,4 +1,5 @@
 import { Alert } from '@/components/ui/alert';
+import { Avatar, UnassignedAvatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +7,7 @@ import { Field, Select, Textarea } from '@/components/ui/field';
 import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
 import { STATE_BADGE, STATE_LABEL, TIER_LABEL, carLabel } from '@/lib/labels';
+import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { canCancel } from '@/server/domain/booking-state';
@@ -34,6 +36,8 @@ export default async function BookingPage({
 }) {
   const { id } = await params;
   const search = await searchParams;
+  const session = await currentSession();
+  if (!session) notFound();
   const url = env().DATABASE_URL;
   if (!url) {
     return (
@@ -54,6 +58,10 @@ export default async function BookingPage({
   const createdByName = booking.createdByOperatorId
     ? (opLookup.get(booking.createdByOperatorId)?.name ?? '—')
     : '—';
+  const assignedName = booking.assignedOperatorId
+    ? (opLookup.get(booking.assignedOperatorId)?.name ?? null)
+    : null;
+  const isAssignedToMe = booking.assignedOperatorId === session.operator.id;
 
   return (
     <PageContent className="max-w-4xl">
@@ -99,26 +107,63 @@ export default async function BookingPage({
             <CardTitle>Booking</CardTitle>
           </CardHeader>
           <DefList>
-            <DefItem label="Booked by">{createdByName}</DefItem>
+            <DefItem label="Booked by">
+              <span className="flex items-center gap-2">
+                {booking.createdByOperatorId ? (
+                  <Avatar name={createdByName} colorKey={booking.createdByOperatorId} size="sm" />
+                ) : (
+                  <UnassignedAvatar size="sm" />
+                )}
+                <span>{createdByName}</span>
+              </span>
+            </DefItem>
             <DefItem label="Assigned to">
-              <form action={assignOperatorAction} className="flex items-center gap-2">
-                <input type="hidden" name="bookingId" value={booking.id} />
-                <Select
-                  name="operatorId"
-                  defaultValue={booking.assignedOperatorId ?? ''}
-                  className="max-w-[220px]"
-                >
-                  <option value="">Unassigned</option>
-                  {operatorList.map((op) => (
-                    <option key={op.id} value={op.id}>
-                      {op.name}
-                    </option>
-                  ))}
-                </Select>
-                <Button variant="secondary" size="sm" type="submit">
-                  Reassign
-                </Button>
-              </form>
+              <div className="flex flex-col gap-2">
+                <span className="flex items-center gap-2">
+                  {assignedName ? (
+                    <Avatar
+                      name={assignedName}
+                      colorKey={booking.assignedOperatorId ?? assignedName}
+                      size="sm"
+                    />
+                  ) : (
+                    <UnassignedAvatar size="sm" />
+                  )}
+                  <span className={assignedName ? 'text-ink' : 'text-ink-muted'}>
+                    {assignedName ?? 'Unassigned'}
+                  </span>
+                  {!isAssignedToMe ? (
+                    <form action={assignOperatorAction} className="contents">
+                      <input type="hidden" name="bookingId" value={booking.id} />
+                      <input type="hidden" name="operatorId" value={session.operator.id} />
+                      <button
+                        type="submit"
+                        className="text-xs font-medium text-brand-700 hover:underline"
+                      >
+                        Assign to me
+                      </button>
+                    </form>
+                  ) : null}
+                </span>
+                <form action={assignOperatorAction} className="flex items-center gap-2">
+                  <input type="hidden" name="bookingId" value={booking.id} />
+                  <Select
+                    name="operatorId"
+                    defaultValue={booking.assignedOperatorId ?? ''}
+                    className="max-w-[220px]"
+                  >
+                    <option value="">Unassigned</option>
+                    {operatorList.map((op) => (
+                      <option key={op.id} value={op.id}>
+                        {op.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button variant="secondary" size="sm" type="submit">
+                    Change
+                  </Button>
+                </form>
+              </div>
             </DefItem>
             <DefItem label="Account">{booking.accountCode}</DefItem>
             <DefItem label="Exec mobile">
