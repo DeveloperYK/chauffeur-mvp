@@ -24,6 +24,7 @@ import {
   generateLinkAction,
   rejectAction,
 } from './actions';
+import { AssigneeSelect } from './assignee-select';
 
 export const dynamic = 'force-dynamic';
 
@@ -145,24 +146,12 @@ export default async function BookingPage({
                     </form>
                   ) : null}
                 </span>
-                <form action={assignOperatorAction} className="flex items-center gap-2">
-                  <input type="hidden" name="bookingId" value={booking.id} />
-                  <Select
-                    name="operatorId"
-                    defaultValue={booking.assignedOperatorId ?? ''}
-                    className="max-w-[220px]"
-                  >
-                    <option value="">Unassigned</option>
-                    {operatorList.map((op) => (
-                      <option key={op.id} value={op.id}>
-                        {op.name}
-                      </option>
-                    ))}
-                  </Select>
-                  <Button variant="secondary" size="sm" type="submit">
-                    Change
-                  </Button>
-                </form>
+                <AssigneeSelect
+                  action={assignOperatorAction}
+                  bookingId={booking.id}
+                  operators={operatorList}
+                  currentOperatorId={booking.assignedOperatorId}
+                />
               </div>
             </DefItem>
             <DefItem label="Account">{booking.accountCode}</DefItem>
@@ -352,33 +341,41 @@ export default async function BookingPage({
       ) : null}
 
       {canCancel(booking.state) ? (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Cancel booking</CardTitle>
-          </CardHeader>
-          <form action={cancelAction} className="flex flex-col gap-3">
-            <input type="hidden" name="bookingId" value={booking.id} />
-            <Field
-              label="Reason for cancellation"
-              required
-              helper="Required. Visible in the audit log and on the spreadsheet mirror."
+        <div className="mt-8 border-t border-border pt-4">
+          <details className="group">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-sm font-medium text-danger-700 hover:underline [&::-webkit-details-marker]:hidden">
+              <span aria-hidden className="text-xs transition-transform group-open:rotate-90">
+                ▸
+              </span>
+              Cancel this booking
+            </summary>
+            <form
+              action={cancelAction}
+              className="mt-3 max-w-xl rounded-md border border-danger-100 bg-danger-50/40 p-4"
             >
-              <Textarea
-                name="reason"
+              <input type="hidden" name="bookingId" value={booking.id} />
+              <Field
+                label="Reason for cancellation"
                 required
-                minLength={5}
-                maxLength={1000}
-                rows={3}
-                placeholder="e.g. Client cancelled the trip. Booker confirmed by phone at 14:05."
-              />
-            </Field>
-            <div className="flex justify-end border-t border-border pt-3">
-              <Button variant="danger" type="submit">
-                Confirm cancellation
-              </Button>
-            </div>
-          </form>
-        </Card>
+                helper="Required. Visible in the audit log and on the spreadsheet mirror."
+              >
+                <Textarea
+                  name="reason"
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  rows={3}
+                  placeholder="e.g. Client cancelled the trip. Booker confirmed by phone at 14:05."
+                />
+              </Field>
+              <div className="mt-3 flex justify-end">
+                <Button variant="danger" type="submit">
+                  Cancel booking
+                </Button>
+              </div>
+            </form>
+          </details>
+        </div>
       ) : null}
     </PageContent>
   );
