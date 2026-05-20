@@ -94,13 +94,19 @@ export const bookings = pgTable(
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name').notNull(),
     execMobile: text('exec_mobile').notNull(),
-    bookerName: text('booker_name').notNull(),
     accountCode: text('account_code').notNull(),
-    carTypePreference: text('car_type_preference').notNull(),
     contractPricePence: integer('contract_price_pence').notNull(),
     notes: text('notes'),
 
-    // Assignment (set when driver accepts)
+    // Operator ownership (Jira-style)
+    createdByOperatorId: uuid('created_by_operator_id').references(() => operators.id, {
+      onDelete: 'set null',
+    }),
+    assignedOperatorId: uuid('assigned_operator_id').references(() => operators.id, {
+      onDelete: 'set null',
+    }),
+
+    // Driver assignment (set when driver accepts)
     assignedDriverId: uuid('assigned_driver_id').references(() => drivers.id, {
       onDelete: 'restrict',
     }),
@@ -137,6 +143,7 @@ export const bookings = pgTable(
     index('bookings_pickup_at_idx').on(t.pickupAt),
     index('bookings_state_pickup_idx').on(t.state, t.pickupAt),
     index('bookings_assigned_driver_idx').on(t.assignedDriverId),
+    index('bookings_assigned_operator_idx').on(t.assignedOperatorId),
   ],
 );
 

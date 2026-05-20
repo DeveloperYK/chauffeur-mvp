@@ -10,11 +10,13 @@ import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { canCancel } from '@/server/domain/booking-state';
 import { listActiveDrivers } from '@/server/services/drivers';
+import { listOperators, operatorsById } from '@/server/services/operators';
 import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   approveAction,
+  assignOperatorAction,
   cancelAction,
   generateCompletionLinkAction,
   generateLinkAction,
@@ -44,6 +46,14 @@ export default async function BookingPage({
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
   if (!booking) notFound();
   const driverList = await listActiveDrivers(db);
+  const operatorList = await listOperators(db);
+  const operatorIds = [booking.createdByOperatorId, booking.assignedOperatorId].filter(
+    (x): x is string => Boolean(x),
+  );
+  const opLookup = await operatorsById(db, operatorIds);
+  const createdByName = booking.createdByOperatorId
+    ? (opLookup.get(booking.createdByOperatorId)?.name ?? '—')
+    : '—';
 
   return (
     <PageContent className="max-w-4xl">
@@ -80,7 +90,6 @@ export default async function BookingPage({
             <DefItem label="From">{booking.pickupAddress}</DefItem>
             <DefItem label="To">{booking.dropoffAddress}</DefItem>
             <DefItem label="Duration">{booking.expectedDurationMinutes} minutes</DefItem>
-            <DefItem label="Vehicle preference">{carLabel(booking.carTypePreference)}</DefItem>
             {booking.notes ? <DefItem label="Notes">{booking.notes}</DefItem> : null}
           </DefList>
         </Card>
@@ -90,7 +99,27 @@ export default async function BookingPage({
             <CardTitle>Booking</CardTitle>
           </CardHeader>
           <DefList>
-            <DefItem label="Booker">{booking.bookerName}</DefItem>
+            <DefItem label="Booked by">{createdByName}</DefItem>
+            <DefItem label="Assigned to">
+              <form action={assignOperatorAction} className="flex items-center gap-2">
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <Select
+                  name="operatorId"
+                  defaultValue={booking.assignedOperatorId ?? ''}
+                  className="max-w-[220px]"
+                >
+                  <option value="">Unassigned</option>
+                  {operatorList.map((op) => (
+                    <option key={op.id} value={op.id}>
+                      {op.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button variant="secondary" size="sm" type="submit">
+                  Reassign
+                </Button>
+              </form>
+            </DefItem>
             <DefItem label="Account">{booking.accountCode}</DefItem>
             <DefItem label="Exec mobile">
               <code className="font-mono text-xs">{booking.execMobile}</code>

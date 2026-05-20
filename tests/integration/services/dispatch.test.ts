@@ -67,9 +67,7 @@ describe('services/dispatch (integration)', () => {
         passengerFirstName: 'Eric',
         passengerLastName: 'French',
         execMobile: '+447911999999',
-        bookerName: 'Jack',
         accountCode: 'LEGO',
-        carTypePreference: 's_class',
         contractPricePence: 30000,
       })
       .returning();

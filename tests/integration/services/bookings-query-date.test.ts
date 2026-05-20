@@ -31,9 +31,7 @@ describe('bookings-query date filtering (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
-    bookerName: 'Jack',
     accountCode: 'LEGO',
-    carTypePreference: 'Mercedes S-Class',
     contractPricePence: 30000,
   });
 

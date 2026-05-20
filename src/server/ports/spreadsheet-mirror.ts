@@ -79,8 +79,9 @@ function tierLabel(t: string | null): string {
 }
 
 export function rowFromBooking(input: MirrorRowInput): string[] {
-  const { booking, driver } = input;
-  const car = booking.carForThisJob ?? booking.carTypePreference;
+  const { booking, driver, operator } = input;
+  // Vehicle is whatever the driver brings (set at accept); empty until then.
+  const car = booking.carForThisJob ?? '';
   const pickup = booking.pickupAt;
   const dropoff = booking.dropoffAt;
   const totalMinutes = booking.dropoffAt
@@ -94,7 +95,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     formatDate(pickup),
     formatTimeOfDay(pickup),
     '', // Case code — not captured by MVP form
-    booking.bookerName,
+    operator?.name ?? '', // "Booked By" is now the operator who created it
     booking.passengerFirstName,
     booking.passengerLastName,
     booking.pickupAddress,

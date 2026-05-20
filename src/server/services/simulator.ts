@@ -53,9 +53,7 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999001',
-    bookerName: 'Jack',
     accountCode: 'LEGO',
-    carTypePreference: 'Mercedes S-Class',
     contractPricePence: 30000,
   },
   {
@@ -66,9 +64,7 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Martin',
     passengerLastName: 'Finch',
     execMobile: '+447911999002',
-    bookerName: 'Simon',
     accountCode: 'MERC',
-    carTypePreference: 'BMW 7 Series',
     contractPricePence: 20000,
   },
   {
@@ -79,22 +75,40 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Sophia',
     passengerLastName: 'Lefevre',
     execMobile: '+33612345678',
-    bookerName: 'Chandu',
     accountCode: 'JJ',
-    carTypePreference: 'Mercedes V-Class MPV',
     contractPricePence: 45000,
   },
+] as const;
+
+const SAMPLE_OPERATORS = [
+  { name: 'Priya Shah', email: 'priya@example.com' },
+  { name: 'Marcus Bell', email: 'marcus@example.com' },
 ] as const;
 
 export interface SimulatorReport {
   driversCreated: number;
   bookingsCreated: number;
+  operatorsCreated: number;
 }
 
 export async function seedSampleData(db: Database, operatorId: string): Promise<SimulatorReport> {
   let driversCreated = 0;
   let bookingsCreated = 0;
+  let operatorsCreated = 0;
   const now = Date.now();
+
+  // A couple of extra operators so assignment + filtering is demoable.
+  for (const o of SAMPLE_OPERATORS) {
+    const existing = await db
+      .select()
+      .from(operators)
+      .where(sql`lower(${operators.email}) = ${o.email}`)
+      .limit(1);
+    if (existing.length > 0) continue;
+    const passwordHash = await hashPassword('demo-password-long-12');
+    await db.insert(operators).values({ name: o.name, email: o.email, passwordHash });
+    operatorsCreated++;
+  }
 
   for (const d of SAMPLE_DRIVERS) {
     const existing = await db
@@ -118,9 +132,7 @@ export async function seedSampleData(db: Database, operatorId: string): Promise<
         passengerFirstName: b.passengerFirstName,
         passengerLastName: b.passengerLastName,
         execMobile: b.execMobile,
-        bookerName: b.bookerName,
         accountCode: b.accountCode,
-        carTypePreference: b.carTypePreference,
         contractPricePence: b.contractPricePence,
       },
       { db, operatorId },
@@ -128,7 +140,7 @@ export async function seedSampleData(db: Database, operatorId: string): Promise<
     if (result.ok) bookingsCreated++;
   }
 
-  return { driversCreated, bookingsCreated };
+  return { driversCreated, bookingsCreated, operatorsCreated };
 }
 
 export async function resetAllData(db: Database): Promise<void> {

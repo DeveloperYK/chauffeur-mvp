@@ -38,9 +38,7 @@ describe('services/bookings (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911123456',
-    bookerName: 'Jack',
     accountCode: 'LEGO',
-    carTypePreference: 's_class',
     contractPricePence: 30000,
     notes: null,
     ...overrides,
@@ -166,9 +164,7 @@ describe('services/bookings (integration)', () => {
         passengerFirstName: 'x',
         passengerLastName: 'y',
         execMobile: '+447911123456',
-        bookerName: 'z',
         accountCode: 'X',
-        carTypePreference: 'ex',
         contractPricePence: 1000,
       });
     }
