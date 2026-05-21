@@ -52,5 +52,15 @@
       "semicolons": "always",
       "trailingCommas": "all"
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["src/components/console/icons.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": { "noSvgWithoutTitle": "off" }
+        }
+      }
+    }
+  ]
 }

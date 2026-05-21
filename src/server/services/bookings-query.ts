@@ -1,7 +1,7 @@
 import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings } from '@/server/db/schema';
-import { and, asc, desc, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -13,6 +13,20 @@ const ACTIVE_STATES: BookingState[] = [
 
 export async function listActiveBookings(db: Database): Promise<Booking[]> {
   return db.select().from(bookings).orderBy(asc(bookings.pickupAt)).limit(200);
+}
+
+/**
+ * All bookings in a given state, across every day — used by saved views
+ * ("Unassigned tickets", "Awaiting review") which triage by state rather
+ * than by day.
+ */
+export async function listBookingsByState(db: Database, state: BookingState): Promise<Booking[]> {
+  return db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.state, state))
+    .orderBy(asc(bookings.pickupAt))
+    .limit(500);
 }
 
 /**
