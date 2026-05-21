@@ -48,6 +48,21 @@ export async function listBookingsForDay(db: Database, dayStr: string): Promise<
     .limit(500);
 }
 
+/** All bookings whose pickup falls within [startUtc, endUtc). Used by the
+ *  drivers schedule (day timeline + week grid). */
+export async function listBookingsBetween(
+  db: Database,
+  startUtc: Date,
+  endUtc: Date,
+): Promise<Booking[]> {
+  return db
+    .select()
+    .from(bookings)
+    .where(and(gte(bookings.pickupAt, startUtc), lt(bookings.pickupAt, endUtc)))
+    .orderBy(asc(bookings.pickupAt))
+    .limit(2000);
+}
+
 export async function listRecentCompletedAndCancelled(
   db: Database,
   limit = 50,

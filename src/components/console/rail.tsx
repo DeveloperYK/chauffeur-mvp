@@ -45,6 +45,12 @@ export function Rail({
         >
           <Icon.Drivers /> <span>Drivers</span>
         </Link>
+        <Link
+          className={`rail__item ${pathname === '/dashboard/activity' ? 'is-active' : ''}`}
+          href="/dashboard/activity"
+        >
+          <Icon.List /> <span>Activity</span>
+        </Link>
         {showSimulator ? (
           <Link
             className={`rail__item ${pathname === '/dashboard/simulator' ? 'is-active' : ''}`}
