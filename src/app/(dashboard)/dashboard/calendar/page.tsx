@@ -1,11 +1,11 @@
-import { CalendarGrid } from '@/components/calendar/calendar-grid';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { PageContent, PageHeader } from '@/components/ui/page';
+import { Icon } from '@/components/console/icons';
+import { Lozenge } from '@/components/console/lozenge';
 import {
+  calendarGrid,
   formatLondonMonth,
   formatLondonMonthLong,
   londonTodayString,
+  offsetMonth,
   parseDayString,
   parseMonthString,
 } from '@/lib/dates';
@@ -16,19 +16,15 @@ import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 export default async function CalendarPage({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string; calMonth?: string }>;
 }) {
   const url = env().DATABASE_URL;
-  if (!url) {
-    return (
-      <PageContent>
-        <p className="text-danger-700">DATABASE_URL not configured.</p>
-      </PageContent>
-    );
-  }
+  if (!url) return <div className="content">DATABASE_URL not configured.</div>;
   const { db } = getDb(url);
   const params = await searchParams;
   const today = londonTodayString();
@@ -46,53 +42,116 @@ export default async function CalendarPage({
     unassignedThisMonth += c.unassigned;
   }
 
-  return (
-    <PageContent>
-      <PageHeader
-        title="Calendar"
-        breadcrumb={
-          <Link href="/dashboard" className="hover:underline">
-            Board
-          </Link>
-        }
-        description={
-          <span className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-ink-muted">{formatLondonMonthLong(visibleMonth)}</span>
-            <span className="text-ink-muted">·</span>
-            <span>
-              <span className="font-semibold text-ink">{totalThisMonth}</span>{' '}
-              <span className="text-ink-muted">bookings this month</span>
-            </span>
-            {unassignedThisMonth > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-900">
-                <span
-                  aria-hidden
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-warning-500"
-                />
-                {unassignedThisMonth} unassigned
-              </span>
-            ) : null}
-          </span>
-        }
-        actions={
-          <Link href={`/dashboard?date=${selectedDay}&calMonth=${visibleMonth}`}>
-            <Button variant="primary">Open board for selected day →</Button>
-          </Link>
-        }
-      />
+  const days = calendarGrid(visibleMonth);
+  const navHref = (month: string, day: string) =>
+    `/dashboard/calendar?date=${day}&calMonth=${month}`;
 
-      <Card padded={false}>
-        <div className="p-4">
-          <CalendarGrid
-            selectedDay={selectedDay}
-            visibleMonth={visibleMonth}
-            counts={counts}
-            variant="expanded"
-            dayHref="/dashboard"
-            navHref="/dashboard/calendar"
-          />
+  return (
+    <>
+      <div className="page-head">
+        <div className="page-head__row">
+          <h1 className="page-head__title">Calendar</h1>
+          <span className="page-head__sub dotsep-pre">{formatLondonMonthLong(visibleMonth)}</span>
+          <span className="page-head__sub dotsep-pre">
+            <b className="tabnum">{totalThisMonth}</b> bookings
+          </span>
+          {unassignedThisMonth > 0 ? (
+            <Lozenge tone="orange">{unassignedThisMonth} UNASSIGNED</Lozenge>
+          ) : null}
         </div>
-      </Card>
-    </PageContent>
+      </div>
+
+      <div className="content">
+        <div className="card-shell">
+          <div className="cal cal--expanded">
+            <div className="cal__head">
+              <Link
+                className="icon-btn"
+                href={navHref(offsetMonth(visibleMonth, -1), selectedDay)}
+                aria-label="Previous month"
+              >
+                <Icon.ChevLeft />
+              </Link>
+              <div className="cal__title">{formatLondonMonthLong(visibleMonth)}</div>
+              <Link
+                className="icon-btn"
+                href={navHref(offsetMonth(visibleMonth, 1), selectedDay)}
+                aria-label="Next month"
+              >
+                <Icon.ChevRight />
+              </Link>
+            </div>
+            <div className="cal__wk">
+              {WEEKDAYS.map((w) => (
+                <span key={w}>{w}</span>
+              ))}
+            </div>
+            <div className="cal__grid">
+              {days.map((day) => {
+                const inMonth = day.startsWith(visibleMonth);
+                const isToday = day === today;
+                const isSelected = day === selectedDay;
+                const c = counts.get(day);
+                const dayNum = Number(day.slice(8, 10));
+                return (
+                  <Link
+                    key={day}
+                    href={`/dashboard?date=${day}&calMonth=${day.slice(0, 7)}`}
+                    className={`cal__cell ${inMonth ? 'in-month' : 'out-month'} ${
+                      isSelected ? 'is-selected' : ''
+                    } ${isToday ? 'is-today' : ''}`}
+                  >
+                    <span className={`cal__num ${isToday ? 'is-today-pip' : ''}`}>{dayNum}</span>
+                    {c && c.total > 0 ? (
+                      <div className="dc-pills expanded">
+                        {c.unassigned > 0 ? (
+                          <span className="dc-pill warning">
+                            <span className="bullet" />
+                            <span className="tabnum">{c.unassigned}</span>
+                            <span>unassigned</span>
+                          </span>
+                        ) : null}
+                        {c.dispatched > 0 ? (
+                          <span className="dc-pill muted">
+                            <span className="bullet" />
+                            <span className="tabnum">{c.dispatched}</span>
+                            <span>dispatched</span>
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="dc-empty">No bookings</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="cal__foot">
+              <Link className="cal__today" href={navHref(today.slice(0, 7), today)}>
+                Jump to today
+              </Link>
+              <span className="cal__legend">
+                <span className="lg">
+                  <span className="bullet warning" />
+                  Unassigned
+                </span>
+                <span className="lg">
+                  <span className="bullet muted" />
+                  Dispatched
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Link
+            className="btn btn--primary"
+            href={`/dashboard?date=${selectedDay}&calMonth=${visibleMonth}`}
+          >
+            Open board for {selectedDay === today ? 'today' : 'selected day'} <Icon.ArrowRight />
+          </Link>
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,30 +1,30 @@
-import { initialsFromName } from '@/components/ui/avatar';
+import { avatarInitials } from '@/components/console/avatar';
 import { describe, expect, it } from 'vitest';
 
-describe('initialsFromName', () => {
-  it('uses first + last initial for a full name', () => {
-    expect(initialsFromName('Yousuf Khan')).toBe('YK');
-    expect(initialsFromName('Priya Shah')).toBe('PS');
+describe('avatarInitials', () => {
+  it('uses first + second initial for a full name', () => {
+    expect(avatarInitials('Yousuf Khan')).toBe('YK');
+    expect(avatarInitials('Priya Shah')).toBe('PS');
   });
 
   it('uses a single initial for a one-word name', () => {
-    expect(initialsFromName('Alice')).toBe('A');
+    expect(avatarInitials('Alice')).toBe('A');
   });
 
-  it('uses first and last of three-part names', () => {
-    expect(initialsFromName('Sophia Anne Lefevre')).toBe('SL');
+  it('uses the first two initials of three-part names', () => {
+    expect(avatarInitials('Sophia Anne Lefevre')).toBe('SA');
   });
 
   it('uppercases', () => {
-    expect(initialsFromName('marcus bell')).toBe('MB');
+    expect(avatarInitials('marcus bell')).toBe('MB');
   });
 
   it('handles extra whitespace', () => {
-    expect(initialsFromName('  Tom   Wright  ')).toBe('TW');
+    expect(avatarInitials('  Tom   Wright  ')).toBe('TW');
   });
 
   it('falls back to ? for empty', () => {
-    expect(initialsFromName('')).toBe('?');
-    expect(initialsFromName('   ')).toBe('?');
+    expect(avatarInitials('')).toBe('?');
+    expect(avatarInitials('   ')).toBe('?');
   });
 });

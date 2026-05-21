@@ -1,6 +1,7 @@
-import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/field';
+import '@/app/console.css';
+import { Avatar } from '@/components/console/avatar';
+import { Icon } from '@/components/console/icons';
+import { Lozenge } from '@/components/console/lozenge';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
   bookings as bookingsTable,
@@ -10,9 +11,26 @@ import {
 import { verifyDriverLink } from '@/server/domain/link-tokens';
 import { previewDispatchLink } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
+import type { ReactNode } from 'react';
 import { acceptAction, declineAction, submitCompletionAction } from './actions';
 
 export const dynamic = 'force-dynamic';
+
+function fmtTimeWithDay(at: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at);
+}
+
+function fmtPrice(pence: number): string {
+  return `£${(pence / 100).toFixed(2)}`;
+}
 
 export default async function DriverLinkPage({
   params,
@@ -26,40 +44,54 @@ export default async function DriverLinkPage({
 
   if (search.status === 'accepted') {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Job accepted</h1>
-        <p className="text-sm text-ink-muted">The operator and the passenger have been notified.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <div className="ph-check">
+            <Icon.Check />
+          </div>
+          <h1>Job accepted</h1>
+          <p className="you">The operator and the passenger have been notified.</p>
+        </div>
+      </Stage>
     );
   }
   if (search.status === 'declined') {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Job declined</h1>
-        <p className="text-sm text-ink-muted">Thank you — the operator will reassign.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Job declined</h1>
+          <p className="you">Thank you — the operator will reassign.</p>
+        </div>
+      </Stage>
     );
   }
   if (search.status === 'submitted') {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Submitted</h1>
-        <p className="text-sm text-ink-muted">Thank you — the operator will review and approve.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <div className="ph-check">
+            <Icon.Check />
+          </div>
+          <h1>Submitted</h1>
+          <p className="you">Thank you — the operator will review and approve.</p>
+        </div>
+      </Stage>
     );
   }
 
   const verified = await verifyDriverLink(driverLinkSecret(), token);
   if (!verified.ok) {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
-        <p className="text-sm text-ink-muted">
-          {verified.reason === 'expired'
-            ? 'This link has expired.'
-            : 'Sorry, this link is not valid.'}
-        </p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Link unavailable</h1>
+          <p className="you">
+            {verified.reason === 'expired'
+              ? 'This link has expired.'
+              : 'Sorry, this link is not valid.'}
+          </p>
+        </div>
+      </Stage>
     );
   }
 
@@ -75,67 +107,128 @@ export default async function DriverLinkPage({
 
   if (!result.ok) {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
-        <p className="text-sm text-ink-muted">
-          {result.reason === 'token_expired'
-            ? 'This link has expired.'
-            : result.reason === 'token_consumed'
-              ? 'This job has already been accepted.'
-              : result.reason === 'wrong_state'
-                ? 'This job is no longer open.'
-                : 'Sorry, this link is not valid.'}
-        </p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Link unavailable</h1>
+          <p className="you">
+            {result.reason === 'token_expired'
+              ? 'This link has expired.'
+              : result.reason === 'token_consumed'
+                ? 'This job has already been accepted.'
+                : result.reason === 'wrong_state'
+                  ? 'This job is no longer open.'
+                  : 'Sorry, this link is not valid.'}
+          </p>
+        </div>
+      </Stage>
     );
   }
 
   const { booking, driver } = result.preview;
+  const passengerName = `${booking.passengerFirstName} ${booking.passengerLastName}`.trim();
+
   return (
-    <DriverShell>
-      <h1 className="mb-1 text-lg font-semibold text-ink">Job offer for {driver.name}</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Please confirm you are <strong>{driver.name}</strong> before accepting.
-      </p>
+    <Stage>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Avatar name={driver.name} id={driver.id} size={36} />
+        <div>
+          <div
+            style={{
+              fontSize: 10.5,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+              color: 'var(--ink-3)',
+            }}
+          >
+            Job offer for
+          </div>
+          <strong style={{ fontSize: 14 }}>{driver.name}</strong>
+        </div>
+        <span style={{ flex: 1 }} />
+        <Lozenge tone="blue">NEW OFFER</Lozenge>
+      </div>
 
-      {search.error ? (
-        <Alert tone="danger" className="mb-3">
-          {decodeURIComponent(search.error)}
-        </Alert>
-      ) : null}
+      <h1>{passengerName}</h1>
 
-      <dl className="mb-5 grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm">
-        <Dt>Pickup</Dt>
-        <Dd>{booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC</Dd>
-        <Dt>From</Dt>
-        <Dd>{booking.pickupAddress}</Dd>
-        <Dt>To</Dt>
-        <Dd>{booking.dropoffAddress}</Dd>
-        <Dt>Duration</Dt>
-        <Dd>{booking.expectedDurationMinutes} minutes</Dd>
-        <Dt>Price</Dt>
-        <Dd>£{(booking.contractPricePence / 100).toFixed(2)}</Dd>
-      </dl>
+      {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
 
-      <form action={acceptAction} className="space-y-3">
+      <div className="public-card__job">
+        <div className="row">
+          <span className="pin" />
+          <div className="addr">
+            <div className="lbl">Pickup · {fmtTimeWithDay(booking.pickupAt)}</div>
+            {booking.pickupAddress}
+          </div>
+        </div>
+        <div className="row">
+          <span className="pin to" />
+          <div className="addr">
+            <div className="lbl">Drop-off</div>
+            {booking.dropoffAddress}
+          </div>
+        </div>
+        <div className="meta">
+          <div className="m">
+            <div className="k">Duration</div>
+            <div className="v">{booking.expectedDurationMinutes} min</div>
+          </div>
+          <div className="m">
+            <div className="k">Price</div>
+            <div className="v">{fmtPrice(booking.contractPricePence)}</div>
+          </div>
+        </div>
+        {booking.notes ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--ink-3)',
+              borderTop: '1px solid var(--hairline-soft)',
+              paddingTop: 10,
+            }}
+          >
+            <strong style={{ color: 'var(--ink)' }}>Note:</strong> {booking.notes}
+          </div>
+        ) : null}
+      </div>
+
+      <form action={acceptAction}>
         <input type="hidden" name="token" value={token} />
-        <Field
-          label="Vehicle for this job"
-          helper="Defaults to your usual. Change if you'll use a different car."
+        <div className="field">
+          <label htmlFor="carForJob">Vehicle for this job</label>
+          <input
+            id="carForJob"
+            className="input"
+            type="text"
+            name="carForJob"
+            maxLength={80}
+            defaultValue={driver.defaultCarType}
+          />
+          <div className="hint">Defaults to your usual. Change if you'll use a different car.</div>
+        </div>
+        <button
+          type="submit"
+          className="btn btn--success btn--lg btn--block"
+          style={{ marginTop: 12 }}
         >
-          <Input type="text" name="carForJob" maxLength={80} defaultValue={driver.defaultCarType} />
-        </Field>
-        <Button variant="success" type="submit" className="w-full justify-center text-base h-11">
-          Accept job
-        </Button>
+          <Icon.Check /> Accept job
+        </button>
       </form>
-      <form action={declineAction} className="mt-2">
+      <form action={declineAction}>
         <input type="hidden" name="token" value={token} />
-        <Button variant="ghost" type="submit" className="w-full justify-center">
+        <button
+          type="submit"
+          className="btn btn--block"
+          style={{ marginTop: 6, color: 'var(--lz-red-fg)' }}
+        >
           Decline
-        </Button>
+        </button>
       </form>
-    </DriverShell>
+
+      <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
+        By accepting, you confirm you are {driver.name}.
+      </div>
+    </Stage>
   );
 }
 
@@ -149,10 +242,12 @@ async function CompletionPage({
   const verified = await verifyDriverLink(driverLinkSecret(), token);
   if (!verified.ok) {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
-        <p className="text-sm text-ink-muted">Sorry, this link is not valid.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Link unavailable</h1>
+          <p className="you">Sorry, this link is not valid.</p>
+        </div>
+      </Stage>
     );
   }
   const { jobId, driverId, jti } = verified.payload;
@@ -164,10 +259,12 @@ async function CompletionPage({
     .limit(1);
   if (used) {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Already submitted</h1>
-        <p className="text-sm text-ink-muted">Thank you — this form has been received.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Already submitted</h1>
+          <p className="you">Thank you — this form has been received.</p>
+        </div>
+      </Stage>
     );
   }
   const [booking] = await database
@@ -177,10 +274,12 @@ async function CompletionPage({
     .limit(1);
   if (!booking || booking.state !== 'awaiting_driver_form') {
     return (
-      <DriverShell>
-        <h1 className="mb-1 text-lg font-semibold text-ink">Link unavailable</h1>
-        <p className="text-sm text-ink-muted">This form is no longer open.</p>
-      </DriverShell>
+      <Stage>
+        <div className="ph-center">
+          <h1>Link unavailable</h1>
+          <p className="you">This form is no longer open.</p>
+        </div>
+      </Stage>
     );
   }
   const [driver] = await database
@@ -190,20 +289,21 @@ async function CompletionPage({
     .limit(1);
 
   return (
-    <DriverShell>
-      <h1 className="mb-1 text-lg font-semibold text-ink">Trip completion</h1>
-      <p className="mb-4 text-sm text-ink-muted">
+    <Stage>
+      <h1>Trip completion</h1>
+      <p className="you">
         For driver <strong>{driver?.name ?? 'unknown'}</strong>. Three quick fields and you're done.
       </p>
-      {search.error ? (
-        <Alert tone="danger" className="mb-3">
-          {decodeURIComponent(search.error)}
-        </Alert>
-      ) : null}
-      <form action={submitCompletionAction} className="space-y-3">
+      {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
+      <form action={submitCompletionAction} style={{ marginTop: 14 }}>
         <input type="hidden" name="token" value={token} />
-        <Field label="Car park / waiting fee (£)" required>
-          <Input
+        <div className="field">
+          <label htmlFor="carParkPounds">
+            Car park / waiting fee (£) <span className="req">*</span>
+          </label>
+          <input
+            id="carParkPounds"
+            className="input"
             type="number"
             name="carParkPounds"
             step="0.01"
@@ -212,9 +312,14 @@ async function CompletionPage({
             defaultValue={0}
             required
           />
-        </Field>
-        <Field label="Waiting time (minutes)" required>
-          <Input
+        </div>
+        <div className="field">
+          <label htmlFor="waitingTimeMinutes">
+            Waiting time (minutes) <span className="req">*</span>
+          </label>
+          <input
+            id="waitingTimeMinutes"
+            className="input"
             type="number"
             name="waitingTimeMinutes"
             min={0}
@@ -222,34 +327,29 @@ async function CompletionPage({
             defaultValue={0}
             required
           />
-        </Field>
-        <Field label="Drop-off time (UTC)" required>
-          <Input type="datetime-local" name="dropoffAt" required />
-        </Field>
-        <Button variant="primary" type="submit" className="w-full justify-center text-base h-11">
+        </div>
+        <div className="field">
+          <label htmlFor="dropoffAt">
+            Drop-off time <span className="req">*</span>
+          </label>
+          <input id="dropoffAt" className="input" type="datetime-local" name="dropoffAt" required />
+        </div>
+        <button
+          type="submit"
+          className="btn btn--primary btn--lg btn--block"
+          style={{ marginTop: 12 }}
+        >
           Submit
-        </Button>
+        </button>
       </form>
-    </DriverShell>
+    </Stage>
   );
 }
 
-function DriverShell({ children }: { children: React.ReactNode }) {
+function Stage({ children }: { children: ReactNode }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-surface-sunken p-4">
-      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-card">
-        {children}
-      </div>
-    </main>
+    <div className="public-stage">
+      <div className="public-card">{children}</div>
+    </div>
   );
-}
-
-function Dt({ children }: { children: React.ReactNode }) {
-  return (
-    <dt className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{children}</dt>
-  );
-}
-
-function Dd({ children }: { children: React.ReactNode }) {
-  return <dd className="text-sm text-ink">{children}</dd>;
 }
