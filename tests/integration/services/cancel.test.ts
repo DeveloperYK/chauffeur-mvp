@@ -53,6 +53,7 @@ describe('services/cancel (integration)', () => {
         passengerFirstName: 'Eric',
         passengerLastName: 'French',
         execMobile: '+447911999999',
+        clientName: 'LEGO Group',
         accountCode: 'LEGO',
         contractPricePence: 30000,
         assignedDriverId: state === 'unassigned' ? null : driverId,

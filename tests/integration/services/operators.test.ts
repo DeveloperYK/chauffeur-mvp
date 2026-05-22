@@ -46,6 +46,7 @@ describe('services/operators (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911123456',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,

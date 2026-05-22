@@ -142,9 +142,10 @@ export default async function DashboardHome({
     return [
       b.id,
       b.passengerFirstName,
-      b.passengerLastName,
+      b.passengerLastName ?? '',
       b.pickupAddress,
       b.dropoffAddress,
+      b.clientName,
       b.accountCode,
       b.carForThisJob ?? '',
     ].some((x) => x.toLowerCase().includes(needle));
@@ -387,8 +388,10 @@ function BookingCard({
         ) : null}
         <span className="card__time">{fmtTime(booking.pickupAt)}</span>
       </div>
-      <div className="card__title">
-        {booking.passengerFirstName} {booking.passengerLastName}
+      <div className="card__title">{booking.clientName}</div>
+      <div className="card__sub">
+        {booking.passengerFirstName}
+        {booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}
       </div>
       <div className="card__route">
         <span className="pin" />
@@ -436,7 +439,7 @@ function ListView({
       <div className="list__row head">
         <span />
         <span>Pickup</span>
-        <span>Passenger</span>
+        <span>Client</span>
         <span>Route</span>
         <span>Driver</span>
         <span>Status</span>
@@ -457,8 +460,11 @@ function ListView({
             </span>
             <span className="time">{fmtTime(b.pickupAt)}</span>
             <span className="pax">
-              {b.passengerFirstName} {b.passengerLastName}
-              <div className="pax__sub">{b.accountCode}</div>
+              {b.clientName}
+              <div className="pax__sub">
+                {b.passengerFirstName}
+                {b.passengerLastName ? ` ${b.passengerLastName}` : ''} · {b.accountCode}
+              </div>
             </span>
             <span className="route">
               {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}

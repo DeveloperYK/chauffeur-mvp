@@ -53,6 +53,7 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999001',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
   },
@@ -64,6 +65,7 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Martin',
     passengerLastName: 'Finch',
     execMobile: '+447911999002',
+    clientName: 'Mercedes-Benz UK',
     accountCode: 'MERC',
     contractPricePence: 20000,
   },
@@ -75,6 +77,7 @@ const SAMPLE_BOOKINGS = [
     passengerFirstName: 'Sophia',
     passengerLastName: 'Lefevre',
     execMobile: '+33612345678',
+    clientName: 'Johnson & Johnson',
     accountCode: 'JJ',
     contractPricePence: 45000,
   },
@@ -132,6 +135,7 @@ export async function seedSampleData(db: Database, operatorId: string): Promise<
         passengerFirstName: b.passengerFirstName,
         passengerLastName: b.passengerLastName,
         execMobile: b.execMobile,
+        clientName: b.clientName,
         accountCode: b.accountCode,
         contractPricePence: b.contractPricePence,
       },
@@ -262,6 +266,7 @@ export async function setBookingState(
 export interface BookingSummary {
   id: string;
   state: BookingState;
+  clientName: string;
   passengerName: string;
   pickupAt: Date;
   accountCode: string;
@@ -272,7 +277,8 @@ export async function listAllForSimulator(db: Database): Promise<BookingSummary[
   return rows.map((b) => ({
     id: b.id,
     state: b.state,
-    passengerName: `${b.passengerFirstName} ${b.passengerLastName}`,
+    clientName: b.clientName,
+    passengerName: `${b.passengerFirstName}${b.passengerLastName ? ` ${b.passengerLastName}` : ''}`,
     pickupAt: b.pickupAt,
     accountCode: b.accountCode,
   }));

@@ -25,6 +25,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
     "@node-rs/argon2": "^2.0.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.36.4",
@@ -35,6 +36,7 @@
     "postgres": "^3.4.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-hook-form": "^7.76.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^3.24.1"
   },

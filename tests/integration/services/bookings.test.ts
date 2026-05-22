@@ -38,6 +38,7 @@ describe('services/bookings (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911123456',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -64,13 +65,12 @@ describe('services/bookings (integration)', () => {
     expect(events[0]?.actorId).toBe(operatorId);
   });
 
-  it('creates a booking without an account code (defaults to empty)', async () => {
+  it('requires account code (validation error when missing)', async () => {
     const { accountCode, ...withoutAccountCode } = validInput();
     void accountCode;
     const result = await createBooking(withoutAccountCode, { db, clock, operatorId });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.booking.accountCode).toBe('');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation');
   });
 
   it('rejects pickup in the past', async () => {
@@ -173,6 +173,7 @@ describe('services/bookings (integration)', () => {
         passengerFirstName: 'x',
         passengerLastName: 'y',
         execMobile: '+447911123456',
+        clientName: 'Test Client',
         accountCode: 'X',
         contractPricePence: 1000,
       });

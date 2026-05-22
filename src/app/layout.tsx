@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
 import './globals.css';
 
@@ -7,6 +8,8 @@ export const metadata: Metadata = {
   description: 'Operator dashboard',
   robots: { index: false, follow: false },
 };
+
+const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -19,7 +22,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body className="h-full">{children}</body>
+      <body className="h-full">
+        {children}
+        {googlePlacesApiKey ? (
+          <Script
+            src={`https://maps.googleapis.com/maps/api/js?key=${googlePlacesApiKey}&libraries=places`}
+            strategy="lazyOnload"
+          />
+        ) : null}
+      </body>
     </html>
   );
 }

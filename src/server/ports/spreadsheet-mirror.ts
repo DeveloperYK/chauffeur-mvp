@@ -97,7 +97,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     '', // Case code — not captured by MVP form
     operator?.name ?? '', // "Booked By" is now the operator who created it
     booking.passengerFirstName,
-    booking.passengerLastName,
+    booking.passengerLastName ?? '',
     booking.pickupAddress,
     booking.dropoffAddress,
     booking.accountCode,
@@ -115,7 +115,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     dropoff ? formatTimeOfDay(dropoff) : '',
     booking.state === 'completed' ? 'Yes' : 'No',
     '',
-    `${booking.passengerFirstName} ${booking.passengerLastName}`,
+    `${booking.passengerFirstName}${booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}`,
     `${totalMinutes} min`,
     `${booking.pickupAddress} → ${booking.dropoffAddress}`,
     '',

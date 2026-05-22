@@ -97,9 +97,11 @@ export default async function BookingPage({
           ) : null}
         </div>
         <div className="dp-hero__eyebrow">Client</div>
-        <h1 className="dp-hero__title">
-          {booking.passengerFirstName} {booking.passengerLastName}
-        </h1>
+        <h1 className="dp-hero__title">{booking.clientName}</h1>
+        <div className="dp-hero__sub">
+          {booking.passengerFirstName}
+          {booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}
+        </div>
         <div className="dp-hero__stats">
           <div className="dp-stat">
             <div className="dp-stat__lbl">Pickup</div>
@@ -180,17 +182,21 @@ export default async function BookingPage({
         </header>
         <div className="ic__body">
           <div className="ir">
-            <div className="ir__k">Passenger</div>
+            <div className="ir__k">Client</div>
             <div className="ir__v">
-              <div className="ir__main">
-                {booking.passengerFirstName} {booking.passengerLastName}
-              </div>
-              <div className="ir__sub mono">{booking.execMobile}</div>
+              <div className="ir__main">{booking.clientName}</div>
+              <div className="ir__sub mono">{booking.accountCode}</div>
             </div>
           </div>
           <div className="ir">
-            <div className="ir__k">Account</div>
-            <div className="ir__v">{booking.accountCode}</div>
+            <div className="ir__k">Passenger</div>
+            <div className="ir__v">
+              <div className="ir__main">
+                {booking.passengerFirstName}
+                {booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}
+              </div>
+              <div className="ir__sub mono">{booking.execMobile}</div>
+            </div>
           </div>
           <div className="ir">
             <div className="ir__k">Booked by</div>

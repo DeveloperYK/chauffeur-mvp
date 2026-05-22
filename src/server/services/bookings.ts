@@ -1,8 +1,9 @@
 import type { Database } from '@/server/db';
-import { type Booking, bookings } from '@/server/db/schema';
+import { type Booking, bookings, drivers } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
+import { eq } from 'drizzle-orm';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
@@ -28,13 +29,15 @@ export const createBookingSchema = z
     pickupAddress: z.string().min(3).max(500),
     dropoffAddress: z.string().min(3).max(500),
     passengerFirstName: z.string().min(1).max(80),
-    passengerLastName: z.string().min(1).max(80),
+    passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
-    // Optional — the create form no longer collects it. Existing rows keep
-    // their codes; new bookings default to empty. Column stays NOT NULL.
-    accountCode: z.string().max(40).optional().default(''),
+    clientName: z.string().min(1, 'Client/company name is required').max(120),
+    accountCode: z.string().min(1, 'Account code is required').max(40),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
+    // Optional: assign driver at booking creation
+    assignedDriverId: z.string().uuid().optional().nullable(),
+    markAsAccepted: z.boolean().optional().default(false),
   })
   .strict();
 
@@ -50,7 +53,9 @@ export interface CreateBookingDeps {
 export type CreateBookingResult =
   | { ok: true; booking: Booking }
   | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
-  | { ok: false; reason: 'pickup_in_past' };
+  | { ok: false; reason: 'pickup_in_past' }
+  | { ok: false; reason: 'driver_not_found' }
+  | { ok: false; reason: 'driver_inactive' };
 
 export async function createBooking(
   raw: unknown,
@@ -67,23 +72,42 @@ export async function createBooking(
     return { ok: false, reason: 'pickup_in_past' };
   }
 
+  // If assigning driver at creation, validate the driver exists and is active
+  let driver: { id: string; defaultCarType: string } | null = null;
+  if (parsed.data.assignedDriverId) {
+    const [found] = await deps.db
+      .select({ id: drivers.id, defaultCarType: drivers.defaultCarType, active: drivers.active })
+      .from(drivers)
+      .where(eq(drivers.id, parsed.data.assignedDriverId))
+      .limit(1);
+    if (!found) return { ok: false, reason: 'driver_not_found' };
+    if (!found.active) return { ok: false, reason: 'driver_inactive' };
+    driver = found;
+  }
+
+  const shouldMarkAssigned = driver !== null && parsed.data.markAsAccepted;
+
   const [inserted] = await deps.db
     .insert(bookings)
     .values({
+      state: shouldMarkAssigned ? 'assigned' : 'unassigned',
       pickupAt: parsed.data.pickupAt,
       expectedDurationMinutes: parsed.data.expectedDurationMinutes,
       pickupAddress: parsed.data.pickupAddress,
       dropoffAddress: parsed.data.dropoffAddress,
       passengerFirstName: parsed.data.passengerFirstName,
-      passengerLastName: parsed.data.passengerLastName,
+      passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,
+      clientName: parsed.data.clientName,
       accountCode: parsed.data.accountCode,
       contractPricePence: parsed.data.contractPricePence,
       notes: parsed.data.notes ?? null,
-      // The operator who creates the ticket is its "booked by" and its
-      // initial assignee (Jira-style — reassignable later).
       createdByOperatorId: deps.operatorId,
       assignedOperatorId: deps.operatorId,
+      // Driver assignment at creation (if markAsAccepted)
+      assignedDriverId: shouldMarkAssigned && driver ? driver.id : null,
+      carForThisJob: shouldMarkAssigned && driver ? driver.defaultCarType : null,
+      assignedAt: shouldMarkAssigned ? now : null,
     })
     .returning();
 
@@ -98,7 +122,10 @@ export async function createBooking(
     entityId: inserted.id,
     action: 'create',
     before: null,
-    after: { state: inserted.state },
+    after: {
+      state: inserted.state,
+      ...(shouldMarkAssigned && driver ? { driverId: driver.id, markedAccepted: true } : {}),
+    },
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, inserted);

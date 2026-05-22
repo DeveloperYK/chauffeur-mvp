@@ -137,8 +137,9 @@ export interface BookingOverrides {
   pickupAddress?: string;
   dropoffAddress?: string;
   passengerFirstName?: string;
-  passengerLastName?: string;
+  passengerLastName?: string | null;
   execMobile?: string;
+  clientName?: string;
   accountCode?: string;
   contractPricePence?: number;
   notes?: string | null;
@@ -174,6 +175,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -194,6 +196,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -217,6 +220,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -244,6 +248,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -271,6 +276,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -298,6 +304,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -327,6 +334,7 @@ export const BookingFactory = {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911999999',
+    clientName: 'LEGO Group',
     accountCode: 'LEGO',
     contractPricePence: 30000,
     notes: null,
@@ -350,6 +358,7 @@ export const BookingFactory = {
     passengerFirstName: overrides.passengerFirstName ?? 'Test',
     passengerLastName: overrides.passengerLastName ?? 'Passenger',
     execMobile: overrides.execMobile ?? '+447900000000',
+    clientName: overrides.clientName ?? 'Test Client',
     accountCode: overrides.accountCode ?? 'TEST',
     contractPricePence: overrides.contractPricePence ?? 10000,
     notes: overrides.notes ?? null,
