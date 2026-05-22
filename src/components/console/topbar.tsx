@@ -40,9 +40,7 @@ export function Topbar({ me }: { me: { id: string; name: string } }) {
     <header className="topbar">
       <a className="topbar__brand" href="/dashboard">
         <div className="topbar__mark">CD</div>
-        <div className="topbar__name">
-          Chauffeur <small>Dispatch</small>
-        </div>
+        <div className="topbar__name">chaffeur-mvp-v1</div>
       </a>
       <div className="topbar__crumbs" />
       <span className="topbar__spacer" />
