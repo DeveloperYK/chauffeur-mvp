@@ -286,6 +286,27 @@ When Claude works on this repo:
 - **Do not bypass pre-commit hooks.** No `--no-verify`. Ever.
 - **Restart the local dev server after every change.** After merging/applying any change that the user is testing locally, kill the running dev server on port 3000 and start it fresh (`kill $(lsof -ti:3000)`, then `pnpm dev` with the `.env` loaded). Do this without being asked — the user wants a clean restart each time so they never test against a stale process. Confirm it's healthy via `GET /api/healthz` before reporting done.
 
+### Mandatory test execution before commit/push
+
+**CRITICAL: Before EVERY commit and EVERY push, Claude MUST:**
+
+1. **Run `pnpm test`** — Execute the full unit + integration test suite locally.
+2. **Verify all tests pass** — Do not commit or push if any test fails.
+3. **Check timing** — Suite must complete in < 60 seconds. If it exceeds this, investigate and fix before proceeding.
+4. **Run `pnpm typecheck`** — Ensure no TypeScript errors.
+5. **Run `pnpm lint`** — Ensure no linting errors.
+
+**The sequence is:**
+```bash
+pnpm typecheck && pnpm lint && pnpm test
+```
+
+If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only after all three pass may you proceed with `git commit` and `git push`.
+
+**Never assume tests will pass.** Always run them. Always verify the output. Report the results (pass count, timing) in your response so the human can confirm.
+
+**This is non-negotiable.** Pushing broken code to the repository is not acceptable. The operators depend on this system.
+
 When the user asks "implement stage N", the loop is:
 
 1. Open `docs/build-plan.md`, read the stage spec.
