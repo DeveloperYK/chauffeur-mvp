@@ -27,12 +27,7 @@ import {
 } from '@/server/db/schema';
 import { TestClock } from '@/server/ports/clock';
 import { expect } from 'vitest';
-import {
-  BookingFactory,
-  DriverFactory,
-  OperatorFactory,
-  TestConstants,
-} from '~test/fixtures/seed-data';
+import { DriverFactory, OperatorFactory, TestConstants } from '~test/fixtures/seed-data';
 import { type TestDb, createTestDb } from './pglite-db';
 
 export interface TestHarness {
@@ -105,20 +100,14 @@ export async function createTestHarness(): Promise<TestHarness> {
   const mirror = new FakeSpreadsheetMirror();
 
   // Create default operator
-  const [defaultOperator] = await db
-    .insert(operators)
-    .values(OperatorFactory.alice())
-    .returning();
+  const [defaultOperator] = await db.insert(operators).values(OperatorFactory.alice()).returning();
 
   if (!defaultOperator) {
     throw new Error('Failed to create default operator');
   }
 
   // Create default driver
-  const [defaultDriver] = await db
-    .insert(drivers)
-    .values(DriverFactory.premiumTom())
-    .returning();
+  const [defaultDriver] = await db.insert(drivers).values(DriverFactory.premiumTom()).returning();
 
   if (!defaultDriver) {
     throw new Error('Failed to create default driver');
@@ -176,9 +165,7 @@ export async function createTestHarness(): Promise<TestHarness> {
 
     async assertAuditEvent(action: string, entityId: string) {
       const events = await db.select().from(auditEvents);
-      const matching = events.filter(
-        (e) => e.action === action && e.entityId === entityId,
-      );
+      const matching = events.filter((e) => e.action === action && e.entityId === entityId);
       expect(matching.length).toBeGreaterThan(0);
     },
 

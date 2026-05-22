@@ -5,18 +5,13 @@
  * exhibit identical behavior for the same inputs.
  */
 
-import type {
-  MirrorRowInput,
-  SpreadsheetMirrorPort,
-} from '@/server/ports/spreadsheet-mirror';
+import type { MirrorRowInput, SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Create a valid MirrorRowInput for testing.
  */
-export function createValidMirrorInput(
-  overrides: Partial<MirrorRowInput> = {},
-): MirrorRowInput {
+export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}): MirrorRowInput {
   return {
     booking: {
       id: '00000000-0000-0000-0000-000000000001',

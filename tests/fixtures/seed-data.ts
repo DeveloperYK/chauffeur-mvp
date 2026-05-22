@@ -119,9 +119,7 @@ export const DriverFactory = {
     ...overrides,
   }),
 
-  custom: (
-    overrides: DriverOverrides & { name: string; whatsappNumber: string },
-  ): NewDriver => ({
+  custom: (overrides: DriverOverrides & { name: string; whatsappNumber: string }): NewDriver => ({
     name: overrides.name,
     tier: overrides.tier ?? 'ordinary',
     defaultCarType: overrides.defaultCarType ?? 'Generic Car',
@@ -187,11 +185,7 @@ export const BookingFactory = {
   /**
    * Assigned booking - driver has accepted the dispatch link.
    */
-  assigned: (
-    operatorId: string,
-    driverId: string,
-    overrides?: BookingOverrides,
-  ): NewBooking => ({
+  assigned: (operatorId: string, driverId: string, overrides?: BookingOverrides): NewBooking => ({
     state: 'assigned',
     pickupAt: DEFAULT_PICKUP,
     expectedDurationMinutes: 90,
@@ -214,11 +208,7 @@ export const BookingFactory = {
   /**
    * In-progress booking - clock tick has transitioned it (pickup - 1h reached).
    */
-  inProgress: (
-    operatorId: string,
-    driverId: string,
-    overrides?: BookingOverrides,
-  ): NewBooking => ({
+  inProgress: (operatorId: string, driverId: string, overrides?: BookingOverrides): NewBooking => ({
     state: 'in_progress',
     pickupAt: DEFAULT_PICKUP,
     expectedDurationMinutes: 90,
@@ -299,11 +289,7 @@ export const BookingFactory = {
   /**
    * Completed booking - operator has approved.
    */
-  completed: (
-    operatorId: string,
-    driverId: string,
-    overrides?: BookingOverrides,
-  ): NewBooking => ({
+  completed: (operatorId: string, driverId: string, overrides?: BookingOverrides): NewBooking => ({
     state: 'completed',
     pickupAt: DEFAULT_PICKUP,
     expectedDurationMinutes: 90,
@@ -355,10 +341,7 @@ export const BookingFactory = {
   /**
    * Custom booking with full control over all fields.
    */
-  custom: (
-    operatorId: string,
-    overrides: BookingOverrides & { pickupAt: Date },
-  ): NewBooking => ({
+  custom: (operatorId: string, overrides: BookingOverrides & { pickupAt: Date }): NewBooking => ({
     state: overrides.state ?? 'unassigned',
     pickupAt: overrides.pickupAt,
     expectedDurationMinutes: overrides.expectedDurationMinutes ?? 60,

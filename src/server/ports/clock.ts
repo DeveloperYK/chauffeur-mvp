@@ -19,8 +19,7 @@ export class TestClock implements Clock {
   private currentTime: Date;
 
   constructor(initialTime: Date | string | number = new Date()) {
-    this.currentTime =
-      initialTime instanceof Date ? new Date(initialTime) : new Date(initialTime);
+    this.currentTime = initialTime instanceof Date ? new Date(initialTime) : new Date(initialTime);
   }
 
   now(): Date {
