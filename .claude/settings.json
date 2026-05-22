@@ -5,7 +5,12 @@
       "Read(*)",
       "Write(*)",
       "Edit(*)",
-      "mcp__github__*",
+      "Agent(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "NotebookEdit(*)",
+      "Monitor(*)",
+      "Skill(*)",
       "mcp__*"
     ],
     "deny": []
