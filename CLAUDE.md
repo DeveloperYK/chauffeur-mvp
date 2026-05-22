@@ -98,26 +98,102 @@ Every change must clear this bar before merge:
 4. **Refactor.** Tidy with tests still green.
 5. **Coverage check.** Must remain ≥ 85% statements, ≥ 80% branches on `src/server/`.
 
+### Pre-implementation test planning (mandatory)
+
+Before writing ANY implementation code, you MUST:
+
+1. **List all happy path scenarios** — every valid use case the function should handle.
+2. **List all unhappy path scenarios** — validation failures, state errors, not found, unauthorized, edge cases.
+3. **Define comprehensive seed data** — use `tests/fixtures/seed-data.ts` factories.
+4. **Write failing tests FIRST** — with real assertions, not placeholders.
+
+Example for a new service function:
+```
+Happy paths:
+- creates booking with all valid fields
+- creates booking with minimal required fields
+
+Unhappy paths:
+- invalid phone number format → validation error
+- pickup time in past → validation error
+- negative price → validation error
+- duration out of range → validation error
+- missing required fields → validation error
+
+Side effects:
+- audit event recorded
+- mirrors to spreadsheet
+```
+
 ### Test budget — non-negotiable
 
 - **Unit + integration suite must complete in < 60 seconds locally and in CI.** This is enforced by a CI step. If it slips, fix it before merging anything else.
 - **Unit tests** are pure, no I/O, < 5ms each.
-- **Integration tests** use a single shared Postgres testcontainer (one boot per test run) with per-test transactions that roll back. Aim for < 200ms each.
-- **E2E** is one Playwright smoke flow on the critical path (login → create booking → generate link → driver accepts → exec SMS captured → completion form → operator approves). Runs in CI separately, not counted against the 60s.
+- **Integration tests** use PGlite (in-memory Postgres) via `createTestDb()`. Aim for < 200ms each.
+- **E2E** tests cover the critical paths (login → create booking → dispatch → completion). Runs in CI separately, not counted against the 60s.
 
 ### What every feature gets
 
 - Unit tests for domain logic (state transitions, validation, signing).
 - Integration tests for every service that touches the DB or an adapter.
-- A contract test for every adapter (Twilio, Sheets) using a fake.
+- A contract test for every adapter (Twilio, Sheets) — same test suite runs against both fake and real.
 - An e2e test for any new user-visible flow.
 - A test that proves the **security** property (authn enforced, authz enforced, input rejected).
+- **Minimum: 3 happy path + 3 unhappy path tests per function.**
 
-### Mocking policy
+### No-mock policy (strict)
 
-- **Mock only at port boundaries.** Never mock your own domain code.
-- Adapters have a `Fake<Port>` implementation kept beside the real one. Tests use the fake; production uses the real.
-- Date/time and IDs come from injected services (`Clock`, `IdGenerator`) so tests are deterministic.
+**Tests must NEVER mock:**
+- Domain functions
+- Service functions  
+- Database queries
+- Internal business logic
+
+**Tests use ONLY in-memory doubles at external boundaries:**
+- `FakeNotificationAdapter` for SMS (implements `NotificationPort`)
+- `FakeSpreadsheetMirror` for Google Sheets (implements `SpreadsheetMirrorPort`)
+- `fixedClock()` or `TestClock` for time (implements `Clock`)
+- `sequentialIdGenerator()` for deterministic IDs (implements `IdGenerator`)
+- PGlite for database (real SQL, in-memory)
+
+**Banned patterns:**
+- `vi.mock()` — use in-memory doubles instead
+- `vi.spyOn()` on production code — inject dependencies instead
+- `vi.useFakeTimers()` — use `TestClock` instead
+- Any Jest mocking utilities
+
+**Allowed patterns:**
+- `vi.fn()` for callback stubs where no production code exists
+- `vi.spyOn()` on test doubles only (for "was called with" assertions)
+
+### Contract tests
+
+Every in-memory double MUST have a contract test in `tests/contracts/` that:
+- Runs the same test suite against both the fake and real implementation
+- Verifies behavioral equivalence
+- Documents the port's behavioral contract
+
+Structure:
+```
+tests/contracts/
+├── notification.contract.ts        # Shared test cases
+├── notification-fake.test.ts       # Run against FakeNotificationAdapter
+├── notification-twilio.test.ts     # Run against TwilioNotificationAdapter
+├── spreadsheet-mirror.contract.ts
+├── spreadsheet-mirror-fake.test.ts
+├── spreadsheet-mirror-google.test.ts
+└── README.md
+```
+
+### Seed data factories
+
+All tests use typed factory functions in `tests/fixtures/seed-data.ts`:
+- `SeedData.operators.alice()` — returns valid operator data
+- `SeedData.drivers.premiumTom()` — returns valid driver data
+- `SeedData.bookings.unassigned(operatorId)` — returns booking in state
+- Deterministic IDs via `sequentialIdGenerator`
+- Deterministic time via `fixedClock`
+- Realistic sample data matching production patterns
 
 ---
 
@@ -317,6 +393,21 @@ When the user asks "implement stage N", the loop is:
 6. Run full suite. Show timing.
 7. Open PR with the template (§7).
 8. Wait for human review unless told to merge.
+
+### Post-merge Vercel deployment check
+
+When merging to main (or when told to merge):
+
+1. After PR merge, use the Claude Code web Vercel connector to check deployment status.
+2. Wait for deployment to complete (typically 1-2 minutes).
+3. If deployment **fails**:
+   - Read the deployment logs via Vercel connector.
+   - Create a fix branch immediately (`fix/vercel-deploy-<issue>`).
+   - Fix the issue before any other work.
+   - Do not leave main in a broken state.
+4. If deployment **succeeds**:
+   - Confirm the deployment is healthy via `GET /api/healthz` on production URL.
+5. Report deployment status in the completion message.
 
 ---
 
