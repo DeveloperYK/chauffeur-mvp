@@ -14,5 +14,6 @@
       "mcp__*"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true
 }
