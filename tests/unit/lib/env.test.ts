@@ -33,3 +33,32 @@ describe('env() — CLOCK_TICK_SECRET validation', () => {
     expect(() => env()).toThrow();
   });
 });
+
+describe('env() — AUTH_DISABLED flag', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  afterEach(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('defaults to false when unset', async () => {
+    process.env.AUTH_DISABLED = undefined;
+    const { env } = await import('@/lib/env');
+    expect(env().AUTH_DISABLED).toBe(false);
+  });
+
+  it.each(['true', '1'])('is true for %s', async (value) => {
+    process.env.AUTH_DISABLED = value;
+    const { env } = await import('@/lib/env');
+    expect(env().AUTH_DISABLED).toBe(true);
+  });
+
+  it.each(['false', '0', 'no', ''])('is false for %s', async (value) => {
+    process.env.AUTH_DISABLED = value;
+    const { env } = await import('@/lib/env');
+    expect(env().AUTH_DISABLED).toBe(false);
+  });
+});

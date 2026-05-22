@@ -15,6 +15,15 @@ const schema = z.object({
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  // When set (`true`/`1`), the operator login screen is bypassed and the app
+  // auto-resolves to the first active operator in every environment — including
+  // production. Reversible by flipping the env var; no code change needed.
+  // SECURITY: leaves the dashboard open to anyone who can reach the URL. Gate
+  // access another way (e.g. platform password protection) when this is on.
+  AUTH_DISABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
 });
 
 export type Env = z.infer<typeof schema>;
