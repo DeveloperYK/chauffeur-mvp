@@ -11,6 +11,18 @@ export interface TwilioConfig {
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
+/**
+ * A valid Twilio sender is either an E.164 number (`+` followed by 7–15 digits)
+ * or an Alphanumeric Sender ID — 1–11 characters of letters/digits/spaces
+ * containing at least one letter. Alphanumeric IDs are one-way and the right
+ * choice for UK notification traffic (e.g. "Chauffeur"); see
+ * docs/adr/0005-twilio-alphanumeric-sender.md.
+ */
+export function isValidTwilioSender(from: string): boolean {
+  if (/^\+[1-9]\d{6,14}$/.test(from)) return true;
+  return /^(?=.*[A-Za-z])[A-Za-z0-9 ]{1,11}$/.test(from);
+}
+
 export class TwilioNotificationAdapter implements NotificationPort {
   private readonly url: string;
   private readonly authHeader: string;
@@ -19,8 +31,10 @@ export class TwilioNotificationAdapter implements NotificationPort {
     if (!cfg.accountSid || !cfg.authToken || !cfg.fromNumber) {
       throw new Error('TwilioNotificationAdapter requires SID, token, and from-number');
     }
-    if (!cfg.fromNumber.startsWith('+')) {
-      throw new Error('TwilioNotificationAdapter from-number must be E.164 (start with +)');
+    if (!isValidTwilioSender(cfg.fromNumber)) {
+      throw new Error(
+        'TwilioNotificationAdapter from-number must be E.164 (start with +) or an alphanumeric Sender ID (1–11 chars, at least one letter)',
+      );
     }
     this.url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(cfg.accountSid)}/Messages.json`;
     this.authHeader = `Basic ${Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64')}`;
