@@ -22,10 +22,41 @@ describe('TwilioNotificationAdapter', () => {
     expect(() => new TwilioNotificationAdapter({ ...VALID_CFG, fromNumber: '' })).toThrow();
   });
 
-  it('throws if from-number is not E.164', () => {
+  it('throws if from-number is all-numeric without a + (ambiguous sender)', () => {
     expect(() => new TwilioNotificationAdapter({ ...VALID_CFG, fromNumber: '5555550000' })).toThrow(
       /E.164/,
     );
+  });
+
+  it('accepts an alphanumeric Sender ID as the from-number', () => {
+    expect(
+      () => new TwilioNotificationAdapter({ ...VALID_CFG, fromNumber: 'Chauffeur' }),
+    ).not.toThrow();
+  });
+
+  it('rejects an alphanumeric Sender ID longer than 11 chars', () => {
+    expect(
+      () => new TwilioNotificationAdapter({ ...VALID_CFG, fromNumber: 'ChauffeurMVP1' }),
+    ).toThrow();
+  });
+
+  it('sends with the alphanumeric Sender ID in the From field', async () => {
+    let capturedBody = '';
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? '');
+      return new Response(JSON.stringify({ sid: 'SMabc', status: 'queued' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const adapter = new TwilioNotificationAdapter({
+      ...VALID_CFG,
+      fromNumber: 'Chauffeur',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const r = await adapter.sendSms({ to: '+447911000001', body: 'hi' });
+    expect(r.ok).toBe(true);
+    expect(capturedBody).toContain('From=Chauffeur');
   });
 
   it('rejects non-E.164 destination without calling fetch', async () => {
