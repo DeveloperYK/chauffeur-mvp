@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
+import { simulatorEnabled } from '@/server/feature-flags';
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -38,11 +39,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className="app">
       <Topbar me={{ id: session.operator.id, name: session.operator.name }} />
-      <Rail
-        savedViews={SAVED_VIEWS}
-        counts={counts}
-        showSimulator={env().NODE_ENV !== 'production'}
-      />
+      <Rail savedViews={SAVED_VIEWS} counts={counts} showSimulator={simulatorEnabled()} />
       <main className="main" style={{ overflowY: 'auto' }}>
         {children}
       </main>

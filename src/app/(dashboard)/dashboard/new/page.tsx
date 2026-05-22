@@ -77,10 +77,6 @@ export default async function NewBookingPage({
             <Input type="tel" name="execMobile" required placeholder="+44 7911 123 456" />
           </Field>
 
-          <Field label="Account code" required helper="Customer account, e.g. LEGO or MERC.">
-            <Input type="text" name="accountCode" required maxLength={40} />
-          </Field>
-
           <Field label="Contract price (£)" required>
             <Input
               type="number"

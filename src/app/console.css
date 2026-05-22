@@ -676,6 +676,7 @@ a:hover {
   padding: 2px;
   height: 28px;
 }
+.viewswitch a,
 .viewswitch button {
   background: transparent;
   border: none;
@@ -685,16 +686,19 @@ a:hover {
   border-radius: 4px;
   color: var(--ink-3);
   cursor: pointer;
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 22px;
   transition: background 120ms ease, color 120ms ease;
 }
+.viewswitch a .icon,
 .viewswitch button .icon {
   width: 13px;
   height: 13px;
 }
+.viewswitch a.is-active,
 .viewswitch button.is-active {
   background: var(--surface-2);
   color: var(--ink);

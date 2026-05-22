@@ -24,6 +24,13 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true' || v === '1'),
+  // When set (`true`/`1`), the operator-facing test simulator is available in
+  // every environment — including production — so demo deploys can seed data,
+  // advance the clock, and force state transitions. Off by default.
+  SIMULATOR_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
 });
 
 export type Env = z.infer<typeof schema>;

@@ -7,6 +7,7 @@ import { PageContent, PageHeader } from '@/components/ui/page';
 import { STATE_BADGE, STATE_LABEL } from '@/lib/labels';
 import { db, fakeMirror, fakeNotifier } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
+import { simulatorEnabled } from '@/server/feature-flags';
 import { listAllForSimulator } from '@/server/services/simulator';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -43,7 +44,7 @@ export default async function SimulatorPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
-  if (process.env.NODE_ENV === 'production') notFound();
+  if (!simulatorEnabled()) notFound();
 
   const search = await searchParams;
   const bookings = await listAllForSimulator(db());
@@ -54,7 +55,7 @@ export default async function SimulatorPage({
     <PageContent>
       <PageHeader
         title="Simulator"
-        description="Dev-only sandbox: seed data, advance time, force state transitions, and inspect the in-memory SMS + Sheets mirrors."
+        description="Demo sandbox: seed data, advance time, force state transitions, and inspect the in-memory SMS + Sheets mirrors. The clock tick here uses the in-memory SMS fake — no real texts are sent."
         breadcrumb={
           <Link href="/dashboard" className="hover:underline">
             Board

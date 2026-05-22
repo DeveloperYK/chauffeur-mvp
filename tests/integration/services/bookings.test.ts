@@ -64,6 +64,15 @@ describe('services/bookings (integration)', () => {
     expect(events[0]?.actorId).toBe(operatorId);
   });
 
+  it('creates a booking without an account code (defaults to empty)', async () => {
+    const { accountCode, ...withoutAccountCode } = validInput();
+    void accountCode;
+    const result = await createBooking(withoutAccountCode, { db, clock, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.accountCode).toBe('');
+  });
+
   it('rejects pickup in the past', async () => {
     const result = await createBooking(validInput({ pickupAt: '2025-01-01T10:00:00.000Z' }), {
       db,
