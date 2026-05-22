@@ -30,7 +30,9 @@ export const createBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().min(1).max(80),
     execMobile: phoneSchema,
-    accountCode: z.string().min(1).max(40),
+    // Optional — the create form no longer collects it. Existing rows keep
+    // their codes; new bookings default to empty. Column stays NOT NULL.
+    accountCode: z.string().max(40).optional().default(''),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })

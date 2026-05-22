@@ -1,8 +1,9 @@
 'use server';
 
 import { currentSession } from '@/server/auth/current';
-import { db, fakeMirror, fakeNotifier, notifications } from '@/server/composition';
+import { db, fakeMirror, fakeNotifier } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
+import { simulatorEnabled } from '@/server/feature-flags';
 import { clockTick } from '@/server/services/clock-tick';
 import {
   fastForwardBooking,
@@ -13,9 +14,9 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-function assertDev(): void {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('simulator is disabled in production');
+function assertSimulatorEnabled(): void {
+  if (!simulatorEnabled()) {
+    throw new Error('simulator is disabled');
   }
 }
 
@@ -26,7 +27,7 @@ async function requireSession() {
 }
 
 export async function seedAction(): Promise<void> {
-  assertDev();
+  assertSimulatorEnabled();
   const session = await requireSession();
   await seedSampleData(db(), session.operator.id);
   revalidatePath('/dashboard/simulator');
@@ -35,7 +36,7 @@ export async function seedAction(): Promise<void> {
 }
 
 export async function resetAction(): Promise<void> {
-  assertDev();
+  assertSimulatorEnabled();
   await requireSession();
   await resetAllData(db());
   fakeNotifier.reset();
@@ -46,16 +47,19 @@ export async function resetAction(): Promise<void> {
 }
 
 export async function clockTickAction(): Promise<void> {
-  assertDev();
+  assertSimulatorEnabled();
   await requireSession();
-  await clockTick({ db: db(), notifications: notifications() });
+  // Always use the in-memory fake here so the simulator never sends real SMS,
+  // even on a production demo deploy where notifications() is the live Twilio
+  // adapter. The "SMS sent" panel reads this same fake.
+  await clockTick({ db: db(), notifications: fakeNotifier });
   revalidatePath('/dashboard/simulator');
   revalidatePath('/dashboard');
   redirect('/dashboard/simulator?ok=ticked');
 }
 
 export async function fastForwardAction(formData: FormData): Promise<void> {
-  assertDev();
+  assertSimulatorEnabled();
   await requireSession();
   const bookingId = String(formData.get('bookingId') ?? '');
   const scenario = String(formData.get('scenario') ?? '') as
@@ -70,7 +74,7 @@ export async function fastForwardAction(formData: FormData): Promise<void> {
 }
 
 export async function forceStateAction(formData: FormData): Promise<void> {
-  assertDev();
+  assertSimulatorEnabled();
   const session = await requireSession();
   const bookingId = String(formData.get('bookingId') ?? '');
   const state = String(formData.get('state') ?? '') as BookingState;

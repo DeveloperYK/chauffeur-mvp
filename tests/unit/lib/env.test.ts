@@ -62,3 +62,32 @@ describe('env() — AUTH_DISABLED flag', () => {
     expect(env().AUTH_DISABLED).toBe(false);
   });
 });
+
+describe('env() — SIMULATOR_ENABLED flag', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  afterEach(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('defaults to false when unset', async () => {
+    process.env.SIMULATOR_ENABLED = undefined;
+    const { env } = await import('@/lib/env');
+    expect(env().SIMULATOR_ENABLED).toBe(false);
+  });
+
+  it.each(['true', '1'])('is true for %s', async (value) => {
+    process.env.SIMULATOR_ENABLED = value;
+    const { env } = await import('@/lib/env');
+    expect(env().SIMULATOR_ENABLED).toBe(true);
+  });
+
+  it.each(['false', '0', ''])('is false for %s', async (value) => {
+    process.env.SIMULATOR_ENABLED = value;
+    const { env } = await import('@/lib/env');
+    expect(env().SIMULATOR_ENABLED).toBe(false);
+  });
+});

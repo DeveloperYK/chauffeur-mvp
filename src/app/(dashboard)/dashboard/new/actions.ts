@@ -30,7 +30,6 @@ export async function newBookingAction(formData: FormData): Promise<void> {
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? ''),
     execMobile: String(formData.get('execMobile') ?? ''),
-    accountCode: String(formData.get('accountCode') ?? ''),
     contractPricePence: pence,
     notes: (formData.get('notes') as string | null) ?? null,
   };
