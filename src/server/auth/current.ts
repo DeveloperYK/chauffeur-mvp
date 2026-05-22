@@ -9,9 +9,11 @@ import { type ValidatedSession, validateSession } from './sessions';
 /**
  * Look up the current operator session.
  *
- * In non-production environments, when no cookie session exists, we fall back
- * to the first active operator so the login flow can be skipped during local
- * development. Production never auto-logs anyone in.
+ * When no cookie session exists, we fall back to the first active operator —
+ * (a) always in non-production, so the login flow can be skipped during local
+ * development, and (b) in any environment when AUTH_DISABLED is set, which
+ * turns the login screen off. With auth enabled in production, this returns
+ * null and callers redirect to /login.
  */
 export async function currentSession(): Promise<ValidatedSession | null> {
   const url = env().DATABASE_URL;
@@ -25,7 +27,7 @@ export async function currentSession(): Promise<ValidatedSession | null> {
     if (found) return found;
   }
 
-  if (env().NODE_ENV !== 'production') {
+  if (env().NODE_ENV !== 'production' || env().AUTH_DISABLED) {
     const rows = await db
       .select()
       .from(operators)
