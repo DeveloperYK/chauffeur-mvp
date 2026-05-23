@@ -10,7 +10,10 @@ let cached: { db: Database; close: () => Promise<void> } | undefined;
 
 export function getDb(url: string): { db: Database; close: () => Promise<void> } {
   if (cached) return cached;
-  const client = postgres(url, { max: 10, idle_timeout: 20 });
+  // `prepare: false` is required when connecting through a transaction-mode
+  // pooler (e.g. Supabase Supavisor on :6543), where prepared statements can't
+  // span pooled backend connections. Harmless on direct/session connections.
+  const client = postgres(url, { max: 10, idle_timeout: 20, prepare: false });
   const db = drizzlePostgres(client, { schema });
   cached = {
     db,
