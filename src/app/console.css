@@ -3475,6 +3475,14 @@ a:hover {
 .ic__head--toggle:hover {
   background: var(--surface-3);
 }
+/* These interactive surfaces are rendered as native <button> for accessibility;
+   buttons don't inherit font-family or text-align, so restore them. */
+button.ic__head--toggle,
+button.driver-row {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+}
 .ic__head-meta {
   font-weight: 500;
   letter-spacing: 0;

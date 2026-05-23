@@ -371,17 +371,30 @@ When Claude works on this repo:
 3. **Check timing** — Suite must complete in < 60 seconds. If it exceeds this, investigate and fix before proceeding.
 4. **Run `pnpm typecheck`** — Ensure no TypeScript errors.
 5. **Run `pnpm lint`** — Ensure no linting errors.
+6. **Run the simulator-driven lifecycle E2E** — `pnpm test:e2e:lifecycle` (see below). This is the only test that exercises the **whole booking lifecycle** through the real UI; the unit/integration suite alone does not.
 
 **The sequence is:**
 ```bash
-pnpm typecheck && pnpm lint && pnpm test
+pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e:lifecycle
 ```
 
-If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only after all three pass may you proceed with `git commit` and `git push`.
+If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only after all four pass may you proceed with `git commit` and `git push`.
 
 **Never assume tests will pass.** Always run them. Always verify the output. Report the results (pass count, timing) in your response so the human can confirm.
 
 **This is non-negotiable.** Pushing broken code to the repository is not acceptable. The operators depend on this system.
+
+### Mandatory end-to-end lifecycle test (`pnpm test:e2e:lifecycle`)
+
+Unit + integration tests do not prove the app works end to end. Before every push you MUST also run the **full booking lifecycle** through the test simulator and the operator console:
+
+- **Spec:** `tests/e2e/lifecycle.spec.ts`. It uses the **simulator** (`/dashboard/simulator`: seed, force-state, fast-forward, run clock tick) to drive ONE booking through every stage — `unassigned → assigned → in_progress → awaiting_driver_form → awaiting_operator_review → completed` — asserting the state after each transition, then **approves it from the console detail panel**, then **cancels a second booking** from the panel. Clock ticks fire the real transition logic and the in-memory SMS + Sheets-mirror side effects.
+- **How to run:**
+  1. Ensure a dev server is running on :3000 (`pnpm dev`) — the lifecycle spec runs against it (`E2E_BASE_URL=http://localhost:3000`), where auth is bypassed (first operator).
+  2. `pnpm test:e2e:lifecycle`
+- **Why it is separate from `pnpm test:e2e`:** the default Playwright run builds + serves in **production** mode (auth enforced) and `smoke.spec.ts` asserts the login redirect; the lifecycle spec needs the dev auth bypass and the simulator. Do not merge them.
+- **Destructive:** the spec calls the simulator's **Reset all data**, wiping bookings + drivers in whatever DB the dev server points at. That is the simulator's purpose — never point the dev server at production data when running it.
+- **Coverage rule:** when you add or change a booking **state transition**, a **state-aware console action**, or the **simulator**, extend `lifecycle.spec.ts` to cover it. A new stage in the flow that the lifecycle test does not exercise is an incomplete change.
 
 When the user asks "implement stage N", the loop is:
 

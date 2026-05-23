@@ -1,15 +1,27 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './avatar';
 import { Icon } from './icons';
 
 export function Topbar({ me }: { me: { id: string; name: string } }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get('q') ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Open the create-booking modal. On the board we have a live console shell
+  // listening for the event (instant); elsewhere we navigate to the board with
+  // ?new=1, which opens the modal on mount.
+  const openCreate = () => {
+    if (pathname === '/dashboard') {
+      window.dispatchEvent(new Event('console:new-booking'));
+    } else {
+      router.push('/dashboard?new=1');
+    }
+  };
 
   // Keep input in sync if the URL changes elsewhere.
   useEffect(() => {
@@ -60,9 +72,9 @@ export function Topbar({ me }: { me: { id: string; name: string } }) {
         />
         <kbd>/</kbd>
       </form>
-      <a className="btn-pri-create btn" href="/dashboard/new">
+      <button type="button" className="btn-pri-create btn" onClick={openCreate}>
         <Icon.Plus /> Create
-      </a>
+      </button>
       <div className="topbar__me" title={me.name}>
         <Avatar name={me.name} id={me.id} size={26} />
       </div>

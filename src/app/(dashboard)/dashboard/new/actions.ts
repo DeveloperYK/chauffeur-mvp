@@ -1,5 +1,5 @@
 'use server';
-
+import { formatLondonDay } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { currentSession } from '@/server/auth/current';
@@ -11,6 +11,8 @@ import { redirect } from 'next/navigation';
 export interface CreateBookingActionResult {
   error?: string;
   success?: boolean;
+  /** London day (YYYY-MM-DD) of the new booking's pickup, so the board can jump to it. */
+  bookingDay?: string;
 }
 
 export async function createBookingAction(formData: FormData): Promise<CreateBookingActionResult> {
@@ -72,7 +74,7 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     return { error: msg };
   }
 
-  return { success: true };
+  return { success: true, bookingDay: formatLondonDay(result.booking.pickupAt) };
 }
 
 // Legacy action for backwards compatibility

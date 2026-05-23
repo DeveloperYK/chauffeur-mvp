@@ -1,6 +1,6 @@
 import type { Database } from '@/server/db';
 import { auditEvents, bookings, drivers, operators } from '@/server/db/schema';
-import { desc, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 export interface ActivityEvent {
   id: string;
@@ -96,4 +96,80 @@ export async function listActivity(db: Database, limit = 60): Promise<ActivityEv
       bookingId: r.entityId,
     };
   });
+}
+
+/** Audit trail for a single booking, oldest → newest, resolved to readable rows. */
+export async function listBookingHistory(
+  db: Database,
+  bookingId: string,
+  limit = 50,
+): Promise<ActivityEvent[]> {
+  const rows = await db
+    .select()
+    .from(auditEvents)
+    .where(and(eq(auditEvents.entityType, 'booking'), eq(auditEvents.entityId, bookingId)))
+    .orderBy(auditEvents.createdAt)
+    .limit(limit);
+  if (rows.length === 0) return [];
+
+  const actorIds = [...new Set(rows.map((r) => r.actorId).filter((x): x is string => Boolean(x)))];
+  const [ops, drvs, bk] = await Promise.all([
+    actorIds.length
+      ? db.select().from(operators).where(inArray(operators.id, actorIds))
+      : Promise.resolve([]),
+    actorIds.length
+      ? db.select().from(drivers).where(inArray(drivers.id, actorIds))
+      : Promise.resolve([]),
+    db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1),
+  ]);
+  const opName = new Map(ops.map((o) => [o.id, o.name]));
+  const drvName = new Map(drvs.map((d) => [d.id, d.name]));
+  const passenger = bk[0]
+    ? `${bk[0].passengerFirstName} ${bk[0].passengerLastName ?? ''}`.trim()
+    : PASSENGER_FALLBACK;
+
+  return rows.map((r) => {
+    const actor =
+      r.actorType === 'system'
+        ? 'System'
+        : r.actorType === 'driver'
+          ? r.actorId
+            ? (drvName.get(r.actorId) ?? 'Driver')
+            : 'Driver'
+          : r.actorId
+            ? (opName.get(r.actorId) ?? 'Operator')
+            : 'Operator';
+    return {
+      id: r.id,
+      ts: r.createdAt,
+      actor,
+      text: describeBookingDetail(r.action, r.after) ?? describe(r.action, passenger, r.after),
+      bookingId: r.entityId,
+    };
+  });
+}
+
+/** Booking-panel-specific phrasings that don't name the passenger (the panel already shows it). */
+function describeBookingDetail(action: string, after: unknown): string | null {
+  const a = (after ?? {}) as { changedFields?: string[] };
+  switch (action) {
+    case 'create':
+      return 'created the booking.';
+    case 'dispatch_link_generated':
+      return 'generated a dispatch link.';
+    case 'driver_accept':
+      return 'accepted the job.';
+    case 'driver_decline':
+      return 'declined the job.';
+    case 'edit':
+      return `edited ${a.changedFields?.length ? a.changedFields.join(', ') : 'the booking'}.`;
+    case 'operator_approve':
+      return 'approved & completed the trip.';
+    case 'operator_reject':
+      return 'rejected the completion form.';
+    case 'assign_operator':
+      return 'changed the assigned operator.';
+    default:
+      return null;
+  }
 }

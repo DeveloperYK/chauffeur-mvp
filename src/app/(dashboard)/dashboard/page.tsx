@@ -1,7 +1,9 @@
 import { Avatar, UnassignedAvatar } from '@/components/console/avatar';
 import { CalendarPopover } from '@/components/console/calendar-popover';
+import { ConsoleBoard } from '@/components/console/console-board';
 import { Icon } from '@/components/console/icons';
-import { COL_LABEL, Lozenge, StateLozenge, Tag } from '@/components/console/lozenge';
+import { Lozenge } from '@/components/console/lozenge';
+import type { ConsoleBooking, ConsoleDriver, ConsoleOperator } from '@/components/console/types';
 import {
   formatLondonDayLong,
   formatLondonMonth,
@@ -10,30 +12,22 @@ import {
   parseMonthString,
 } from '@/lib/dates';
 import { env } from '@/lib/env';
+import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
-import type { Booking, BookingState, Driver } from '@/server/db/schema';
+import type { Booking, BookingState } from '@/server/db/schema';
 import {
   type DayCounts,
-  groupByState,
+  driverDispatchData,
   listBookingsByState,
   listBookingsForDay,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
-import { type OperatorSummary, operatorsById } from '@/server/services/operators';
+import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
-
-const STATE_ORDER: BookingState[] = [
-  'unassigned',
-  'assigned',
-  'in_progress',
-  'awaiting_driver_form',
-  'awaiting_operator_review',
-  'completed',
-  'cancelled',
-];
 
 const SAVED_VIEW_LABEL: Record<string, string> = {
   unassigned: 'Unassigned tickets',
@@ -46,17 +40,32 @@ const SAVED_VIEW_STATE: Record<string, BookingState> = {
 
 const UNASSIGNED = 'unassigned';
 
-function fmtTime(d: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/London',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(d);
-}
-
-function truncate(s: string, n: number): string {
-  return s && s.length > n ? `${s.slice(0, n - 1)}…` : s;
+function toConsoleBooking(b: Booking): ConsoleBooking {
+  return {
+    id: b.id,
+    state: b.state,
+    pickupAt: b.pickupAt.toISOString(),
+    expectedDurationMinutes: b.expectedDurationMinutes,
+    pickupAddress: b.pickupAddress,
+    dropoffAddress: b.dropoffAddress,
+    passengerFirstName: b.passengerFirstName,
+    passengerLastName: b.passengerLastName,
+    execMobile: b.execMobile,
+    clientName: b.clientName,
+    accountCode: b.accountCode,
+    contractPricePence: b.contractPricePence,
+    notes: b.notes,
+    createdByOperatorId: b.createdByOperatorId,
+    assignedOperatorId: b.assignedOperatorId,
+    assignedDriverId: b.assignedDriverId,
+    carForThisJob: b.carForThisJob,
+    carParkPence: b.carParkPence,
+    waitingTimeMinutes: b.waitingTimeMinutes,
+    dropoffAt: b.dropoffAt ? b.dropoffAt.toISOString() : null,
+    cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
+    cancellationReason: b.cancellationReason,
+    flaggedAt: b.flaggedAt ? b.flaggedAt.toISOString() : null,
+  };
 }
 
 export default async function DashboardHome({
@@ -70,8 +79,12 @@ export default async function DashboardHome({
     savedView?: string;
     layout?: string;
     showDone?: string;
+    new?: string;
   }>;
 }) {
+  const session = await currentSession();
+  if (!session) redirect('/login');
+
   const url = env().DATABASE_URL;
   if (!url) {
     return <div className="content">DATABASE_URL not configured.</div>;
@@ -96,22 +109,20 @@ export default async function DashboardHome({
       .filter(Boolean),
   );
 
-  // The view set: a saved view filters by state across all days; otherwise the
-  // selected day's bookings.
-  const [viewRows, countsMap, drivers] = await Promise.all([
+  const [viewRows, countsMap, drivers, operatorList, dispatch] = await Promise.all([
     savedView
       ? listBookingsByState(db, SAVED_VIEW_STATE[savedView] as BookingState)
       : listBookingsForDay(db, selectedDay),
     monthlyDayCounts(db, visibleMonth),
     listAllDrivers(db),
+    listOperators(db),
+    driverDispatchData(db),
   ]);
 
   const counts: Record<string, DayCounts> = {};
   for (const [day, c] of countsMap.entries()) counts[day] = c;
 
-  // Operator lookup for facepile + avatars.
-  const opIds = viewRows.map((b) => b.assignedOperatorId).filter((x): x is string => Boolean(x));
-  const operators = await operatorsById(db, opIds);
+  const operatorName = new Map(operatorList.map((o) => [o.id, o.name]));
 
   // Facepile from the view set (stable, pre-filter).
   const perOperator = new Map<string, number>();
@@ -125,7 +136,7 @@ export default async function DashboardHome({
     ...[...perOperator.entries()]
       .map(([id, count]) => ({
         token: id,
-        name: operators.get(id)?.name ?? 'Unknown',
+        name: operatorName.get(id) ?? 'Unknown',
         isUnassigned: false,
         count,
       }))
@@ -135,7 +146,7 @@ export default async function DashboardHome({
       : []),
   ];
 
-  // Apply search + assignee filters.
+  // Search + assignee filters.
   const matchesQuery = (b: Booking) => {
     if (!q) return true;
     const needle = q.toLowerCase();
@@ -157,9 +168,7 @@ export default async function DashboardHome({
       : selectedTokens.has(UNASSIGNED);
   };
   const filtered = viewRows.filter(matchesQuery).filter(matchesAssignee);
-  const board = groupByState(filtered);
 
-  // Day stats (day mode only).
   const dayStats = {
     total: viewRows.length,
     unassigned: viewRows.filter((b) => b.state === 'unassigned').length,
@@ -169,7 +178,6 @@ export default async function DashboardHome({
     ).length,
   };
 
-  // Querystring builder preserving current params.
   const qs = (overrides: Record<string, string | null>) => {
     const p = new URLSearchParams();
     const cur: Record<string, string | undefined> = {
@@ -194,9 +202,19 @@ export default async function DashboardHome({
   };
 
   const isToday = selectedDay === today;
-  const cols = showDone
-    ? STATE_ORDER
-    : STATE_ORDER.filter((s) => !['completed', 'cancelled'].includes(s));
+
+  // Serialize for the client console shell.
+  const consoleBookings: ConsoleBooking[] = filtered.map(toConsoleBooking);
+  const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
+    id: d.id,
+    name: d.name,
+    tier: d.tier,
+    defaultCarType: d.defaultCarType,
+    whatsappNumber: d.whatsappNumber,
+    active: d.active,
+    jobsThisWeek: dispatch.weekLoads[d.id] ?? 0,
+  }));
+  const consoleOperators: ConsoleOperator[] = operatorList.map((o) => ({ id: o.id, name: o.name }));
 
   return (
     <>
@@ -311,193 +329,17 @@ export default async function DashboardHome({
         </div>
       </div>
 
-      {/* ── Content ───────────────────────────────────────────── */}
-      <div className="content">
-        {layout === 'board' ? (
-          <div className="board">
-            {cols.map((state) => (
-              <Column key={state} state={state} bookings={board[state]} operators={operators} />
-            ))}
-          </div>
-        ) : (
-          <ListView
-            bookings={filtered}
-            drivers={drivers}
-            operators={operators}
-            showDone={showDone}
-          />
-        )}
-      </div>
+      {/* ── Board + overlays (client) ─────────────────────────── */}
+      <ConsoleBoard
+        bookings={consoleBookings}
+        drivers={consoleDrivers}
+        operators={consoleOperators}
+        assignments={dispatch.windows}
+        me={{ id: session.operator.id, name: session.operator.name }}
+        layout={layout}
+        showDone={showDone}
+        initialNewOpen={params.new === '1'}
+      />
     </>
-  );
-}
-
-// ── Board column + card ──────────────────────────────────────
-
-function Column({
-  state,
-  bookings,
-  operators,
-}: {
-  state: BookingState;
-  bookings: Booking[];
-  operators: Map<string, OperatorSummary>;
-}) {
-  return (
-    <section className="column" aria-label={COL_LABEL[state]}>
-      <header className="column__head">
-        <span className="column__title">{COL_LABEL[state]}</span>
-        <span className="column__count">{bookings.length}</span>
-        {state === 'unassigned' ? (
-          <Link className="column__add" href="/dashboard/new" title="Create booking">
-            <Icon.Plus />
-          </Link>
-        ) : null}
-      </header>
-      <div className="column__body">
-        {bookings.length === 0 ? (
-          <div className="column__empty">No tickets.</div>
-        ) : (
-          bookings.map((b) => <BookingCard key={b.id} booking={b} operators={operators} />)
-        )}
-      </div>
-    </section>
-  );
-}
-
-function BookingCard({
-  booking,
-  operators,
-}: {
-  booking: Booking;
-  operators: Map<string, OperatorSummary>;
-}) {
-  const assignee = booking.assignedOperatorId ? operators.get(booking.assignedOperatorId) : null;
-  const vehicle = booking.carForThisJob;
-  return (
-    <Link
-      href={`/dashboard/bookings/${booking.id}`}
-      className={`card ${booking.flaggedAt ? 'is-flagged' : ''}`}
-    >
-      <div className="card__head">
-        <span className="card__id mono">{booking.id.slice(0, 8)}</span>
-        {booking.flaggedAt ? (
-          <Icon.Flag
-            style={{ color: 'var(--prio-high)', flex: '0 0 auto', width: 11, height: 11 }}
-          />
-        ) : null}
-        <span className="card__time">{fmtTime(booking.pickupAt)}</span>
-      </div>
-      <div className="card__title">{booking.clientName}</div>
-      <div className="card__sub">
-        {booking.passengerFirstName}
-        {booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}
-      </div>
-      <div className="card__route">
-        <span className="pin" />
-        <span className="addr">{truncate(booking.pickupAddress, 44)}</span>
-        <span className="pin to" />
-        <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
-      </div>
-      <div className="card__meta">
-        {vehicle ? <Tag>{vehicle}</Tag> : <span className="tag">No vehicle yet</span>}
-        <span className="card__meta-right">
-          {assignee ? (
-            <Avatar
-              name={assignee.name}
-              id={assignee.id}
-              size={20}
-              title={`Assigned to ${assignee.name}`}
-            />
-          ) : (
-            <UnassignedAvatar size={20} />
-          )}
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-// ── List view ────────────────────────────────────────────────
-
-function ListView({
-  bookings,
-  drivers,
-  operators,
-  showDone,
-}: {
-  bookings: Booking[];
-  drivers: Driver[];
-  operators: Map<string, OperatorSummary>;
-  showDone: boolean;
-}) {
-  const visible = bookings
-    .filter((b) => showDone || !['completed', 'cancelled'].includes(b.state))
-    .sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime());
-  return (
-    <div className="list">
-      <div className="list__row head">
-        <span />
-        <span>Pickup</span>
-        <span>Client</span>
-        <span>Route</span>
-        <span>Driver</span>
-        <span>Status</span>
-        <span>Assignee</span>
-        <span style={{ textAlign: 'right' }}>Price</span>
-      </div>
-      {visible.map((b) => {
-        const driver = b.assignedDriverId ? drivers.find((d) => d.id === b.assignedDriverId) : null;
-        const assignee = b.assignedOperatorId ? operators.get(b.assignedOperatorId) : null;
-        return (
-          <Link key={b.id} href={`/dashboard/bookings/${b.id}`} className="list__row">
-            <span>
-              {b.flaggedAt ? (
-                <Icon.Flag style={{ color: 'var(--prio-high)', width: 12, height: 12 }} />
-              ) : (
-                <span style={{ width: 12, display: 'inline-block' }} />
-              )}
-            </span>
-            <span className="time">{fmtTime(b.pickupAt)}</span>
-            <span className="pax">
-              {b.clientName}
-              <div className="pax__sub">
-                {b.passengerFirstName}
-                {b.passengerLastName ? ` ${b.passengerLastName}` : ''} · {b.accountCode}
-              </div>
-            </span>
-            <span className="route">
-              {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
-            </span>
-            <span className="driver-cell">
-              {driver ? (
-                <>
-                  <Avatar name={driver.name} id={driver.id} size={20} />
-                  {driver.name}
-                </>
-              ) : (
-                <span style={{ color: 'var(--ink-4)' }}>—</span>
-              )}
-            </span>
-            <span>
-              <StateLozenge state={b.state} />
-            </span>
-            <span>
-              {assignee ? (
-                <Avatar name={assignee.name} id={assignee.id} size={22} title={assignee.name} />
-              ) : (
-                <UnassignedAvatar size={22} />
-              )}
-            </span>
-            <span className="price-cell">£{(b.contractPricePence / 100).toFixed(0)}</span>
-          </Link>
-        );
-      })}
-      {visible.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-4)' }}>
-          No bookings match this view.
-        </div>
-      ) : null}
-    </div>
   );
 }
