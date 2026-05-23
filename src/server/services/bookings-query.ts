@@ -1,7 +1,7 @@
 import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings } from '@/server/db/schema';
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -142,5 +142,54 @@ export async function monthlyDayCounts(
 
 // Quiet the linter — sql import is reserved for upcoming optimisations.
 void sql;
+
+/**
+ * Per-driver dispatch context used by the dispatch picker:
+ * - `weekLoads`: how many open jobs each driver holds in the current week
+ *   (drives the bandwidth bar), keyed by driver id.
+ * - `windows`: busy windows (start/end ms) for every open assignment, so the
+ *   picker can flag drivers whose existing job overlaps the new pickup.
+ *
+ * "Open" excludes completed and cancelled bookings.
+ */
+export interface DriverDispatchData {
+  weekLoads: Record<string, number>;
+  windows: Array<{ driverId: string; startMs: number; endMs: number }>;
+}
+
+export async function driverDispatchData(
+  db: Database,
+  now: Date = new Date(),
+): Promise<DriverDispatchData> {
+  const rows = await db
+    .select({
+      assignedDriverId: bookings.assignedDriverId,
+      pickupAt: bookings.pickupAt,
+      expectedDurationMinutes: bookings.expectedDurationMinutes,
+    })
+    .from(bookings)
+    .where(inArray(bookings.state, ACTIVE_STATES));
+
+  // Current week boundaries (Mon 00:00 → next Mon 00:00), local server time.
+  const weekStart = new Date(now);
+  const dow = (weekStart.getDay() + 6) % 7; // 0 = Monday
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - dow);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
+
+  const weekLoads: Record<string, number> = {};
+  const windows: DriverDispatchData['windows'] = [];
+  for (const r of rows) {
+    if (!r.assignedDriverId) continue;
+    const startMs = r.pickupAt.getTime();
+    const endMs = startMs + (r.expectedDurationMinutes || 60) * 60_000;
+    windows.push({ driverId: r.assignedDriverId, startMs, endMs });
+    if (startMs >= weekStart.getTime() && startMs < weekEnd.getTime()) {
+      weekLoads[r.assignedDriverId] = (weekLoads[r.assignedDriverId] ?? 0) + 1;
+    }
+  }
+  return { weekLoads, windows };
+}
 
 export { ACTIVE_STATES };
