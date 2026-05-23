@@ -186,8 +186,8 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? '') || null,
     execMobile: String(formData.get('execMobile') ?? ''),
-    clientName: String(formData.get('clientName') ?? ''),
-    accountCode: String(formData.get('accountCode') ?? ''),
+    customerAccount: String(formData.get('customerAccount') ?? ''),
+    caseCode: String(formData.get('caseCode') ?? ''),
     contractPricePence: pence,
     notes: (formData.get('notes') as string | null) || null,
   };

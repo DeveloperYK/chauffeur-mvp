@@ -21,8 +21,8 @@ interface EditForm {
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
-  clientName: string;
-  accountCode: string;
+  customerAccount: string;
+  caseCode: string;
   contractPricePounds: string;
   notes: string;
 }
@@ -55,8 +55,8 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         passengerFirstName: booking.passengerFirstName,
         passengerLastName: booking.passengerLastName ?? '',
         execMobile: booking.execMobile,
-        clientName: booking.clientName,
-        accountCode: booking.accountCode,
+        customerAccount: booking.accountCode,
+        caseCode: booking.caseCode ?? '',
         contractPricePounds: String((booking.contractPricePence ?? 0) / 100),
         notes: booking.notes ?? '',
       });
@@ -80,8 +80,8 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
-    fd.set('clientName', form.clientName);
-    fd.set('accountCode', form.accountCode);
+    fd.set('customerAccount', form.customerAccount);
+    fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
     fd.set('notes', form.notes);
     startTransition(async () => {
@@ -177,27 +177,35 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Client &amp; passenger</div>
+            <div className="form-section__head">Customer &amp; passenger</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
-                Client / company<span className="req">*</span>
+                Customer account<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <div className="field-inline">
-                  <input
-                    type="text"
-                    value={form.clientName}
-                    onChange={(e) => set('clientName', e.target.value)}
-                    placeholder="Client / company"
-                  />
-                  <input
-                    type="text"
-                    value={form.accountCode}
-                    onChange={(e) => set('accountCode', e.target.value)}
-                    placeholder="Account code"
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={form.customerAccount}
+                  onChange={(e) => set('customerAccount', e.target.value)}
+                  placeholder="e.g. LEGO Group, Mercedes-Benz UK"
+                />
+                <div className="hint">The company the trip is billed to — not the passenger.</div>
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>
+                Case code<span className="req">*</span>
+              </label>
+              <div className="ctrl">
+                <input
+                  type="text"
+                  value={form.caseCode}
+                  onChange={(e) => set('caseCode', e.target.value)}
+                  placeholder="e.g. LEGO-2026-0142"
+                />
+                <div className="hint">Expense code the customer&apos;s company bills against.</div>
               </div>
             </div>
             <div className="field">

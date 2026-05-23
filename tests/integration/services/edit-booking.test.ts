@@ -53,7 +53,8 @@ describe('services/edit-booking (integration)', () => {
         passengerLastName: 'French',
         execMobile: '+447911123456',
         clientName: 'LEGO Group',
-        accountCode: 'LEGO',
+        accountCode: 'LEGO Group',
+        caseCode: 'LEGO-2026-001',
         contractPricePence: 30000,
         notes: null,
         createdByOperatorId: operatorId,
@@ -74,8 +75,8 @@ describe('services/edit-booking (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911123456',
-    clientName: 'LEGO Group',
-    accountCode: 'LEGO',
+    customerAccount: 'LEGO Group',
+    caseCode: 'LEGO-2026-001',
     contractPricePence: 30000,
     notes: null,
     ...overrides,
@@ -110,6 +111,21 @@ describe('services/edit-booking (integration)', () => {
     expect(result.booking.pickupAddress).toBe('The Connaught, Mayfair');
     expect(result.booking.notes).toBe('Two large suitcases');
     expect(result.changedFields).toEqual(expect.arrayContaining(['pickup address', 'notes']));
+  });
+
+  it('amends the customer account (account_code + client_name) and case code', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { customerAccount: 'Mercedes-Benz UK', caseCode: 'MERC-9' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.accountCode).toBe('Mercedes-Benz UK');
+    expect(result.booking.clientName).toBe('Mercedes-Benz UK');
+    expect(result.booking.caseCode).toBe('MERC-9');
+    expect(result.changedFields).toEqual(expect.arrayContaining(['customer account', 'case code']));
   });
 
   it('is permitted on an assigned booking (pre-completion)', async () => {

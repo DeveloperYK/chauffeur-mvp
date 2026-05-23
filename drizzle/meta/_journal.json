@@ -29,6 +29,13 @@
       "when": 1779470000000,
       "tag": "0003_add_client_name",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779566000000,
+      "tag": "0004_add_case_code",
+      "breakpoints": true
     }
   ]
 }

@@ -193,7 +193,7 @@ export function ConsoleBoard({
             <div className="list__row head">
               <span />
               <span>Pickup</span>
-              <span>Client</span>
+              <span>Customer</span>
               <span>Route</span>
               <span>Driver</span>
               <span>Status</span>
@@ -221,9 +221,10 @@ export function ConsoleBoard({
                   </span>
                   <span className="time">{fmtTimeWithDay(b.pickupAt)}</span>
                   <span className="pax">
-                    {b.clientName}
+                    {b.accountCode}
                     <div className="pax__sub">
-                      {passengerName(b)} · {b.accountCode}
+                      {passengerName(b)}
+                      {b.caseCode ? ` · ${b.caseCode}` : ''}
                     </div>
                   </span>
                   <span className="route">
@@ -361,7 +362,7 @@ function BoardCard({
         ) : null}
         <span className="card__time">{fmtTime(booking.pickupAt)}</span>
       </div>
-      <div className="card__title">{booking.clientName}</div>
+      <div className="card__title">{booking.accountCode}</div>
       <div className="card__sub">{passengerName(booking)}</div>
       <div className="card__route">
         <span className="pin" />

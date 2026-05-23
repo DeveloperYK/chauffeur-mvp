@@ -125,7 +125,8 @@ export function DispatchModal({
                 </span>
               </div>
               <div className="modal__sub">
-                {passengerName(booking)} · {fmtTimeWithDay(booking.pickupAt)} · {booking.clientName}
+                {passengerName(booking)} · {fmtTimeWithDay(booking.pickupAt)} ·{' '}
+                {booking.accountCode}
               </div>
             </div>
             <span style={{ flex: 1 }} />

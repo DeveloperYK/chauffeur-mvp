@@ -268,10 +268,10 @@ export function DetailPanel({
               ) : null}
             </div>
             <div className="dp-hero__eyebrow">
-              <Icon.Person style={{ width: 11, height: 11 }} /> Client
+              <Icon.Person style={{ width: 11, height: 11 }} /> Customer account
             </div>
-            <h1 className="dp-hero__title">{booking.clientName}</h1>
-            <div className="dp-hero__sub">{passengerName(booking)}</div>
+            <h1 className="dp-hero__title">{booking.accountCode}</h1>
+            <div className="dp-hero__sub">Passenger: {passengerName(booking)}</div>
             <div className="dp-hero__stats">
               <div className="dp-stat">
                 <div className="dp-stat__lbl">Pickup</div>
@@ -354,10 +354,19 @@ export function DetailPanel({
             </header>
             <div className="ic__body">
               <div className="ir">
-                <div className="ir__k">Client</div>
+                <div className="ir__k">Customer account</div>
                 <div className="ir__v">
-                  <div className="ir__main">{booking.clientName}</div>
-                  <div className="ir__sub mono">{booking.accountCode}</div>
+                  <div className="ir__main">{booking.accountCode}</div>
+                </div>
+              </div>
+              <div className="ir">
+                <div className="ir__k">Case code</div>
+                <div className="ir__v">
+                  {booking.caseCode ? (
+                    <span className="mono">{booking.caseCode}</span>
+                  ) : (
+                    <span className="muted">— not set</span>
+                  )}
                 </div>
               </div>
               <div className="ir">

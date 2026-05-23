@@ -31,8 +31,11 @@ export const createBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
-    clientName: z.string().min(1, 'Client/company name is required').max(120),
-    accountCode: z.string().min(1, 'Account code is required').max(40),
+    // Single "Customer Account" — the company/account billed for the trip.
+    // Stored in account_code (+ mirrored into client_name for now).
+    customerAccount: z.string().min(1, 'Customer account is required').max(120),
+    // "Case code" — the expense code the customer's company bills against.
+    caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
     // Optional: assign driver at booking creation
@@ -98,8 +101,11 @@ export async function createBooking(
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,
-      clientName: parsed.data.clientName,
-      accountCode: parsed.data.accountCode,
+      // Customer Account lives in account_code; client_name is kept in sync
+      // until that legacy column is dropped.
+      clientName: parsed.data.customerAccount,
+      accountCode: parsed.data.customerAccount,
+      caseCode: parsed.data.caseCode,
       contractPricePence: parsed.data.contractPricePence,
       notes: parsed.data.notes ?? null,
       createdByOperatorId: deps.operatorId,

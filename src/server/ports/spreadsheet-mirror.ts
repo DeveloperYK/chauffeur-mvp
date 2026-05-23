@@ -94,7 +94,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     jobNumber,
     formatDate(pickup),
     formatTimeOfDay(pickup),
-    '', // Case code — not captured by MVP form
+    booking.caseCode ?? '', // Case code (legacy column D)
     operator?.name ?? '', // "Booked By" is now the operator who created it
     booking.passengerFirstName,
     booking.passengerLastName ?? '',

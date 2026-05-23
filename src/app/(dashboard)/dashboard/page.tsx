@@ -53,6 +53,7 @@ function toConsoleBooking(b: Booking): ConsoleBooking {
     execMobile: b.execMobile,
     clientName: b.clientName,
     accountCode: b.accountCode,
+    caseCode: b.caseCode,
     contractPricePence: b.contractPricePence,
     notes: b.notes,
     createdByOperatorId: b.createdByOperatorId,
@@ -156,8 +157,8 @@ export default async function DashboardHome({
       b.passengerLastName ?? '',
       b.pickupAddress,
       b.dropoffAddress,
-      b.clientName,
       b.accountCode,
+      b.caseCode ?? '',
       b.carForThisJob ?? '',
     ].some((x) => x.toLowerCase().includes(needle));
   };
