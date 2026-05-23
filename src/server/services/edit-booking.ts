@@ -32,8 +32,8 @@ export const editBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
-    clientName: z.string().min(1, 'Client/company name is required').max(120),
-    accountCode: z.string().min(1, 'Account code is required').max(40),
+    customerAccount: z.string().min(1, 'Customer account is required').max(120),
+    caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })
@@ -106,8 +106,9 @@ export async function editBooking(
       passengerFirstName: data.passengerFirstName,
       passengerLastName: lastName,
       execMobile: data.execMobile,
-      clientName: data.clientName,
-      accountCode: data.accountCode,
+      clientName: data.customerAccount,
+      accountCode: data.customerAccount,
+      caseCode: data.caseCode,
       contractPricePence: data.contractPricePence,
       notes,
       updatedAt: now,
@@ -151,8 +152,9 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
     out.push('passenger name');
   }
   if (existing.execMobile !== next.execMobile) out.push('exec mobile');
-  if (existing.clientName !== next.clientName) out.push('client');
-  if (existing.accountCode !== next.accountCode) out.push('account code');
+  // Customer Account is held in account_code (client_name mirrors it).
+  if (existing.accountCode !== next.customerAccount) out.push('customer account');
+  if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');
   if (existing.contractPricePence !== next.contractPricePence) out.push('price');
   if ((existing.notes ?? null) !== next.notes) out.push('notes');
   return out;

@@ -13,8 +13,11 @@ export interface ConsoleBooking {
   passengerFirstName: string;
   passengerLastName: string | null;
   execMobile: string;
+  /** Customer Account — the company billed (stored in account_code). */
   clientName: string;
   accountCode: string;
+  /** Case code — expense code the customer's company bills against. */
+  caseCode: string | null;
   contractPricePence: number;
   notes: string | null;
   createdByOperatorId: string | null;

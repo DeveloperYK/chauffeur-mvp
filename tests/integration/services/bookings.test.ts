@@ -38,8 +38,8 @@ describe('services/bookings (integration)', () => {
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
     execMobile: '+447911123456',
-    clientName: 'LEGO Group',
-    accountCode: 'LEGO',
+    customerAccount: 'LEGO Group',
+    caseCode: 'LEGO-2026-001',
     contractPricePence: 30000,
     notes: null,
     ...overrides,
@@ -53,6 +53,10 @@ describe('services/bookings (integration)', () => {
     if (!result.ok) return;
     expect(result.booking.state).toBe('unassigned');
     expect(result.booking.execMobile).toBe('+447911123456');
+    // Customer Account is stored in account_code and mirrored into client_name.
+    expect(result.booking.accountCode).toBe('LEGO Group');
+    expect(result.booking.clientName).toBe('LEGO Group');
+    expect(result.booking.caseCode).toBe('LEGO-2026-001');
 
     const rows = await db.select().from(bookings);
     expect(rows.length).toBe(1);
@@ -65,10 +69,18 @@ describe('services/bookings (integration)', () => {
     expect(events[0]?.actorId).toBe(operatorId);
   });
 
-  it('requires account code (validation error when missing)', async () => {
-    const { accountCode, ...withoutAccountCode } = validInput();
-    void accountCode;
-    const result = await createBooking(withoutAccountCode, { db, clock, operatorId });
+  it('requires customer account (validation error when missing)', async () => {
+    const { customerAccount, ...withoutCustomerAccount } = validInput();
+    void customerAccount;
+    const result = await createBooking(withoutCustomerAccount, { db, clock, operatorId });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation');
+  });
+
+  it('requires case code (validation error when missing)', async () => {
+    const { caseCode, ...withoutCaseCode } = validInput();
+    void caseCode;
+    const result = await createBooking(withoutCaseCode, { db, clock, operatorId });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('validation');
   });

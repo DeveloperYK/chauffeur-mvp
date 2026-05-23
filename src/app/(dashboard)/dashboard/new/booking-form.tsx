@@ -67,11 +67,11 @@ const bookingFormSchema = z.object({
   passengerFirstName: z.string().min(1, 'First name is required').max(80, 'First name is too long'),
   passengerLastName: z.string().max(80, 'Last name is too long').optional(),
   execMobile: phoneSchema,
-  clientName: z
+  customerAccount: z
     .string()
-    .min(1, 'Client/company name is required')
-    .max(120, 'Client name is too long'),
-  accountCode: z.string().min(1, 'Account code is required').max(40, 'Account code is too long'),
+    .min(1, 'Customer account is required')
+    .max(120, 'Customer account is too long'),
+  caseCode: z.string().min(1, 'Case code is required').max(60, 'Case code is too long'),
   contractPricePounds: z.coerce
     .number({ invalid_type_error: 'Price must be a number' })
     .min(0, 'Price cannot be negative')
@@ -168,8 +168,8 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
       formData.set('passengerFirstName', data.passengerFirstName);
       formData.set('passengerLastName', data.passengerLastName ?? '');
       formData.set('execMobile', data.execMobile);
-      formData.set('clientName', data.clientName);
-      formData.set('accountCode', data.accountCode);
+      formData.set('customerAccount', data.customerAccount);
+      formData.set('caseCode', data.caseCode);
       formData.set('contractPricePounds', String(data.contractPricePounds));
       formData.set('notes', data.notes ?? '');
       if (data.assignedDriverId) {
@@ -197,30 +197,30 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
       ) : null}
 
       <Field
-        label="Client/Company name"
+        label="Customer account"
         required
-        error={errors.clientName?.message}
-        className="md:col-span-2"
+        error={errors.customerAccount?.message}
+        helper="The company the trip is billed to — not the passenger."
       >
         <Input
           type="text"
-          {...register('clientName')}
-          placeholder="e.g. LEGO, Mercedes UK, Johnson & Johnson"
-          aria-invalid={!!errors.clientName}
+          {...register('customerAccount')}
+          placeholder="e.g. LEGO Group, Mercedes-Benz UK"
+          aria-invalid={!!errors.customerAccount}
         />
       </Field>
 
       <Field
-        label="Account code"
+        label="Case code"
         required
-        error={errors.accountCode?.message}
-        helper="Short identifier for billing (e.g. LEGO, MERC, JJ)"
+        error={errors.caseCode?.message}
+        helper="Expense code the customer's company uses to cover the cost."
       >
         <Input
           type="text"
-          {...register('accountCode')}
-          placeholder="e.g. LEGO"
-          aria-invalid={!!errors.accountCode}
+          {...register('caseCode')}
+          placeholder="e.g. LEGO-2026-0142"
+          aria-invalid={!!errors.caseCode}
         />
       </Field>
 

@@ -15,6 +15,7 @@ const baseBooking: Booking = {
   execMobile: '+447911999999',
   clientName: 'LEGO Group',
   accountCode: 'LEGO',
+  caseCode: 'LEGO-CASE-9',
   contractPricePence: 30000,
   notes: null,
   createdByOperatorId: 'op-1',

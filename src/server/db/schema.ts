@@ -94,8 +94,14 @@ export const bookings = pgTable(
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
     execMobile: text('exec_mobile').notNull(),
+    // "Customer Account" — the company/account the trip is billed to (e.g.
+    // "LEGO Group"). The legacy JJ sheet column J. Stored in account_code.
     clientName: text('client_name').notNull(),
     accountCode: text('account_code').notNull(),
+    // "Case code" — the expense code the customer's company uses to cover the
+    // cost. Maps to the legacy JJ sheet column D. Nullable: bookings created
+    // before this field exist without one.
+    caseCode: text('case_code'),
     contractPricePence: integer('contract_price_pence').notNull(),
     notes: text('notes'),
 

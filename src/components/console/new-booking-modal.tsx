@@ -19,8 +19,8 @@ interface NewForm {
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
-  clientName: string;
-  accountCode: string;
+  customerAccount: string;
+  caseCode: string;
   contractPricePounds: string;
   notes: string;
 }
@@ -45,8 +45,8 @@ const EMPTY: NewForm = {
   passengerFirstName: '',
   passengerLastName: '',
   execMobile: '',
-  clientName: '',
-  accountCode: '',
+  customerAccount: '',
+  caseCode: '',
   contractPricePounds: '',
   notes: '',
 };
@@ -58,8 +58,8 @@ const SAMPLES: Array<
     passengerFirstName: 'Alexander',
     passengerLastName: 'Pemberton',
     execMobile: '+447911123456',
-    clientName: 'Pemberton Capital',
-    accountCode: 'PEMB',
+    customerAccount: 'Pemberton Capital',
+    caseCode: 'PEMB-2026-0142',
     pickupAddress: 'The Connaught, Carlos Place, Mayfair, London W1K 2AL',
     dropoffAddress: 'Heathrow Terminal 5, Departures',
     contractPricePounds: '165',
@@ -70,8 +70,8 @@ const SAMPLES: Array<
     passengerFirstName: 'Mariana',
     passengerLastName: 'Bellini',
     execMobile: '+447400123456',
-    clientName: 'Bellini & Co',
-    accountCode: 'BELL',
+    customerAccount: 'Bellini & Co',
+    caseCode: 'BELL-0098',
     pickupAddress: 'Soho House, 76 Dean Street, London W1D 3SQ',
     dropoffAddress: 'Gatwick North Terminal',
     contractPricePounds: '135',
@@ -82,8 +82,8 @@ const SAMPLES: Array<
     passengerFirstName: 'Theodore',
     passengerLastName: 'Ashworth',
     execMobile: '+447822016000',
-    clientName: 'Ashworth Legal',
-    accountCode: 'ASH',
+    customerAccount: 'Ashworth Legal',
+    caseCode: 'ASH-CASE-7741',
     pickupAddress: '1 Embankment Place, London WC2N 6RH',
     dropoffAddress: 'Battersea Power Station — Office',
     contractPricePounds: '85',
@@ -127,8 +127,8 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
       passengerFirstName: s.passengerFirstName,
       passengerLastName: s.passengerLastName,
       execMobile: s.execMobile,
-      clientName: s.clientName,
-      accountCode: s.accountCode,
+      customerAccount: s.customerAccount,
+      caseCode: s.caseCode,
       contractPricePounds: s.contractPricePounds,
       notes: s.notes,
     });
@@ -146,8 +146,8 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
-    fd.set('clientName', form.clientName);
-    fd.set('accountCode', form.accountCode);
+    fd.set('customerAccount', form.customerAccount);
+    fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds || '0');
     fd.set('notes', form.notes);
     startTransition(async () => {
@@ -246,26 +246,40 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Client &amp; passenger</div>
+            <div className="form-section__head">Customer &amp; passenger</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
-                Client / company<span className="req">*</span>
+                Customer account<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <div className="field-inline">
-                  <input
-                    type="text"
-                    value={form.clientName}
-                    onChange={(e) => set('clientName', e.target.value)}
-                    placeholder="e.g. LEGO, Mercedes UK"
-                  />
-                  <input
-                    type="text"
-                    value={form.accountCode}
-                    onChange={(e) => set('accountCode', e.target.value)}
-                    placeholder="Account code, e.g. LEGO"
-                  />
+                <input
+                  type="text"
+                  value={form.customerAccount}
+                  onChange={(e) => set('customerAccount', e.target.value)}
+                  placeholder="e.g. LEGO Group, Mercedes-Benz UK"
+                />
+                <div className="hint">
+                  The company the trip is billed to — not the passenger. This is the account on the
+                  invoice.
+                </div>
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>
+                Case code<span className="req">*</span>
+              </label>
+              <div className="ctrl">
+                <input
+                  type="text"
+                  value={form.caseCode}
+                  onChange={(e) => set('caseCode', e.target.value)}
+                  placeholder="e.g. LEGO-2026-0142"
+                />
+                <div className="hint">
+                  The expense code the customer&apos;s company uses to cover the cost. Required for
+                  billing.
                 </div>
               </div>
             </div>
