@@ -18,7 +18,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
-import { assignedSms, dispatchSms } from './sms-templates';
+import { assignedSms } from './sms-templates';
 
 export interface DispatchDeps {
   db: Database;
@@ -92,13 +92,9 @@ export async function generateDispatchLink(
     after: { driverId: driver.id, jti },
   });
 
-  // Text the dispatch link straight to the driver so they can accept from
-  // their phone — no operator hand-off needed.
-  await deps.notifications.sendSms({
-    to: driver.whatsappNumber,
-    body: dispatchSms(booking, driver, url),
-  });
-
+  // Note: the link is NOT auto-texted here. The operator triggers the SMS
+  // explicitly (sendDriverDispatchSmsAction) once Twilio is configured; for now
+  // they copy/open the link directly. Keeps minting side-effect-free.
   return { ok: true, url, whatsappUrl, driver, booking };
 }
 

@@ -1,6 +1,9 @@
 'use client';
 
-import { dispatchAction } from '@/app/(dashboard)/dashboard/console-actions';
+import {
+  dispatchAction,
+  sendDriverDispatchSmsAction,
+} from '@/app/(dashboard)/dashboard/console-actions';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -39,6 +42,7 @@ export function DispatchModal({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [smsMsg, setSmsMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset picker state only when the modal opens or the booking changes
@@ -50,6 +54,7 @@ export function DispatchModal({
       setSearch('');
       setError(null);
       setCopied(false);
+      setSmsMsg(null);
     }
   }, [isOpen, booking?.id]);
 
@@ -103,6 +108,19 @@ export function DispatchModal({
     } catch {
       setCopied(false);
     }
+  };
+
+  const messageDriver = () => {
+    if (!picked) return;
+    setSmsMsg(null);
+    startTransition(async () => {
+      const res = await sendDriverDispatchSmsAction(booking.id, picked);
+      setSmsMsg(
+        res.ok
+          ? `Texted ${minted?.driverName?.split(' ')[0] ?? 'the driver'}.`
+          : (res.error ?? 'Could not send SMS.'),
+      );
+    });
   };
 
   const expiry = fmtTimeWithDay(
@@ -261,11 +279,11 @@ export function DispatchModal({
                 <div>
                   <div style={{ fontWeight: 600 }}>{minted.driverName}</div>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    Texted the dispatch link — they tap to accept
+                    Link ready — open it to test, or send it to the driver
                   </div>
                 </div>
                 <span style={{ flex: 1 }} />
-                <Lozenge tone="green">LINK TEXTED</Lozenge>
+                <Lozenge tone="green">LINK READY</Lozenge>
               </div>
 
               <div className="dispatch-result__url" style={{ marginTop: 12 }}>
@@ -287,9 +305,35 @@ export function DispatchModal({
                 </div>
               ) : null}
 
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <a
+                  className="btn"
+                  style={{ flex: 1 }}
+                  href={minted.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Icon.ArrowRight /> Open link (test)
+                </a>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  style={{ flex: 1 }}
+                  onClick={messageDriver}
+                  disabled={isPending}
+                >
+                  <Icon.Send /> {isPending ? 'Sending…' : 'Message driver (SMS)'}
+                </button>
+              </div>
+              {smsMsg ? (
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                  {smsMsg}
+                </div>
+              ) : null}
+
               <a
                 className="btn btn--block"
-                style={{ marginTop: 12 }}
+                style={{ marginTop: 8 }}
                 href={minted.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -321,11 +365,7 @@ export function DispatchModal({
               <span className="kbd-hint">esc</span> Cancel
             </span>
           ) : (
-            <span className="left">
-              {minted
-                ? `Texted to ${minted.driverName.split(' ')[0]}.`
-                : 'Tap a driver to continue.'}
-            </span>
+            <span className="left">{minted ? 'Link ready.' : 'Tap a driver to continue.'}</span>
           )}
           <span className="spacer" />
           {!minted ? (
@@ -339,7 +379,7 @@ export function DispatchModal({
                 disabled={!picked || isPending}
                 onClick={generate}
               >
-                <Icon.Send /> {isPending ? 'Texting…' : 'Generate & text link'}
+                <Icon.Link /> {isPending ? 'Generating…' : 'Generate link'}
               </button>
             </>
           ) : (

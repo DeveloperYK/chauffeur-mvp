@@ -289,7 +289,7 @@ export function ConsoleBoard({
         onClose={() => setDispatchOpen(false)}
         onSent={(driverName) => {
           setDispatchOpen(false);
-          handleMutated(`Dispatch link texted to ${driverName.split(' ')[0]}.`);
+          handleMutated(`Dispatch link ready for ${driverName.split(' ')[0]}.`);
         }}
       />
 

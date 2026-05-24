@@ -96,10 +96,8 @@ describe('services/dispatch (integration)', () => {
     expect(events.length).toBe(1);
     expect(events[0]?.action).toBe('dispatch_link_generated');
 
-    // The dispatch link is texted straight to the driver.
-    expect(notifications.sent.length).toBe(1);
-    expect(notifications.sent[0]?.to).toBe(driverWhatsapp);
-    expect(notifications.sent[0]?.body).toContain(r.url);
+    // Generating the link does NOT auto-text the driver (sent explicitly later).
+    expect(notifications.sent.length).toBe(0);
   });
 
   it('refuses to generate for inactive driver', async () => {
@@ -149,12 +147,10 @@ describe('services/dispatch (integration)', () => {
     expect(r.booking.assignedDriverId).toBe(driverId);
     expect(r.carForJob).toBe('s_class');
 
-    // SMS: one to the driver (dispatch link, on generate) + one to the exec
-    // (confirmation, on accept).
-    expect(notifications.sent.length).toBe(2);
-    const execSms = notifications.sent.find((m) => m.to === '+447911999999');
-    expect(execSms).toBeDefined();
-    expect(execSms?.body).toContain('Tom');
+    // SMS: only the exec confirmation on accept (dispatch link is not auto-texted).
+    expect(notifications.sent.length).toBe(1);
+    expect(notifications.sent[0]?.to).toBe('+447911999999');
+    expect(notifications.sent[0]?.body).toContain('Tom');
 
     // jti consumed
     expect((await db.select().from(consumedTokens)).length).toBe(1);

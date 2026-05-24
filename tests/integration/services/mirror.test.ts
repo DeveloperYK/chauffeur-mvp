@@ -128,7 +128,6 @@ describe('spreadsheet mirror integration', () => {
       appUrl: APP_URL,
       clock,
       mirror,
-      notifications: new FakeNotificationAdapter(),
     });
     if (!completionGen.ok) throw new Error('completion gen');
     const completionToken = new URL(completionGen.url).pathname.split('/').pop() ?? '';

@@ -66,7 +66,6 @@ export async function generateCompletionLinkAction(formData: FormData): Promise<
     secret: driverLinkSecret(),
     appUrl: appUrl(),
     mirror: spreadsheetMirror(),
-    notifications: notifications(),
   });
 
   if (!result.ok) {
