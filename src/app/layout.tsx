@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {children}
         {googlePlacesApiKey ? (
           <Script
-            src={`https://maps.googleapis.com/maps/api/js?key=${googlePlacesApiKey}&libraries=places`}
+            src={`https://maps.googleapis.com/maps/api/js?key=${googlePlacesApiKey}&libraries=places&loading=async`}
             strategy="lazyOnload"
           />
         ) : null}

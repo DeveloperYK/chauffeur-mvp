@@ -2,6 +2,7 @@
 
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { useEffect, useState, useTransition } from 'react';
+import { AddressAutocomplete } from './address-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
 import type { ConsoleBooking } from './types';
@@ -154,10 +155,10 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 From<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <input
-                  type="text"
+                <AddressAutocomplete
                   value={form.pickupAddress}
-                  onChange={(e) => set('pickupAddress', e.target.value)}
+                  onChange={(v) => set('pickupAddress', v)}
+                  ariaLabel="Pickup address"
                 />
               </div>
             </div>
@@ -167,10 +168,10 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 To<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <input
-                  type="text"
+                <AddressAutocomplete
                   value={form.dropoffAddress}
-                  onChange={(e) => set('dropoffAddress', e.target.value)}
+                  onChange={(v) => set('dropoffAddress', v)}
+                  ariaLabel="Dropoff address"
                 />
               </div>
             </div>
