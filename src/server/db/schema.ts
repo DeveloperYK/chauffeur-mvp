@@ -32,6 +32,10 @@ export const driverTierEnum = pgEnum('driver_tier', ['premium', 'ordinary']);
 
 export const actorTypeEnum = pgEnum('actor_type', ['operator', 'system', 'driver']);
 
+// How the job is sold: a point-to-point `transfer` (price/time derived from the
+// route) or `hourly` as-directed hire (price from booked hours, no destination).
+export const serviceTypeEnum = pgEnum('service_type', ['transfer', 'hourly']);
+
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 export const operators = pgTable(
@@ -87,10 +91,16 @@ export const bookings = pgTable(
     state: bookingStateEnum('state').notNull().default('unassigned'),
 
     // Booking inputs (captured at creation)
+    serviceType: serviceTypeEnum('service_type').notNull().default('transfer'),
     pickupAt: timestamp('pickup_at', { withTimezone: true }).notNull(),
+    // For transfers: the route's estimated drive time (editable by the operator).
+    // For hourly hire: the booked hours × 60. Drives the schedule + clock either way.
     expectedDurationMinutes: integer('expected_duration_minutes').notNull(),
+    // Route distance for transfers; null for hourly (no destination). Feeds pricing.
+    distanceMeters: integer('distance_meters'),
     pickupAddress: text('pickup_address').notNull(),
-    dropoffAddress: text('dropoff_address').notNull(),
+    // Null for hourly as-directed bookings (no fixed destination).
+    dropoffAddress: text('dropoff_address'),
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
     execMobile: text('exec_mobile').notNull(),
@@ -184,6 +194,7 @@ export const consumedTokens = pgTable('consumed_tokens', {
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
 export type DriverTier = (typeof driverTierEnum.enumValues)[number];
+export type ServiceType = (typeof serviceTypeEnum.enumValues)[number];
 /**
  * Vehicle descriptor — free text. Common values include "Mercedes S-Class",
  * "Mercedes E-Class", "BMW X5", "Range Rover", "Mercedes V-Class MPV", etc.

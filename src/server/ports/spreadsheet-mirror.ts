@@ -99,7 +99,8 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     booking.passengerFirstName,
     booking.passengerLastName ?? '',
     booking.pickupAddress,
-    booking.dropoffAddress,
+    // Hourly as-directed jobs have no destination — the sheet shows "As directed".
+    booking.dropoffAddress ?? 'As directed',
     booking.accountCode,
     carLabel(car),
     (booking.contractPricePence / 100).toFixed(2),
