@@ -28,6 +28,17 @@ describe('CSP middleware', () => {
       expect(csp).toMatch(/style-src[^;]*https:\/\/fonts\.googleapis\.com/);
       expect(csp).toMatch(/font-src[^;]*https:\/\/fonts\.gstatic\.com/);
     });
+
+    it('allowlists Google Maps/Places for the address autocomplete', () => {
+      const csp = cspFor();
+      // SDK script (host fallback for non-strict-dynamic browsers).
+      expect(csp).toMatch(/script-src[^;]*https:\/\/maps\.googleapis\.com/);
+      // XHR origins for the autocomplete requests.
+      expect(csp).toMatch(/connect-src[^;]*https:\/\/maps\.googleapis\.com/);
+      expect(csp).toMatch(/connect-src[^;]*https:\/\/places\.googleapis\.com/);
+      // SDK image assets.
+      expect(csp).toMatch(/img-src[^;]*https:\/\/maps\.gstatic\.com/);
+    });
   });
 
   describe('production', () => {

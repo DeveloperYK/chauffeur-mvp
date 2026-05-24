@@ -1,45 +1,16 @@
 'use client';
 
+import { AddressAutocomplete } from '@/components/console/address-autocomplete';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { useRouter } from 'next/navigation';
-import type { InputHTMLAttributes, RefObject } from 'react';
-import { forwardRef, useEffect, useRef, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { createBookingAction } from './actions';
-
-interface AddressInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'ref'> {
-  inputRef?: RefObject<HTMLInputElement | null>;
-}
-
-const AddressInput = forwardRef<HTMLInputElement, AddressInputProps>(function AddressInput(
-  { inputRef, ...props },
-  formRef,
-) {
-  const localRef = useRef<HTMLInputElement | null>(null);
-
-  return (
-    <input
-      {...props}
-      ref={(el) => {
-        localRef.current = el;
-        if (inputRef) {
-          (inputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
-        }
-        if (typeof formRef === 'function') {
-          formRef(el);
-        } else if (formRef) {
-          formRef.current = el;
-        }
-      }}
-      className="form-input w-full"
-    />
-  );
-});
 
 const phoneSchema = z
   .string()
@@ -99,8 +70,6 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const pickupRef = useRef<HTMLInputElement>(null);
-  const dropoffRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -120,42 +89,6 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
 
   const selectedDriverId = watch('assignedDriverId');
   const showAcceptedCheckbox = selectedDriverId && selectedDriverId !== '';
-
-  // Google Places Autocomplete initialization
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.google?.maps?.places) return;
-
-    const options = {
-      componentRestrictions: { country: 'gb' },
-      fields: ['formatted_address'],
-    };
-
-    if (pickupRef.current) {
-      const pickupAutocomplete = new window.google.maps.places.Autocomplete(
-        pickupRef.current,
-        options,
-      );
-      pickupAutocomplete.addListener('place_changed', () => {
-        const place = pickupAutocomplete.getPlace();
-        if (place.formatted_address) {
-          setValue('pickupAddress', place.formatted_address, { shouldValidate: true });
-        }
-      });
-    }
-
-    if (dropoffRef.current) {
-      const dropoffAutocomplete = new window.google.maps.places.Autocomplete(
-        dropoffRef.current,
-        options,
-      );
-      dropoffAutocomplete.addListener('place_changed', () => {
-        const place = dropoffAutocomplete.getPlace();
-        if (place.formatted_address) {
-          setValue('dropoffAddress', place.formatted_address, { shouldValidate: true });
-        }
-      });
-    }
-  }, [setValue]);
 
   const onSubmit = (data: BookingFormData) => {
     setSubmitError(null);
@@ -265,11 +198,10 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         error={errors.pickupAddress?.message}
         className="md:col-span-2"
       >
-        <AddressInput
-          {...register('pickupAddress')}
-          inputRef={pickupRef}
-          placeholder="Start typing an address..."
-          aria-invalid={!!errors.pickupAddress}
+        <AddressAutocomplete
+          value={watch('pickupAddress') ?? ''}
+          onChange={(v) => setValue('pickupAddress', v, { shouldValidate: true })}
+          placeholder="Start typing an address…"
         />
       </Field>
 
@@ -279,11 +211,10 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         error={errors.dropoffAddress?.message}
         className="md:col-span-2"
       >
-        <AddressInput
-          {...register('dropoffAddress')}
-          inputRef={dropoffRef}
-          placeholder="Start typing an address..."
-          aria-invalid={!!errors.dropoffAddress}
+        <AddressAutocomplete
+          value={watch('dropoffAddress') ?? ''}
+          onChange={(v) => setValue('dropoffAddress', v, { shouldValidate: true })}
+          placeholder="Start typing an address…"
         />
       </Field>
 

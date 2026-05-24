@@ -3637,3 +3637,47 @@ button.driver-row {
 .ic--activity .comment-comp {
   margin: 12px 0 0;
 }
+
+/* Address autocomplete (Google Places) — dropdown over the From/To fields */
+.addr-ac {
+  position: relative;
+}
+.addr-ac > input {
+  width: 100%;
+}
+.addr-ac__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-2);
+  z-index: 60;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.addr-ac__opt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  border-radius: calc(var(--r) - 2px);
+  cursor: pointer;
+}
+.addr-ac__opt.is-active,
+.addr-ac__opt:hover {
+  background: var(--primary-ring);
+}
+.addr-ac__primary {
+  font-size: 13px;
+  color: var(--ink);
+}
+.addr-ac__secondary {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}

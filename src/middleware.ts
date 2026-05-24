@@ -18,21 +18,28 @@ import { type NextRequest, NextResponse } from 'next/server';
  * Google Fonts (googleapis.com stylesheet + gstatic.com font files) are
  * explicitly allowlisted because layout.tsx loads them.
  *
+ * Google Maps / Places (New) is allowlisted for the address autocomplete:
+ * `maps.googleapis.com` loads the JS SDK (script-src — a fallback for browsers
+ * without `'strict-dynamic'`; the nonce'd next/script loader covers the rest)
+ * and is the XHR origin (connect-src, alongside `places.googleapis.com`);
+ * `maps.gstatic.com` serves the SDK's images.
+ *
  * In development we drop the nonce and allow `'unsafe-eval'`/`'unsafe-inline'`
  * so Next.js HMR and the error overlay keep working.
  */
 function buildCsp(nonce: string, isProd: boolean): string {
+  const maps = 'https://maps.googleapis.com';
   const scriptSrc = isProd
-    ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
-    : "'self' 'unsafe-eval' 'unsafe-inline'";
+    ? `'self' 'nonce-${nonce}' 'strict-dynamic' ${maps}`
+    : `'self' 'unsafe-eval' 'unsafe-inline' ${maps}`;
 
   const directives = [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob:",
-    "connect-src 'self'",
+    `img-src 'self' data: blob: https://maps.gstatic.com ${maps}`,
+    `connect-src 'self' ${maps} https://places.googleapis.com`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

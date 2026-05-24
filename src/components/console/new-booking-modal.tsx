@@ -2,6 +2,7 @@
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
 import { useEffect, useState, useTransition } from 'react';
+import { AddressAutocomplete } from './address-autocomplete';
 import { Icon } from './icons';
 
 interface NewBookingModalProps {
@@ -221,11 +222,11 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 From<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <input
-                  type="text"
+                <AddressAutocomplete
                   value={form.pickupAddress}
-                  onChange={(e) => set('pickupAddress', e.target.value)}
+                  onChange={(v) => set('pickupAddress', v)}
                   placeholder="e.g. Claridge's, Brook Street, Mayfair, W1K 4HR"
+                  ariaLabel="Pickup address"
                 />
               </div>
             </div>
@@ -235,11 +236,11 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 To<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <input
-                  type="text"
+                <AddressAutocomplete
                   value={form.dropoffAddress}
-                  onChange={(e) => set('dropoffAddress', e.target.value)}
+                  onChange={(v) => set('dropoffAddress', v)}
                   placeholder="e.g. Heathrow Terminal 5, Departures"
+                  ariaLabel="Dropoff address"
                 />
               </div>
             </div>
