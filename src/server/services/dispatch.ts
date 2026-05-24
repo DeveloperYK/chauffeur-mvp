@@ -18,7 +18,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
-import { assignedSms } from './sms-templates';
+import { assignedSms, dispatchSms } from './sms-templates';
 
 export interface DispatchDeps {
   db: Database;
@@ -90,6 +90,13 @@ export async function generateDispatchLink(
     action: 'dispatch_link_generated',
     before: null,
     after: { driverId: driver.id, jti },
+  });
+
+  // Text the dispatch link straight to the driver so they can accept from
+  // their phone — no operator hand-off needed.
+  await deps.notifications.sendSms({
+    to: driver.whatsappNumber,
+    body: dispatchSms(booking, driver, url),
   });
 
   return { ok: true, url, whatsappUrl, driver, booking };

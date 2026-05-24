@@ -289,7 +289,7 @@ export function ConsoleBoard({
         onClose={() => setDispatchOpen(false)}
         onSent={(driverName) => {
           setDispatchOpen(false);
-          handleMutated(`Link sent. ${driverName.split(' ')[0]} notified on WhatsApp.`);
+          handleMutated(`Dispatch link texted to ${driverName.split(' ')[0]}.`);
         }}
       />
 

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { FakeNotificationAdapter } from '@/server/adapters/notification-fake';
 import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
 import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink } from '@/server/domain/link-tokens';
@@ -22,6 +23,7 @@ describe('services/completion (integration)', () => {
   let operatorId: string;
   let driverId: string;
   let bookingId: string;
+  let notifications: FakeNotificationAdapter;
 
   beforeAll(async () => {
     const t = await createTestDb();
@@ -43,6 +45,7 @@ describe('services/completion (integration)', () => {
     await db.delete(consumedTokens);
     await db.delete(bookings);
     await db.delete(drivers);
+    notifications = new FakeNotificationAdapter();
     const [drv] = await db
       .insert(drivers)
       .values({
@@ -76,7 +79,7 @@ describe('services/completion (integration)', () => {
   });
 
   const clock = fixedClock('2026-06-01T11:30:00.000Z');
-  const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL });
+  const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL, notifications });
 
   it('generateCompletionLink returns URL + wa.me for booking in awaiting_driver_form', async () => {
     const r = await generateCompletionLink(bookingId, operatorId, deps());
@@ -84,6 +87,11 @@ describe('services/completion (integration)', () => {
     if (!r.ok) return;
     expect(r.url.startsWith(`${APP_URL}/j/`)).toBe(true);
     expect(r.whatsappUrl.startsWith('https://wa.me/447911000001')).toBe(true);
+
+    // The completion link is texted straight to the driver.
+    expect(notifications.sent.length).toBe(1);
+    expect(notifications.sent[0]?.to).toBe('+447911000001');
+    expect(notifications.sent[0]?.body).toContain(r.url);
   });
 
   it('generateCompletionLink refuses when not awaiting_driver_form', async () => {

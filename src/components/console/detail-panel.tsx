@@ -198,7 +198,7 @@ export function DetailPanel({
               onClick={generateCompletion}
               disabled={isPending}
             >
-              <Icon.Send /> {isPending ? 'Generating…' : 'Generate completion link'}
+              <Icon.Send /> {isPending ? 'Texting…' : 'Text completion link'}
             </button>
             {driver ? (
               <a
@@ -298,20 +298,24 @@ export function DetailPanel({
           {/* PRIMARY ACTIONS */}
           {renderActions()}
 
-          {/* Minted completion link */}
+          {/* Minted completion link — texted to the driver automatically */}
           {completionLink ? (
             <div className="dispatch-result" style={{ marginTop: 4 }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                Completion link texted to the driver.
+              </div>
               <div className="dispatch-result__url">
                 <Icon.Link style={{ width: 14, height: 14 }} />
                 <span>{completionLink.url}</span>
               </div>
               <a
-                className="whatsapp-btn"
+                className="btn btn--block"
+                style={{ marginTop: 10 }}
                 href={completionLink.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Whatsapp /> Send completion link via WhatsApp
+                <Icon.Whatsapp /> Also message on WhatsApp (optional)
               </a>
             </div>
           ) : null}

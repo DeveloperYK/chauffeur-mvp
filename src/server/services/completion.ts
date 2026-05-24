@@ -6,11 +6,13 @@ import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
+import { completionRequestSms } from './sms-templates';
 
 export interface CompletionDeps {
   db: Database;
@@ -20,6 +22,11 @@ export interface CompletionDeps {
   mirror?: SpreadsheetMirrorPort;
 }
 
+/** Generating the completion link also texts it to the driver, so it needs SMS. */
+export interface GenerateCompletionDeps extends CompletionDeps {
+  notifications: NotificationPort;
+}
+
 export type GenerateCompletionLinkResult =
   | { ok: true; url: string; whatsappUrl: string; booking: Booking; driver: Driver }
   | { ok: false; reason: 'booking_not_found' | 'wrong_state' | 'no_driver' };
@@ -27,7 +34,7 @@ export type GenerateCompletionLinkResult =
 export async function generateCompletionLink(
   bookingId: string,
   operatorId: string,
-  deps: CompletionDeps,
+  deps: GenerateCompletionDeps,
 ): Promise<GenerateCompletionLinkResult> {
   const clock = deps.clock ?? systemClock;
   const [booking] = await deps.db
@@ -69,6 +76,12 @@ export async function generateCompletionLink(
     action: 'completion_link_generated',
     before: null,
     after: { jti },
+  });
+
+  // Text the completion-form link straight to the driver.
+  await deps.notifications.sendSms({
+    to: driver.whatsappNumber,
+    body: completionRequestSms(booking, driver, url),
   });
 
   return { ok: true, url, whatsappUrl, booking, driver };

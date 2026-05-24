@@ -261,11 +261,11 @@ export function DispatchModal({
                 <div>
                   <div style={{ fontWeight: 600 }}>{minted.driverName}</div>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    Signed dispatch link ready to send
+                    Texted the dispatch link — they tap to accept
                   </div>
                 </div>
                 <span style={{ flex: 1 }} />
-                <Lozenge tone="green">LINK MINTED</Lozenge>
+                <Lozenge tone="green">LINK TEXTED</Lozenge>
               </div>
 
               <div className="dispatch-result__url" style={{ marginTop: 12 }}>
@@ -288,13 +288,13 @@ export function DispatchModal({
               ) : null}
 
               <a
-                className="whatsapp-btn"
+                className="btn btn--block"
+                style={{ marginTop: 12 }}
                 href={minted.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => onSent(minted.driverName)}
               >
-                <Icon.Whatsapp /> Send via WhatsApp to {minted.driverName.split(' ')[0]}
+                <Icon.Whatsapp /> Also message on WhatsApp (optional)
               </a>
 
               <div className="link-warning">
@@ -322,26 +322,39 @@ export function DispatchModal({
             </span>
           ) : (
             <span className="left">
-              {minted ? 'Link ready to send.' : 'Tap a driver to continue.'}
+              {minted
+                ? `Texted to ${minted.driverName.split(' ')[0]}.`
+                : 'Tap a driver to continue.'}
             </span>
           )}
           <span className="spacer" />
-          <button type="button" className="btn" onClick={onClose}>
-            Close
-          </button>
           {!minted ? (
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={!picked || isPending}
-              onClick={generate}
-            >
-              <Icon.Link /> {isPending ? 'Generating…' : 'Generate link'}
-            </button>
+            <>
+              <button type="button" className="btn" onClick={onClose}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!picked || isPending}
+                onClick={generate}
+              >
+                <Icon.Send /> {isPending ? 'Texting…' : 'Generate & text link'}
+              </button>
+            </>
           ) : (
-            <button type="button" className="btn" onClick={() => setMinted(null)}>
-              ← Choose another driver
-            </button>
+            <>
+              <button type="button" className="btn" onClick={() => setMinted(null)}>
+                ← Choose another driver
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => onSent(minted.driverName)}
+              >
+                <Icon.Check /> Done
+              </button>
+            </>
           )}
         </footer>
       </div>

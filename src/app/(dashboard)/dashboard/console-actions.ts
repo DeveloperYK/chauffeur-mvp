@@ -94,6 +94,7 @@ export async function generateCompletionLinkAction(
     secret: driverLinkSecret(),
     appUrl: appUrl(),
     mirror: spreadsheetMirror(),
+    notifications: notifications(),
   });
   if (!result.ok) return { ok: false, error: `Cannot generate link: ${result.reason}.` };
   revalidatePath('/dashboard');
