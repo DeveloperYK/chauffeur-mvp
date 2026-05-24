@@ -34,9 +34,17 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
   const assignedDriverId = formData.get('assignedDriverId');
   const markAsAccepted = formData.get('markAsAccepted') === 'true';
 
+  const distanceRaw = formData.get('distanceMeters');
+  const distanceMeters =
+    distanceRaw == null || String(distanceRaw) === ''
+      ? null
+      : Number.parseInt(String(distanceRaw), 10);
+
   const raw = {
+    serviceType: String(formData.get('serviceType') ?? 'transfer'),
     pickupAt: String(formData.get('pickupAt') ?? ''),
     expectedDurationMinutes: String(formData.get('expectedDurationMinutes') ?? ''),
+    distanceMeters,
     pickupAddress: String(formData.get('pickupAddress') ?? ''),
     dropoffAddress: String(formData.get('dropoffAddress') ?? ''),
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
