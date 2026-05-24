@@ -283,6 +283,7 @@ To prevent collisions:
    cp ../chauffeur-mvp/.env ./.env                       # share env (gitignored)
    ```
    Work, commit, and push from there; `git worktree remove` when the branch is merged. Run the dev server on a non-default port if the primary tree's `:3000` is in use.
+   - **Never `git add` the `node_modules` symlink or `.env`.** `.gitignore` covers both, but `git add -A` once committed a `node_modules` *symlink* (the old `node_modules/` rule only matched directories) — it broke CI with `ENOTDIR` because the symlink points at a Mac-only path. Verify with `git status` before committing in a worktree.
 3. **Never stash, discard (`git checkout -f`/`reset --hard`), or commit another session's uncommitted changes.** If you find unexpected modifications in the tree you didn't make, they belong to another session — leave them alone and isolate your own work in a worktree.
 
 ### Commits
