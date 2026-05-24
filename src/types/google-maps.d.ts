@@ -16,6 +16,25 @@ declare global {
   namespace google.maps {
     /** Modern dynamic library loader (bootstrap + `?libraries=places`). */
     function importLibrary(library: 'places'): Promise<typeof google.maps.places>;
+    function importLibrary(library: 'routes'): Promise<typeof google.maps.routes>;
+  }
+
+  namespace google.maps.routes {
+    interface DirectionsRequest {
+      origin: string;
+      destination: string;
+      travelMode: 'DRIVING';
+    }
+    interface DirectionsLeg {
+      distance?: { value: number };
+      duration?: { value: number };
+    }
+    interface DirectionsResult {
+      routes?: Array<{ legs?: DirectionsLeg[] }>;
+    }
+    class DirectionsService {
+      route(request: DirectionsRequest): Promise<DirectionsResult>;
+    }
   }
 
   namespace google.maps.places {

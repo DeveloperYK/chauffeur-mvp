@@ -1,7 +1,9 @@
 'use client';
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
-import { useEffect, useState, useTransition } from 'react';
+import { getRouteEstimate } from '@/lib/routes';
+import { PLACEHOLDER_PRICING_RULES, type ServiceType, quoteBooking } from '@/server/domain/pricing';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { Icon } from './icons';
 
@@ -13,8 +15,10 @@ interface NewBookingModalProps {
 }
 
 interface NewForm {
+  serviceType: ServiceType;
   pickupAt: string;
   expectedDurationMinutes: number;
+  distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
   passengerFirstName: string;
@@ -26,21 +30,17 @@ interface NewForm {
   notes: string;
 }
 
-const DURATIONS = [30, 45, 60, 90, 120, 180, 240, 360];
-const DURATION_LABEL: Record<number, string> = {
-  30: '30 min',
-  45: '45 min',
-  60: '1 h',
-  90: '1 h 30',
-  120: '2 h',
-  180: '3 h',
-  240: '4 h block',
-  360: '6 h block',
-};
+/** Hourly as-directed hire is booked in whole-hour blocks. */
+const HOURS = [2, 3, 4, 6, 8, 12];
+const DEFAULT_HOURLY_MINUTES = 240; // 4 hours
+const DEFAULT_TRANSFER_MINUTES = 60;
+const ROUTE_DEBOUNCE_MS = 600;
 
 const EMPTY: NewForm = {
+  serviceType: 'transfer',
   pickupAt: '',
-  expectedDurationMinutes: 90,
+  expectedDurationMinutes: DEFAULT_TRANSFER_MINUTES,
+  distanceMeters: null,
   pickupAddress: '',
   dropoffAddress: '',
   passengerFirstName: '',
@@ -53,7 +53,9 @@ const EMPTY: NewForm = {
 };
 
 const SAMPLES: Array<
-  Omit<NewForm, 'pickupAt' | 'expectedDurationMinutes'> & { durationMin: number }
+  Omit<NewForm, 'pickupAt' | 'expectedDurationMinutes' | 'serviceType' | 'distanceMeters'> & {
+    durationMin: number;
+  }
 > = [
   {
     passengerFirstName: 'Alexander',
@@ -100,10 +102,16 @@ function defaultDateTime(offsetH = 26): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function poundsFromPence(pence: number): string {
+  return (pence / 100).toFixed(2);
+}
+
 export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBookingModalProps) {
   const [form, setForm] = useState<NewForm>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   const [isPending, startTransition] = useTransition();
+  const routeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,6 +122,71 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
 
   const set = <K extends keyof NewForm>(k: K, v: NewForm[K]) => setForm((p) => ({ ...p, [k]: v }));
 
+  // Auto-estimate a transfer's distance + drive time whenever both ends are set.
+  useEffect(() => {
+    if (routeTimer.current) clearTimeout(routeTimer.current);
+    if (form.serviceType !== 'transfer') {
+      setRouteStatus('idle');
+      return;
+    }
+    if (form.pickupAddress.trim().length < 3 || form.dropoffAddress.trim().length < 3) {
+      setRouteStatus('idle');
+      return;
+    }
+    setRouteStatus('loading');
+    routeTimer.current = setTimeout(async () => {
+      const est = await getRouteEstimate(form.pickupAddress, form.dropoffAddress);
+      if (!est) {
+        setRouteStatus('failed');
+        return;
+      }
+      setForm((p) =>
+        p.serviceType === 'transfer'
+          ? {
+              ...p,
+              distanceMeters: est.distanceMeters,
+              expectedDurationMinutes: est.durationMinutes,
+            }
+          : p,
+      );
+      setRouteStatus('ready');
+    }, ROUTE_DEBOUNCE_MS);
+    return () => {
+      if (routeTimer.current) clearTimeout(routeTimer.current);
+    };
+  }, [form.serviceType, form.pickupAddress, form.dropoffAddress]);
+
+  const quote = useMemo(() => {
+    if (form.serviceType === 'hourly') {
+      return quoteBooking(
+        { serviceType: 'hourly', hours: form.expectedDurationMinutes / 60 },
+        PLACEHOLDER_PRICING_RULES,
+      );
+    }
+    if (form.distanceMeters != null) {
+      return quoteBooking(
+        { serviceType: 'transfer', distanceMeters: form.distanceMeters },
+        PLACEHOLDER_PRICING_RULES,
+      );
+    }
+    return null;
+  }, [form.serviceType, form.expectedDurationMinutes, form.distanceMeters]);
+
+  const switchService = (next: ServiceType) => {
+    setForm((p) => ({
+      ...p,
+      serviceType: next,
+      // Hourly has no destination/route; reset duration to a sensible default.
+      dropoffAddress: next === 'hourly' ? '' : p.dropoffAddress,
+      distanceMeters: null,
+      expectedDurationMinutes:
+        next === 'hourly' ? DEFAULT_HOURLY_MINUTES : DEFAULT_TRANSFER_MINUTES,
+    }));
+    setRouteStatus('idle');
+  };
+
+  const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
+
   const generateSample = () => {
     const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
     if (!s) return;
@@ -121,8 +194,11 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     d.setMinutes(0, 0, 0);
     const pad = (n: number) => String(n).padStart(2, '0');
     setForm({
+      ...EMPTY,
+      serviceType: 'transfer',
       pickupAt: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
       expectedDurationMinutes: s.durationMin,
+      distanceMeters: null,
       pickupAddress: s.pickupAddress,
       dropoffAddress: s.dropoffAddress,
       passengerFirstName: s.passengerFirstName,
@@ -140,10 +216,15 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     ev.preventDefault();
     setError(null);
     const fd = new FormData();
+    fd.set('serviceType', form.serviceType);
     fd.set('pickupAt', form.pickupAt);
     fd.set('expectedDurationMinutes', String(form.expectedDurationMinutes));
     fd.set('pickupAddress', form.pickupAddress);
-    fd.set('dropoffAddress', form.dropoffAddress);
+    // Hourly hire has no destination; the server stores null.
+    fd.set('dropoffAddress', form.serviceType === 'transfer' ? form.dropoffAddress : '');
+    if (form.serviceType === 'transfer' && form.distanceMeters != null) {
+      fd.set('distanceMeters', String(form.distanceMeters));
+    }
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
@@ -191,31 +272,49 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
 
           <div className="form-section">
             <div className="form-section__head">Trip</div>
+
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: segmented control below */}
+              <label>Service</label>
+              <div className="ctrl">
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={`btn ${form.serviceType === 'transfer' ? 'btn--primary' : ''}`}
+                    onClick={() => switchService('transfer')}
+                  >
+                    Transfer
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${form.serviceType === 'hourly' ? 'btn--primary' : ''}`}
+                    onClick={() => switchService('hourly')}
+                  >
+                    As-directed (hourly)
+                  </button>
+                </div>
+                <div className="hint">
+                  {form.serviceType === 'transfer'
+                    ? 'Point-to-point. Drive time and price are estimated from the route.'
+                    : 'Driver at the exec’s disposal for a set number of hours — no fixed destination.'}
+                </div>
+              </div>
+            </div>
+
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
                 Pickup time<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <div className="field-inline">
-                  <input
-                    type="datetime-local"
-                    value={form.pickupAt}
-                    onChange={(e) => set('pickupAt', e.target.value)}
-                  />
-                  <select
-                    value={form.expectedDurationMinutes}
-                    onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
-                  >
-                    {DURATIONS.map((d) => (
-                      <option key={d} value={d}>
-                        {DURATION_LABEL[d]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <input
+                  type="datetime-local"
+                  value={form.pickupAt}
+                  onChange={(e) => set('pickupAt', e.target.value)}
+                />
               </div>
             </div>
+
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
@@ -230,20 +329,70 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 />
               </div>
             </div>
-            <div className="field">
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                To<span className="req">*</span>
-              </label>
-              <div className="ctrl">
-                <AddressAutocomplete
-                  value={form.dropoffAddress}
-                  onChange={(v) => set('dropoffAddress', v)}
-                  placeholder="e.g. Heathrow Terminal 5, Departures"
-                  ariaLabel="Dropoff address"
-                />
+
+            {form.serviceType === 'transfer' ? (
+              <>
+                <div className="field">
+                  {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                  <label>
+                    To<span className="req">*</span>
+                  </label>
+                  <div className="ctrl">
+                    <AddressAutocomplete
+                      value={form.dropoffAddress}
+                      onChange={(v) => set('dropoffAddress', v)}
+                      placeholder="e.g. Heathrow Terminal 5, Departures"
+                      ariaLabel="Dropoff address"
+                    />
+                    <div className="hint">
+                      {routeStatus === 'loading'
+                        ? 'Estimating route…'
+                        : routeStatus === 'ready' && miles
+                          ? `≈ ${form.expectedDurationMinutes} min · ${miles} mi`
+                          : routeStatus === 'failed'
+                            ? 'Could not estimate the route — enter the duration manually.'
+                            : 'Pick both ends to estimate the drive time.'}
+                    </div>
+                  </div>
+                </div>
+                <div className="field">
+                  {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                  <label>Duration (min)</label>
+                  <div className="ctrl">
+                    <input
+                      type="number"
+                      min={15}
+                      max={720}
+                      value={form.expectedDurationMinutes}
+                      onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
+                    />
+                    <div className="hint">
+                      Auto-filled from the route; adjust for traffic/buffer.
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="field">
+                {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                <label>
+                  Hours<span className="req">*</span>
+                </label>
+                <div className="ctrl">
+                  <select
+                    value={form.expectedDurationMinutes / 60}
+                    onChange={(e) => set('expectedDurationMinutes', Number(e.target.value) * 60)}
+                  >
+                    {HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {h} hours
+                      </option>
+                    ))}
+                  </select>
+                  <div className="hint">How long the car is booked for. 2-hour minimum.</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="form-section">
@@ -342,10 +491,24 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     placeholder="145"
                   />
                 </div>
-                <div className="hint">
-                  Contract price, excluding car park &amp; waiting time (the driver fills those
-                  after the trip).
-                </div>
+                {quote ? (
+                  <div className="hint">
+                    Suggested <strong>£{poundsFromPence(quote.amountPence)}</strong> —{' '}
+                    {quote.breakdown.join(' + ')} (estimate).{' '}
+                    <button
+                      type="button"
+                      className="linklike"
+                      onClick={() => set('contractPricePounds', poundsFromPence(quote.amountPence))}
+                    >
+                      Use
+                    </button>
+                  </div>
+                ) : (
+                  <div className="hint">
+                    Contract price, excluding car park &amp; waiting time (the driver fills those
+                    after the trip).
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -354,13 +517,19 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
             <div className="form-section__head">Notes for the driver</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Special instructions</label>
+              <label>
+                {form.serviceType === 'hourly' ? 'Area / instructions' : 'Special instructions'}
+              </label>
               <div className="ctrl">
                 <textarea
                   rows={3}
                   value={form.notes}
                   onChange={(e) => set('notes', e.target.value)}
-                  placeholder="Flight number, terminal, meet-and-greet sign, quiet driver request…"
+                  placeholder={
+                    form.serviceType === 'hourly'
+                      ? 'e.g. around central London for meetings, then back to the hotel'
+                      : 'Flight number, terminal, meet-and-greet sign, quiet driver request…'
+                  }
                 />
               </div>
             </div>
