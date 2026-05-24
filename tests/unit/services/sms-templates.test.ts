@@ -1,5 +1,11 @@
 import type { Booking, Driver } from '@/server/db/schema';
-import { SMS_BRAND_NAME, assignedSms, enRouteSms } from '@/server/services/sms-templates';
+import {
+  SMS_BRAND_NAME,
+  assignedSms,
+  completionRequestSms,
+  dispatchSms,
+  enRouteSms,
+} from '@/server/services/sms-templates';
 import { describe, expect, it } from 'vitest';
 
 // Minimal fixtures — only the fields the templates read.
@@ -30,5 +36,20 @@ describe('SMS templates carry the brand name', () => {
     expect(body.startsWith(`${SMS_BRAND_NAME}: `)).toBe(true);
     expect(body).toContain('en route');
     expect(body).toContain('Marcus Bell');
+  });
+
+  it('builds the driver dispatch SMS with the brand and the link', () => {
+    const body = dispatchSms(booking, driver, 'https://app.test/j/abc');
+    expect(body.startsWith(`${SMS_BRAND_NAME}: `)).toBe(true);
+    expect(body).toContain('https://app.test/j/abc');
+    expect(body).toContain('12 King St, London');
+    expect(body).toContain('Marcus Bell');
+  });
+
+  it('builds the driver completion-request SMS with the brand and the link', () => {
+    const body = completionRequestSms(booking, driver, 'https://app.test/j/xyz');
+    expect(body.startsWith(`${SMS_BRAND_NAME}: `)).toBe(true);
+    expect(body).toContain('https://app.test/j/xyz');
+    expect(body.toLowerCase()).toContain('completion');
   });
 });

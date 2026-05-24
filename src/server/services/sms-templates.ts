@@ -34,3 +34,13 @@ export function assignedSms(booking: Booking, driver: Driver, carForJob: string)
 export function enRouteSms(booking: Booking, driver: Driver): string {
   return `${SMS_BRAND_NAME}: Your driver ${driver.name} is en route for pickup at ${timeLine(booking.pickupAt)}.`;
 }
+
+/** Dispatch offer texted to the driver — they tap the link to accept the job. */
+export function dispatchSms(booking: Booking, driver: Driver, url: string): string {
+  return `${SMS_BRAND_NAME}: New job for ${driver.name} — pickup ${timeLine(booking.pickupAt)} from ${booking.pickupAddress}. Accept here: ${url}`;
+}
+
+/** Completion-form request texted to the driver after the trip. */
+export function completionRequestSms(booking: Booking, driver: Driver, url: string): string {
+  return `${SMS_BRAND_NAME}: ${driver.name}, please submit the completion form for the ${timeLine(booking.pickupAt)} job: ${url}`;
+}

@@ -19,6 +19,7 @@ import {
 import { generateDispatchLink } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import { assignOperator } from '@/server/services/operators';
+import { completionRequestSms, dispatchSms } from '@/server/services/sms-templates';
 import { revalidatePath } from 'next/cache';
 
 // All console actions return a typed result so client overlays can react in
@@ -45,6 +46,54 @@ export interface HistoryEntry {
 async function requireOperator(): Promise<{ id: string } | null> {
   const session = await currentSession();
   return session ? { id: session.operator.id } : null;
+}
+
+// ── Explicit driver SMS ──────────────────────────────────────────────
+// Sending is operator-triggered (a "Message driver (SMS)" button), not
+// automatic on link generation. Until Twilio is configured these will fail
+// (or no-op on the in-memory fake); the operator copies/opens the link
+// directly in the meantime.
+
+export async function sendDriverDispatchSmsAction(
+  bookingId: string,
+  driverId: string,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  const link = await generateDispatchLink(bookingId, driverId, op.id, {
+    db: db(),
+    notifications: notifications(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason ?? ''}.` };
+  const sent = await notifications().sendSms({
+    to: link.driver.whatsappNumber,
+    body: dispatchSms(link.booking, link.driver, link.url),
+  });
+  if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+export async function sendDriverCompletionSmsAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  const link = await generateCompletionLink(bookingId, op.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason}.` };
+  const sent = await notifications().sendSms({
+    to: link.driver.whatsappNumber,
+    body: completionRequestSms(link.booking, link.driver, link.url),
+  });
+  if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 export async function dispatchAction(

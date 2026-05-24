@@ -71,6 +71,8 @@ export async function generateCompletionLink(
     after: { jti },
   });
 
+  // Link is not auto-texted — the operator sends it explicitly once Twilio is
+  // configured; for now they copy/open it directly.
   return { ok: true, url, whatsappUrl, booking, driver };
 }
 

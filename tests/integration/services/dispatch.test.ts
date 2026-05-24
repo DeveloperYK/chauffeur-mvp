@@ -95,6 +95,9 @@ describe('services/dispatch (integration)', () => {
     const events = await db.select().from(auditEvents);
     expect(events.length).toBe(1);
     expect(events[0]?.action).toBe('dispatch_link_generated');
+
+    // Generating the link does NOT auto-text the driver (sent explicitly later).
+    expect(notifications.sent.length).toBe(0);
   });
 
   it('refuses to generate for inactive driver', async () => {
@@ -144,7 +147,7 @@ describe('services/dispatch (integration)', () => {
     expect(r.booking.assignedDriverId).toBe(driverId);
     expect(r.carForJob).toBe('s_class');
 
-    // SMS sent
+    // SMS: only the exec confirmation on accept (dispatch link is not auto-texted).
     expect(notifications.sent.length).toBe(1);
     expect(notifications.sent[0]?.to).toBe('+447911999999');
     expect(notifications.sent[0]?.body).toContain('Tom');
