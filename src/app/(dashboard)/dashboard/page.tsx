@@ -46,6 +46,8 @@ function toConsoleBooking(b: Booking): ConsoleBooking {
     state: b.state,
     pickupAt: b.pickupAt.toISOString(),
     expectedDurationMinutes: b.expectedDurationMinutes,
+    serviceType: b.serviceType,
+    distanceMeters: b.distanceMeters,
     pickupAddress: b.pickupAddress,
     dropoffAddress: b.dropoffAddress ?? '',
     passengerFirstName: b.passengerFirstName,

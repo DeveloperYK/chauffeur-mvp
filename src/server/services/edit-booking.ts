@@ -25,10 +25,12 @@ const phoneSchema = z
 export const editBookingSchema = z
   .object({
     bookingId: z.string().uuid(),
+    serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
     pickupAt: z.coerce.date(),
     expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
+    distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3).max(500),
-    dropoffAddress: z.string().min(3).max(500),
+    dropoffAddress: z.string().max(500).optional().nullable(),
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
@@ -37,7 +39,16 @@ export const editBookingSchema = z
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.serviceType === 'transfer' && (data.dropoffAddress ?? '').trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dropoffAddress'],
+        message: 'Destination is required for a transfer',
+      });
+    }
+  });
 
 export type EditBookingInput = z.infer<typeof editBookingSchema>;
 
@@ -87,8 +98,18 @@ export async function editBooking(
 
   const lastName = data.passengerLastName ?? null;
   const notes = data.notes ?? null;
+  // Hourly hire has no destination or route distance; a transfer keeps both.
+  const isHourly = data.serviceType === 'hourly';
+  const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
+  const distanceMeters = isHourly ? null : (data.distanceMeters ?? null);
 
-  const changedFields = diffFields(existing, { ...data, passengerLastName: lastName, notes });
+  const changedFields = diffFields(existing, {
+    ...data,
+    dropoffAddress,
+    distanceMeters,
+    passengerLastName: lastName,
+    notes,
+  });
 
   // Nothing changed — return the booking untouched, no audit, no mirror.
   if (changedFields.length === 0) {
@@ -99,10 +120,12 @@ export async function editBooking(
   const [updated] = await deps.db
     .update(bookings)
     .set({
+      serviceType: data.serviceType,
       pickupAt: data.pickupAt,
       expectedDurationMinutes: data.expectedDurationMinutes,
+      distanceMeters,
       pickupAddress: data.pickupAddress,
-      dropoffAddress: data.dropoffAddress,
+      dropoffAddress,
       passengerFirstName: data.passengerFirstName,
       passengerLastName: lastName,
       execMobile: data.execMobile,
@@ -134,17 +157,20 @@ export async function editBooking(
   return { ok: true, booking: updated, changedFields };
 }
 
-type EditableFields = Omit<EditBookingInput, 'bookingId'> & {
+type EditableFields = Omit<EditBookingInput, 'bookingId' | 'dropoffAddress' | 'distanceMeters'> & {
+  dropoffAddress: string | null;
+  distanceMeters: number | null;
   passengerLastName: string | null;
   notes: string | null;
 };
 
 function diffFields(existing: Booking, next: EditableFields): string[] {
   const out: string[] = [];
+  if (existing.serviceType !== next.serviceType) out.push('service type');
   if (existing.pickupAt.getTime() !== next.pickupAt.getTime()) out.push('pickup time');
   if (existing.expectedDurationMinutes !== next.expectedDurationMinutes) out.push('duration');
   if (existing.pickupAddress !== next.pickupAddress) out.push('pickup address');
-  if (existing.dropoffAddress !== next.dropoffAddress) out.push('drop-off');
+  if ((existing.dropoffAddress ?? null) !== next.dropoffAddress) out.push('drop-off');
   if (
     existing.passengerFirstName !== next.passengerFirstName ||
     (existing.passengerLastName ?? null) !== next.passengerLastName

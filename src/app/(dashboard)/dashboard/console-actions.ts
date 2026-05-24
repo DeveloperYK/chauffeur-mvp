@@ -177,10 +177,18 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
   const pounds = poundsRaw == null ? 0 : Number.parseFloat(String(poundsRaw));
   const pence = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
 
+  const distanceRaw = formData.get('distanceMeters');
+  const distanceMeters =
+    distanceRaw == null || String(distanceRaw) === ''
+      ? null
+      : Number.parseInt(String(distanceRaw), 10);
+
   const raw = {
     bookingId: String(formData.get('bookingId') ?? ''),
+    serviceType: String(formData.get('serviceType') ?? 'transfer'),
     pickupAt: String(formData.get('pickupAt') ?? ''),
     expectedDurationMinutes: String(formData.get('expectedDurationMinutes') ?? ''),
+    distanceMeters,
     pickupAddress: String(formData.get('pickupAddress') ?? ''),
     dropoffAddress: String(formData.get('dropoffAddress') ?? ''),
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),

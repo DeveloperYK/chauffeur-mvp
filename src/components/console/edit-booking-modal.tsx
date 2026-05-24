@@ -1,7 +1,9 @@
 'use client';
 
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
-import { useEffect, useState, useTransition } from 'react';
+import { getRouteEstimate } from '@/lib/routes';
+import { PLACEHOLDER_PRICING_RULES, type ServiceType, quoteBooking } from '@/server/domain/pricing';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
@@ -15,8 +17,10 @@ interface EditBookingModalProps {
 }
 
 interface EditForm {
+  serviceType: ServiceType;
   pickupAt: string;
   expectedDurationMinutes: number;
+  distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
   passengerFirstName: string;
@@ -28,29 +32,30 @@ interface EditForm {
   notes: string;
 }
 
-const DURATIONS = [30, 45, 60, 90, 120, 180, 240, 360];
-const DURATION_LABEL: Record<number, string> = {
-  30: '30 min',
-  45: '45 min',
-  60: '1 h',
-  90: '1 h 30',
-  120: '2 h',
-  180: '3 h',
-  240: '4 h block',
-  360: '6 h block',
-};
+const HOURS = [2, 3, 4, 6, 8, 12];
+const DEFAULT_HOURLY_MINUTES = 240;
+const DEFAULT_TRANSFER_MINUTES = 60;
+const ROUTE_DEBOUNCE_MS = 600;
+
+function poundsFromPence(pence: number): string {
+  return (pence / 100).toFixed(2);
+}
 
 export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBookingModalProps) {
   const [form, setForm] = useState<EditForm | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   const [isPending, startTransition] = useTransition();
+  const routeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: hydrate the form only when the modal opens or the booking changes
   useEffect(() => {
     if (isOpen && booking) {
       setForm({
+        serviceType: booking.serviceType,
         pickupAt: toLocalDateTimeInput(booking.pickupAt),
         expectedDurationMinutes: booking.expectedDurationMinutes,
+        distanceMeters: booking.distanceMeters,
         pickupAddress: booking.pickupAddress,
         dropoffAddress: booking.dropoffAddress,
         passengerFirstName: booking.passengerFirstName,
@@ -62,22 +67,100 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         notes: booking.notes ?? '',
       });
       setError(null);
+      setRouteStatus('idle');
     }
   }, [isOpen, booking?.id]);
+
+  const serviceType = form?.serviceType;
+  const pickupAddress = form?.pickupAddress;
+  const dropoffAddress = form?.dropoffAddress;
+
+  // Re-estimate a transfer's distance + drive time when both ends are set.
+  useEffect(() => {
+    if (routeTimer.current) clearTimeout(routeTimer.current);
+    if (serviceType !== 'transfer' || !pickupAddress || !dropoffAddress) {
+      setRouteStatus('idle');
+      return;
+    }
+    if (pickupAddress.trim().length < 3 || dropoffAddress.trim().length < 3) {
+      setRouteStatus('idle');
+      return;
+    }
+    setRouteStatus('loading');
+    routeTimer.current = setTimeout(async () => {
+      const est = await getRouteEstimate(pickupAddress, dropoffAddress);
+      if (!est) {
+        setRouteStatus('failed');
+        return;
+      }
+      setForm((p) =>
+        p && p.serviceType === 'transfer'
+          ? {
+              ...p,
+              distanceMeters: est.distanceMeters,
+              expectedDurationMinutes: est.durationMinutes,
+            }
+          : p,
+      );
+      setRouteStatus('ready');
+    }, ROUTE_DEBOUNCE_MS);
+    return () => {
+      if (routeTimer.current) clearTimeout(routeTimer.current);
+    };
+  }, [serviceType, pickupAddress, dropoffAddress]);
+
+  const quote = useMemo(() => {
+    if (!form) return null;
+    if (form.serviceType === 'hourly') {
+      return quoteBooking(
+        { serviceType: 'hourly', hours: form.expectedDurationMinutes / 60 },
+        PLACEHOLDER_PRICING_RULES,
+      );
+    }
+    if (form.distanceMeters != null) {
+      return quoteBooking(
+        { serviceType: 'transfer', distanceMeters: form.distanceMeters },
+        PLACEHOLDER_PRICING_RULES,
+      );
+    }
+    return null;
+  }, [form]);
 
   if (!booking || !form) return null;
   const set = <K extends keyof EditForm>(k: K, v: EditForm[K]) =>
     setForm((p) => (p ? { ...p, [k]: v } : p));
+
+  const switchService = (next: ServiceType) => {
+    setForm((p) =>
+      p
+        ? {
+            ...p,
+            serviceType: next,
+            dropoffAddress: next === 'hourly' ? '' : p.dropoffAddress,
+            distanceMeters: null,
+            expectedDurationMinutes:
+              next === 'hourly' ? DEFAULT_HOURLY_MINUTES : DEFAULT_TRANSFER_MINUTES,
+          }
+        : p,
+    );
+    setRouteStatus('idle');
+  };
+
+  const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
 
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     setError(null);
     const fd = new FormData();
     fd.set('bookingId', booking.id);
+    fd.set('serviceType', form.serviceType);
     fd.set('pickupAt', form.pickupAt);
     fd.set('expectedDurationMinutes', String(form.expectedDurationMinutes));
     fd.set('pickupAddress', form.pickupAddress);
-    fd.set('dropoffAddress', form.dropoffAddress);
+    fd.set('dropoffAddress', form.serviceType === 'transfer' ? form.dropoffAddress : '');
+    if (form.serviceType === 'transfer' && form.distanceMeters != null) {
+      fd.set('distanceMeters', String(form.distanceMeters));
+    }
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
@@ -124,31 +207,44 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
 
           <div className="form-section">
             <div className="form-section__head">Trip</div>
+
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: segmented control below */}
+              <label>Service</label>
+              <div className="ctrl">
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={`btn ${form.serviceType === 'transfer' ? 'btn--primary' : ''}`}
+                    onClick={() => switchService('transfer')}
+                  >
+                    Transfer
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${form.serviceType === 'hourly' ? 'btn--primary' : ''}`}
+                    onClick={() => switchService('hourly')}
+                  >
+                    As-directed (hourly)
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
                 Pickup time<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <div className="field-inline">
-                  <input
-                    type="datetime-local"
-                    value={form.pickupAt}
-                    onChange={(e) => set('pickupAt', e.target.value)}
-                  />
-                  <select
-                    value={form.expectedDurationMinutes}
-                    onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
-                  >
-                    {DURATIONS.map((d) => (
-                      <option key={d} value={d}>
-                        {DURATION_LABEL[d]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <input
+                  type="datetime-local"
+                  value={form.pickupAt}
+                  onChange={(e) => set('pickupAt', e.target.value)}
+                />
               </div>
             </div>
+
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
@@ -162,19 +258,66 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 />
               </div>
             </div>
-            <div className="field">
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                To<span className="req">*</span>
-              </label>
-              <div className="ctrl">
-                <AddressAutocomplete
-                  value={form.dropoffAddress}
-                  onChange={(v) => set('dropoffAddress', v)}
-                  ariaLabel="Dropoff address"
-                />
+
+            {form.serviceType === 'transfer' ? (
+              <>
+                <div className="field">
+                  {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                  <label>
+                    To<span className="req">*</span>
+                  </label>
+                  <div className="ctrl">
+                    <AddressAutocomplete
+                      value={form.dropoffAddress}
+                      onChange={(v) => set('dropoffAddress', v)}
+                      ariaLabel="Dropoff address"
+                    />
+                    <div className="hint">
+                      {routeStatus === 'loading'
+                        ? 'Estimating route…'
+                        : routeStatus === 'ready' && miles
+                          ? `≈ ${form.expectedDurationMinutes} min · ${miles} mi`
+                          : 'Drive time is estimated from the route.'}
+                    </div>
+                  </div>
+                </div>
+                <div className="field">
+                  {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                  <label>Duration (min)</label>
+                  <div className="ctrl">
+                    <input
+                      type="number"
+                      min={15}
+                      max={720}
+                      value={form.expectedDurationMinutes}
+                      onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="field">
+                {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                <label>
+                  Hours<span className="req">*</span>
+                </label>
+                <div className="ctrl">
+                  <select
+                    value={form.expectedDurationMinutes / 60}
+                    onChange={(e) => set('expectedDurationMinutes', Number(e.target.value) * 60)}
+                  >
+                    {HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {h} hours
+                      </option>
+                    ))}
+                  </select>
+                  <div className="hint">
+                    No fixed destination — the car is at the exec’s disposal.
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="form-section">
@@ -261,6 +404,19 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     onChange={(e) => set('contractPricePounds', e.target.value)}
                   />
                 </div>
+                {quote ? (
+                  <div className="hint">
+                    Suggested <strong>£{poundsFromPence(quote.amountPence)}</strong> —{' '}
+                    {quote.breakdown.join(' + ')} (estimate).{' '}
+                    <button
+                      type="button"
+                      className="linklike"
+                      onClick={() => set('contractPricePounds', poundsFromPence(quote.amountPence))}
+                    >
+                      Use
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -269,7 +425,9 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
             <div className="form-section__head">Notes for the driver</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Special instructions</label>
+              <label>
+                {form.serviceType === 'hourly' ? 'Area / instructions' : 'Special instructions'}
+              </label>
               <div className="ctrl">
                 <textarea
                   rows={3}
