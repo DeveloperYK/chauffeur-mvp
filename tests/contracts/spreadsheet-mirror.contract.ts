@@ -16,8 +16,10 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
     booking: {
       id: '00000000-0000-0000-0000-000000000001',
       state: 'completed',
+      serviceType: 'transfer',
       pickupAt: new Date('2026-06-01T10:00:00.000Z'),
       expectedDurationMinutes: 90,
+      distanceMeters: 28000,
       pickupAddress: '11 Belsize Park Gardens, London',
       dropoffAddress: 'Heathrow Terminal 5',
       passengerFirstName: 'Eric',

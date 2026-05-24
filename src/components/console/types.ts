@@ -6,9 +6,12 @@ import type { BookingState, DriverTier } from '@/server/db/schema';
 export interface ConsoleBooking {
   id: string;
   state: BookingState;
+  serviceType: 'transfer' | 'hourly';
   pickupAt: string;
   expectedDurationMinutes: number;
+  distanceMeters: number | null;
   pickupAddress: string;
+  /** Empty string for hourly as-directed bookings (no destination). */
   dropoffAddress: string;
   passengerFirstName: string;
   passengerLastName: string | null;

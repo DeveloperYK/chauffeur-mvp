@@ -1,5 +1,6 @@
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
+import { PLACEHOLDER_PRICING_RULES, quoteBooking } from '@/server/domain/pricing';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
@@ -24,10 +25,15 @@ const phoneSchema = z
 
 export const createBookingSchema = z
   .object({
+    // Point-to-point `transfer` (default) or `hourly` as-directed hire.
+    serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
     pickupAt: z.coerce.date(),
     expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
+    // Route distance for transfers (metres); ignored/cleared for hourly.
+    distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3).max(500),
-    dropoffAddress: z.string().min(3).max(500),
+    // Required for transfers (enforced below); omitted for hourly (no destination).
+    dropoffAddress: z.string().max(500).optional().nullable(),
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
@@ -42,7 +48,17 @@ export const createBookingSchema = z
     assignedDriverId: z.string().uuid().optional().nullable(),
     markAsAccepted: z.boolean().optional().default(false),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    // A transfer must have a destination; an hourly hire must not.
+    if (data.serviceType === 'transfer' && (data.dropoffAddress ?? '').trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dropoffAddress'],
+        message: 'Destination is required for a transfer',
+      });
+    }
+  });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
@@ -90,14 +106,33 @@ export async function createBooking(
 
   const shouldMarkAssigned = driver !== null && parsed.data.markAsAccepted;
 
+  // Hourly hire has no destination or route distance; a transfer keeps both.
+  const isHourly = parsed.data.serviceType === 'hourly';
+  const dropoffAddress = isHourly ? null : (parsed.data.dropoffAddress ?? null);
+  const distanceMeters = isHourly ? null : (parsed.data.distanceMeters ?? null);
+
+  // Price defaults to the computed quote when the operator leaves it blank (0),
+  // otherwise their entered/overridden figure wins.
+  const contractPricePence =
+    parsed.data.contractPricePence > 0
+      ? parsed.data.contractPricePence
+      : quoteBooking(
+          isHourly
+            ? { serviceType: 'hourly', hours: parsed.data.expectedDurationMinutes / 60 }
+            : { serviceType: 'transfer', distanceMeters: distanceMeters ?? 0 },
+          PLACEHOLDER_PRICING_RULES,
+        ).amountPence;
+
   const [inserted] = await deps.db
     .insert(bookings)
     .values({
       state: shouldMarkAssigned ? 'assigned' : 'unassigned',
+      serviceType: parsed.data.serviceType,
       pickupAt: parsed.data.pickupAt,
       expectedDurationMinutes: parsed.data.expectedDurationMinutes,
+      distanceMeters,
       pickupAddress: parsed.data.pickupAddress,
-      dropoffAddress: parsed.data.dropoffAddress,
+      dropoffAddress,
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,
@@ -106,7 +141,7 @@ export async function createBooking(
       clientName: parsed.data.customerAccount,
       accountCode: parsed.data.customerAccount,
       caseCode: parsed.data.caseCode,
-      contractPricePence: parsed.data.contractPricePence,
+      contractPricePence,
       notes: parsed.data.notes ?? null,
       createdByOperatorId: deps.operatorId,
       assignedOperatorId: deps.operatorId,

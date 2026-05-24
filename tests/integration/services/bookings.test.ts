@@ -196,4 +196,81 @@ describe('services/bookings (integration)', () => {
       expect(board[s].length).toBe(1);
     }
   });
+
+  describe('service types', () => {
+    it('defaults to a transfer and stores the route distance', async () => {
+      const result = await createBooking(
+        validInput({ distanceMeters: 28000, contractPricePence: 0 }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.serviceType).toBe('transfer');
+      expect(result.booking.distanceMeters).toBe(28000);
+      expect(result.booking.dropoffAddress).toBe('LHR Terminal 5');
+    });
+
+    it('rejects a transfer with no destination', async () => {
+      const result = await createBooking(
+        validInput({ serviceType: 'transfer', dropoffAddress: '' }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
+    });
+
+    it('creates an hourly hire with no destination and clears distance', async () => {
+      const result = await createBooking(
+        validInput({
+          serviceType: 'hourly',
+          dropoffAddress: '',
+          distanceMeters: 9999,
+          expectedDurationMinutes: 240,
+        }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.serviceType).toBe('hourly');
+      expect(result.booking.dropoffAddress).toBeNull();
+      expect(result.booking.distanceMeters).toBeNull();
+    });
+
+    it('defaults the price from the route when left blank (transfer)', async () => {
+      // 10 miles → £10 base + 10 × £2.20 = £32.00
+      const result = await createBooking(
+        validInput({ contractPricePence: 0, distanceMeters: Math.round(10 * 1609.344) }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBe(3200);
+    });
+
+    it('defaults the price from booked hours when left blank (hourly)', async () => {
+      const result = await createBooking(
+        validInput({
+          serviceType: 'hourly',
+          dropoffAddress: '',
+          contractPricePence: 0,
+          expectedDurationMinutes: 240,
+        }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBe(20000); // 4 hr × £50
+    });
+
+    it('keeps the operator-entered price over the computed quote', async () => {
+      const result = await createBooking(
+        validInput({ contractPricePence: 9999, distanceMeters: 28000 }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBe(9999);
+    });
+  });
 });

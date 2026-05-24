@@ -6,8 +6,10 @@ import { describe, expect, it } from 'vitest';
 const baseBooking: Booking = {
   id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
   state: 'completed',
+  serviceType: 'transfer',
   pickupAt: new Date('2026-06-01T08:30:00.000Z'),
   expectedDurationMinutes: 90,
+  distanceMeters: 28000,
   pickupAddress: '11 Belsize Park Gardens',
   dropoffAddress: 'LHR T5',
   passengerFirstName: 'Eric',
