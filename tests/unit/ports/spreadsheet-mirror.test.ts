@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const baseBooking: Booking = {
   id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+  seq: 42,
   state: 'completed',
   serviceType: 'transfer',
   pickupAt: new Date('2026-06-01T08:30:00.000Z'),

@@ -43,6 +43,13 @@
       "when": 1779650000000,
       "tag": "0005_add_service_type",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779730000000,
+      "tag": "0006_add_booking_seq",
+      "breakpoints": true
     }
   ]
 }

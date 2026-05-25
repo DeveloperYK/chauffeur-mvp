@@ -15,6 +15,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
   return {
     booking: {
       id: '00000000-0000-0000-0000-000000000001',
+      seq: 1,
       state: 'completed',
       serviceType: 'transfer',
       pickupAt: new Date('2026-06-01T10:00:00.000Z'),

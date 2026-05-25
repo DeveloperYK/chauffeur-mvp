@@ -9,6 +9,7 @@ import {
   rejectBookingAction,
   sendDriverCompletionSmsAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
+import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
@@ -257,7 +258,7 @@ export function DetailPanel({
             <Icon.Board style={{ width: 13, height: 13 }} />
             <span>Board</span>
             <Icon.ChevRight style={{ width: 11, height: 11 }} />
-            <span className="mono">{booking.id.slice(0, 8)}</span>
+            <span className="mono">{bookingRef(booking.seq)}</span>
           </span>
           <span className="spacer" />
           <button type="button" className="icon-btn" title="Close (esc)" onClick={onClose}>

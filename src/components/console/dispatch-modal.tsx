@@ -4,6 +4,7 @@ import {
   dispatchAction,
   sendDriverDispatchSmsAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
+import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -139,7 +140,7 @@ export function DispatchModal({
               <div className="modal__title">
                 Generate dispatch link{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
-                  {booking.id.slice(0, 8)}
+                  {bookingRef(booking.seq)}
                 </span>
               </div>
               <div className="modal__sub">

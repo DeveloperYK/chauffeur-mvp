@@ -1,3 +1,4 @@
+import { bookingRef } from '@/lib/booking-ref';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
 
 /** Columns A–AD from the existing JJ DATA workbook. */
@@ -88,8 +89,8 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     ? Math.max(0, Math.round((booking.dropoffAt.getTime() - pickup.getTime()) / 60_000))
     : booking.expectedDurationMinutes;
 
-  // Job # — use a short suffix of UUID for readability; full id is the source of truth.
-  const jobNumber = booking.id.slice(-6).toUpperCase();
+  // Job # — the human-facing booking reference (e.g. "BKNG-00001").
+  const jobNumber = bookingRef(booking.seq);
   return [
     jobNumber,
     formatDate(pickup),

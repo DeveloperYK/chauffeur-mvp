@@ -1,5 +1,5 @@
 'use client';
-
+import { bookingRef } from '@/lib/booking-ref';
 import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -356,7 +356,7 @@ function BoardCard({
       onClick={onClick}
     >
       <div className="card__head">
-        <span className="card__id mono">{booking.id.slice(0, 8)}</span>
+        <span className="card__id mono">{bookingRef(booking.seq)}</span>
         {booking.flaggedAt ? (
           <Icon.Flag
             style={{ color: 'var(--prio-high)', flex: '0 0 auto', width: 11, height: 11 }}
