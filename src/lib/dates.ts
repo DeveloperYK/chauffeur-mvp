@@ -89,6 +89,49 @@ export function londonTodayString(now: Date = new Date()): string {
   return formatLondonDay(now);
 }
 
+/** Format a Date as "HH:mm" (24h) in Europe/London — BST-aware. */
+export function formatLondonTimeOfDay(at: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at);
+}
+
+/**
+ * Compact 24h date+time for customer/driver messages, e.g. "Sat 23 May, 14:00"
+ * (Europe/London, BST-aware, no year for brevity).
+ */
+export function formatLondonDateTimeShort(at: Date): string {
+  const date = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+    .format(at)
+    .replace(/,/g, '');
+  return `${date}, ${formatLondonTimeOfDay(at)}`;
+}
+
+/**
+ * Readable UK date+time for messages/links, e.g. "Mon 1 Jun 2026, 09:30".
+ * Always Europe/London (BST-aware) — never UTC.
+ */
+export function formatLondonDateTime(at: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at);
+}
+
 /** Format a Date as "YYYY-MM" in Europe/London. */
 export function formatLondonMonth(at: Date): string {
   return formatLondonDay(at).slice(0, 7);
