@@ -1,4 +1,5 @@
 import { bookingRef } from '@/lib/booking-ref';
+import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
 
 /** Columns A–AD from the existing JJ DATA workbook. */
@@ -45,14 +46,14 @@ export interface SpreadsheetMirrorPort {
   upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
+// The legacy JJ sheet is a UK billing record — dates and times must be in
+// Europe/London (BST-aware), not UTC.
 function formatTimeOfDay(d: Date): string {
-  const hh = d.getUTCHours().toString().padStart(2, '0');
-  const mm = d.getUTCMinutes().toString().padStart(2, '0');
-  return `${hh}:${mm}`;
+  return formatLondonTimeOfDay(d);
 }
 
 function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return formatLondonDay(d);
 }
 
 function carLabel(c: string | null): string {
@@ -125,7 +126,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     '',
     '',
     '',
-    pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' }),
-    pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'UTC' }),
+    pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'Europe/London' }),
+    pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'Europe/London' }),
   ];
 }

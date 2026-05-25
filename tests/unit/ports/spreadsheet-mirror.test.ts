@@ -68,10 +68,21 @@ describe('rowFromBooking', () => {
     expect(row.length).toBe(30);
   });
 
-  it('formats pickup date and time of day', () => {
+  it('formats pickup date and time of day in Europe/London (BST)', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[1]).toBe('2026-06-01'); // Date
-    expect(row[2]).toBe('08:30'); // Pick Up Time
+    expect(row[1]).toBe('2026-06-01'); // Date (London)
+    expect(row[2]).toBe('09:30'); // Pick Up Time — 08:30 UTC is 09:30 BST
+  });
+
+  it('rolls the date, time and weekday into the next London day near midnight (BST)', () => {
+    // 2026-06-01 23:30 UTC is 2026-06-02 00:30 BST — a different calendar day.
+    const row = rowFromBooking({
+      booking: { ...baseBooking, pickupAt: new Date('2026-06-01T23:30:00.000Z') },
+      driver,
+    });
+    expect(row[1]).toBe('2026-06-02'); // Date (London)
+    expect(row[2]).toBe('00:30'); // Pick Up Time (London)
+    expect(row[29]).toBe('Tuesday'); // WeekDay (London) — 2 Jun 2026
   });
 
   it('renders price in pounds with 2 decimals', () => {
