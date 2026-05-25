@@ -268,23 +268,24 @@ All tests use typed factory functions in `tests/fixtures/seed-data.ts`:
 - Feature branches: `feat/<stage-NN>-<short-desc>`. Bugfix: `fix/<short-desc>`. Chore: `chore/<short-desc>`.
 - One stage = one PR. Stages are defined in the build plan (`docs/build-plan.md`, created at kickoff).
 
-### Branch BEFORE you edit — and isolate parallel work in a worktree (mandatory)
+### Every session works in its own git worktree (mandatory)
 
-Multiple Claude sessions run against this repo at once. They share one checkout, so **uncommitted edits from one session land in everyone's working tree** and break each other's pre-commit hooks (the hook typechecks the whole tree, so another session's half-finished change blocks your commit).
+Multiple Claude sessions run against this repo at once. They share one checkout, so **uncommitted edits from one session land in everyone's working tree** and break each other's pre-commit hooks (the hook typechecks the whole tree, so another session's half-finished change blocks your commit). This has already caused real collisions — two sessions editing the same files in the same directory.
 
-To prevent collisions:
+**The rule: every session gets its own git worktree. No exceptions — not "only for concurrent work".** You can never be sure another session isn't running (or won't start mid-task), and a branch alone does NOT isolate the working tree — only a worktree gives you a separate checkout. The shared primary checkout (`/Users/.../chauffeur-mvp`) is for the human; agent sessions do not edit in it.
 
-1. **Create the branch before making any change.** Never start editing on `main`. The first action for any task is `git checkout -b <type>/<slug>` (or a worktree, below). Do not accumulate uncommitted work on `main`.
-2. **For concurrent work, use a dedicated git worktree, not just a branch.** A branch alone does not isolate the working tree — only a worktree gives you a separate checkout:
+1. **First action of every task — create a worktree, before touching any file:**
    ```bash
-   git worktree add ../chauffeur-mvp-<slug> -b feat/<slug> origin/main
+   git worktree add ../chauffeur-mvp-<slug> -b <type>/<slug> origin/main
    cd ../chauffeur-mvp-<slug>
    ln -s ../chauffeur-mvp/node_modules ./node_modules   # share deps (gitignored)
    cp ../chauffeur-mvp/.env ./.env                       # share env (gitignored)
    ```
-   Work, commit, and push from there; `git worktree remove` when the branch is merged. Run the dev server on a non-default port if the primary tree's `:3000` is in use.
+   Work, commit, and push from there. Run `git worktree remove ../chauffeur-mvp-<slug>` once the branch is merged. Run the dev server on a non-default port if the primary tree's `:3000` is in use.
+   - **Never start editing on `main` or in the shared checkout**, and never accumulate uncommitted work there.
    - **Never `git add` the `node_modules` symlink or `.env`.** `.gitignore` covers both, but `git add -A` once committed a `node_modules` *symlink* (the old `node_modules/` rule only matched directories) — it broke CI with `ENOTDIR` because the symlink points at a Mac-only path. Verify with `git status` before committing in a worktree.
-3. **Never stash, discard (`git checkout -f`/`reset --hard`), or commit another session's uncommitted changes.** If you find unexpected modifications in the tree you didn't make, they belong to another session — leave them alone and isolate your own work in a worktree.
+2. **Never stash, discard (`git checkout -f`/`reset --hard`), switch the branch of, or commit another session's uncommitted changes.** If you find unexpected modifications in the shared tree you didn't make, they belong to another session — leave them alone and work in your own worktree.
+3. **If editing a tracked file would collide with the shared tree** (e.g. it's mid-edit by another session) and you can't use a worktree, commit the file via the GitHub API on a fresh branch instead of the local working tree.
 
 ### Commits
 
