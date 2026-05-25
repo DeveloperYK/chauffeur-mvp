@@ -12,12 +12,19 @@ import { describe, expect, it } from 'vitest';
 // Minimal fixtures — only the fields the templates read.
 const booking = {
   seq: 1,
+  serviceType: 'transfer',
   pickupAt: new Date('2026-05-23T13:00:00.000Z'),
   pickupAddress: '12 King St, London',
   dropoffAddress: 'Heathrow T5',
+  expectedDurationMinutes: 45,
 } as unknown as Booking;
 
-const hourlyBooking = { ...booking, dropoffAddress: null } as unknown as Booking;
+const hourlyBooking = {
+  ...booking,
+  serviceType: 'hourly',
+  dropoffAddress: null,
+  expectedDurationMinutes: 240,
+} as unknown as Booking;
 const driver = { name: 'Marcus Bell' } as unknown as Driver;
 
 const when = formatLondonDateTimeShort(booking.pickupAt); // BST-aware
@@ -51,9 +58,18 @@ describe('SMS templates — brand, reference, structured format', () => {
     expect(body).toContain('Accept: https://app.test/s/Ab3xK7');
   });
 
-  it('shows "As directed" for an hourly dispatch (no destination)', () => {
+  it('shows pickup + hire length for an hourly dispatch (no destination)', () => {
     const body = dispatchSms(hourlyBooking, 'https://app.test/s/Ab3xK7');
-    expect(body).toContain('12 King St, London -> As directed');
+    expect(body).toContain('Pickup: 12 King St, London');
+    expect(body).toContain('As directed - 4 hours');
+    expect(body).not.toContain('->');
+  });
+
+  it('formats singular and fractional hire lengths', () => {
+    const oneHour = { ...hourlyBooking, expectedDurationMinutes: 60 } as unknown as Booking;
+    const ninety = { ...hourlyBooking, expectedDurationMinutes: 90 } as unknown as Booking;
+    expect(dispatchSms(oneHour, 'https://app.test/s/x')).toContain('As directed - 1 hour');
+    expect(dispatchSms(ninety, 'https://app.test/s/x')).toContain('As directed - 1.5 hours');
   });
 
   it('formats the driver completion-request SMS with the link', () => {

@@ -25,9 +25,16 @@ function displayCar(value: string): string {
   }
 }
 
-/** Hourly hires have no destination — show "As directed" on the route line. */
+/** Transfer fallback if a dropoff is somehow missing. */
 function destination(booking: Booking): string {
   return booking.dropoffAddress ?? 'As directed';
+}
+
+/** "4 hours" / "1 hour" / "1.5 hours" for an as-directed hire. */
+function formatHireDuration(minutes: number): string {
+  const hours = minutes / 60;
+  if (Number.isInteger(hours)) return `${hours} hour${hours === 1 ? '' : 's'}`;
+  return `${Math.round(hours * 10) / 10} hours`;
 }
 
 /**
@@ -63,18 +70,30 @@ export function enRouteSms(booking: Booking, driver: Driver): string {
 /**
  * Driver — dispatch offer; they tap the link to accept.
  *
- *   Chauffeur MVP - New job BKNG-00001
- *   Sat 23 May, 14:00
- *   12 King St, London -> Heathrow T5
- *   Accept: <url>
+ * Transfer (point-to-point) shows the route; an as-directed hire shows the
+ * pickup and the booked hire length instead:
+ *
+ *   Chauffeur MVP - New job BKNG-00001        Chauffeur MVP - New job BKNG-00002
+ *   Sat 23 May, 14:00                         Sat 23 May, 14:00
+ *   12 King St, London -> Heathrow T5         Pickup: 12 King St, London
+ *   Accept: <url>                             As directed - 4 hours
+ *                                             Accept: <url>
  */
 export function dispatchSms(booking: Booking, url: string): string {
-  return [
+  const lines = [
     `${SMS_BRAND_NAME} - New job ${bookingRef(booking.seq)}`,
     formatLondonDateTimeShort(booking.pickupAt),
-    `${booking.pickupAddress} -> ${destination(booking)}`,
-    `Accept: ${url}`,
-  ].join('\n');
+  ];
+  if (booking.serviceType === 'hourly') {
+    lines.push(
+      `Pickup: ${booking.pickupAddress}`,
+      `As directed - ${formatHireDuration(booking.expectedDurationMinutes)}`,
+    );
+  } else {
+    lines.push(`${booking.pickupAddress} -> ${destination(booking)}`);
+  }
+  lines.push(`Accept: ${url}`);
+  return lines.join('\n');
 }
 
 /**
