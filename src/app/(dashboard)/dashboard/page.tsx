@@ -43,6 +43,7 @@ const UNASSIGNED = 'unassigned';
 function toConsoleBooking(b: Booking): ConsoleBooking {
   return {
     id: b.id,
+    seq: b.seq,
     state: b.state,
     pickupAt: b.pickupAt.toISOString(),
     expectedDurationMinutes: b.expectedDurationMinutes,

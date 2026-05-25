@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { bookingRef } from '@/lib/booking-ref';
 import type { Database } from '@/server/db';
 import {
   type Booking,
@@ -78,7 +79,7 @@ export async function generateDispatchLink(
   // Pre-fill a WhatsApp message via the wa.me scheme. Operator clicks → WhatsApp opens.
   const destination = booking.dropoffAddress ?? 'As directed';
   const text =
-    `Job offer for ${driver.name}.\n` +
+    `${bookingRef(booking.seq)} — Job offer for ${driver.name}.\n` +
     `Pickup: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n` +
     `From: ${booking.pickupAddress}\nTo: ${destination}\n${url}`;
   const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');

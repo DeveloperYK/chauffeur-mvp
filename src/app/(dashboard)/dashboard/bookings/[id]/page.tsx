@@ -1,6 +1,7 @@
 import { Avatar, UnassignedAvatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge, StateLozenge, Tag } from '@/components/console/lozenge';
+import { bookingRef } from '@/lib/booking-ref';
 import { env } from '@/lib/env';
 import { TIER_LABEL, carLabel } from '@/lib/labels';
 import { currentSession } from '@/server/auth/current';
@@ -82,7 +83,7 @@ export default async function BookingPage({
           Board
         </Link>
         <Icon.ChevRight className="chev" style={{ width: 11, height: 11 }} />
-        <span className="mono">{booking.id.slice(0, 8)}</span>
+        <span className="mono">{bookingRef(booking.seq)}</span>
       </span>
 
       {/* Hero */}

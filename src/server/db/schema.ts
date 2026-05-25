@@ -87,6 +87,10 @@ export const bookings = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
 
+    // Auto-incrementing human-facing reference number. Rendered as "BKNG-00001"
+    // (see lib/booking-ref) in the UI and in every customer/driver message.
+    seq: integer('seq').generatedByDefaultAsIdentity(),
+
     // State
     state: bookingStateEnum('state').notNull().default('unassigned'),
 

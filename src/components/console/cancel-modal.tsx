@@ -1,6 +1,7 @@
 'use client';
 
 import { cancelBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
+import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useState, useTransition } from 'react';
 import { passengerName } from './format';
 import { Icon } from './icons';
@@ -53,7 +54,7 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
             <div>
               <div className="modal__title">Cancel booking</div>
               <div className="modal__sub">
-                {passengerName(booking)} · <span className="mono">{booking.id.slice(0, 8)}</span>
+                {passengerName(booking)} · <span className="mono">{bookingRef(booking.seq)}</span>
               </div>
             </div>
             <span style={{ flex: 1 }} />

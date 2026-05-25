@@ -5,6 +5,8 @@ import type { BookingState, DriverTier } from '@/server/db/schema';
 
 export interface ConsoleBooking {
   id: string;
+  /** Auto-incrementing reference number; rendered as "BKNG-00001". */
+  seq: number;
   state: BookingState;
   serviceType: 'transfer' | 'hourly';
   pickupAt: string;

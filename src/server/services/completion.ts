@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { bookingRef } from '@/lib/booking-ref';
 import type { Database } from '@/server/db';
 import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
@@ -57,7 +58,7 @@ export async function generateCompletionLink(
   });
 
   const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
-  const text = `Please submit the completion form when you have a moment:\nJob: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n${url}`;
+  const text = `${bookingRef(booking.seq)} — please submit the completion form when you have a moment:\nJob: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n${url}`;
   const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 
