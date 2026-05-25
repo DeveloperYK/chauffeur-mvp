@@ -117,3 +117,84 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Full booking lifecycle through the simulator + console. Unlike the smoke
+  # job this drives the whole flow (create → dispatch → clock transitions →
+  # approve/cancel), so it needs a real DB (migrated) and a seeded operator,
+  # and runs the app with the auth bypass + simulator enabled.
+  e2e-lifecycle:
+    name: E2E lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: verify
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chauffeur
+          POSTGRES_PASSWORD: chauffeur_dev
+          POSTGRES_DB: chauffeur_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chauffeur -d chauffeur_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://chauffeur:chauffeur_dev@localhost:5432/chauffeur_test
+      DRIVER_LINK_SECRET: ci-only-secret-not-used-in-prod-replace-me!!
+      APP_URL: http://localhost:3000
+      # Production build, but enable the test affordances the lifecycle spec
+      # relies on: operator auth bypass + the simulator routes.
+      AUTH_DISABLED: 'true'
+      SIMULATOR_ENABLED: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Seed an operator (auth bypass falls back to the first operator)
+        run: pnpm tsx scripts/create-operator.ts ci@chauffeur.test "CI Operator" "ci-operator-pw-123456"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start server + run lifecycle e2e
+        run: |
+          pnpm start -p 3000 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/api/healthz >/dev/null 2>&1; then
+              echo "server up after ${i}s"; break
+            fi
+            sleep 2
+          done
+          # Pre-warm the routes the spec hits so first-render latency doesn't trip timeouts.
+          curl -fsS http://localhost:3000/dashboard/simulator >/dev/null || true
+          curl -fsS http://localhost:3000/dashboard >/dev/null || true
+          E2E_BASE_URL=http://localhost:3000 pnpm test:e2e:lifecycle
+          status=$?
+          kill $SERVER_PID 2>/dev/null || true
+          exit $status
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-lifecycle
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
