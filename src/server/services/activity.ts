@@ -1,6 +1,6 @@
 import type { Database } from '@/server/db';
 import { auditEvents, bookings, drivers, operators } from '@/server/db/schema';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 export interface ActivityEvent {
   id: string;
@@ -46,56 +46,6 @@ function describe(action: string, passenger: string, after: unknown): string {
     default:
       return `updated ${passenger}.`;
   }
-}
-
-/** Recent audit events, resolved to human-readable rows. */
-export async function listActivity(db: Database, limit = 60): Promise<ActivityEvent[]> {
-  const rows = await db
-    .select()
-    .from(auditEvents)
-    .orderBy(desc(auditEvents.createdAt))
-    .limit(limit);
-  if (rows.length === 0) return [];
-
-  const actorIds = [...new Set(rows.map((r) => r.actorId).filter((x): x is string => Boolean(x)))];
-  const bookingIds = [...new Set(rows.map((r) => r.entityId))];
-
-  const [ops, drvs, bks] = await Promise.all([
-    actorIds.length
-      ? db.select().from(operators).where(inArray(operators.id, actorIds))
-      : Promise.resolve([]),
-    actorIds.length
-      ? db.select().from(drivers).where(inArray(drivers.id, actorIds))
-      : Promise.resolve([]),
-    bookingIds.length
-      ? db.select().from(bookings).where(inArray(bookings.id, bookingIds))
-      : Promise.resolve([]),
-  ]);
-  const opName = new Map(ops.map((o) => [o.id, o.name]));
-  const drvName = new Map(drvs.map((d) => [d.id, d.name]));
-  const passenger = new Map(
-    bks.map((b) => [b.id, `${b.passengerFirstName} ${b.passengerLastName}`]),
-  );
-
-  return rows.map((r) => {
-    const actor =
-      r.actorType === 'system'
-        ? 'System'
-        : r.actorType === 'driver'
-          ? r.actorId
-            ? (drvName.get(r.actorId) ?? 'Driver')
-            : 'Driver'
-          : r.actorId
-            ? (opName.get(r.actorId) ?? 'Operator')
-            : 'Operator';
-    return {
-      id: r.id,
-      ts: r.createdAt,
-      actor,
-      text: describe(r.action, passenger.get(r.entityId) ?? PASSENGER_FALLBACK, r.after),
-      bookingId: r.entityId,
-    };
-  });
 }
 
 /** Audit trail for a single booking, oldest → newest, resolved to readable rows. */

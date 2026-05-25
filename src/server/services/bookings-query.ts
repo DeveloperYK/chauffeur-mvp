@@ -64,6 +64,25 @@ export async function listBookingsBetween(
     .limit(2000);
 }
 
+/** Completed bookings whose pickup falls in the given London month (YYYY-MM).
+ *  The billable set for the monthly reconciliation report. */
+export async function listBillableBookings(db: Database, monthStr: string): Promise<Booking[]> {
+  const range = londonMonthRangeUtc(monthStr);
+  if (!range) return [];
+  return db
+    .select()
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.state, 'completed'),
+        gte(bookings.pickupAt, range.startUtc),
+        lt(bookings.pickupAt, range.endUtc),
+      ),
+    )
+    .orderBy(asc(bookings.pickupAt))
+    .limit(5000);
+}
+
 export interface BookingSearchHit extends Booking {
   /** Name of the assigned driver, if any — joined for both matching and display. */
   driverName: string | null;
