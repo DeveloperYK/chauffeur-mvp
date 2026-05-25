@@ -105,11 +105,11 @@ export function groupByState(items: Booking[]): Board {
 export interface DayCounts {
   total: number;
   unassigned: number;
-  /** total - unassigned: everything that's been picked up by a driver
-   *  (assigned, in progress, awaiting form, awaiting review, completed)
-   *  or has been cancelled. From the operator's perspective: no longer
-   *  waiting for them. */
-  dispatched: number;
+  /** total - unassigned: everything that has a driver attached (assigned, in
+   *  progress, awaiting form, awaiting review, completed) or is cancelled.
+   *  From the operator's perspective: no longer waiting for them. Shown in the
+   *  calendar as "assigned". */
+  assigned: number;
 }
 
 export async function monthlyDayCounts(
@@ -128,12 +128,12 @@ export async function monthlyDayCounts(
   const counts = new Map<string, DayCounts>();
   for (const row of rows) {
     const day = formatLondonDay(row.pickupAt);
-    const cur = counts.get(day) ?? { total: 0, unassigned: 0, dispatched: 0 };
+    const cur = counts.get(day) ?? { total: 0, unassigned: 0, assigned: 0 };
     cur.total += 1;
     if (row.state === 'unassigned') {
       cur.unassigned += 1;
     } else {
-      cur.dispatched += 1;
+      cur.assigned += 1;
     }
     counts.set(day, cur);
   }
