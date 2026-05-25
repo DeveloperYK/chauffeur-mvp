@@ -278,12 +278,14 @@ Multiple Claude sessions run against this repo at once. They share one checkout,
    ```bash
    git worktree add ../chauffeur-mvp-<slug> -b <type>/<slug> origin/main
    cd ../chauffeur-mvp-<slug>
-   ln -s ../chauffeur-mvp/node_modules ./node_modules   # share deps (gitignored)
-   cp ../chauffeur-mvp/.env ./.env                       # share env (gitignored)
+   pnpm install                       # fast: hardlinks from the shared pnpm store
+   cp ../chauffeur-mvp/.env ./.env    # share env (gitignored)
    ```
-   Work, commit, and push from there. Run `git worktree remove ../chauffeur-mvp-<slug>` once the branch is merged. Run the dev server on a non-default port if the primary tree's `:3000` is in use.
+   Work, commit, and push from there. Run `git worktree remove ../chauffeur-mvp-<slug>` once the branch is merged. To run the dev server, use a non-default port if the primary tree's `:3000` is in use: `pnpm exec next dev -p 3100`.
+   - **Use `pnpm install`, not a `node_modules` symlink.** `pnpm install` in a worktree is seconds (it hardlinks from the global store, no download). A symlinked `node_modules` typechecks and tests fine but **breaks `next dev` — Turbopack panics** with "Symlink … points out of the filesystem root", so you can't run the dev server (and the lifecycle e2e) in the worktree. It also once broke CI when `git add -A` committed the symlink (`ENOTDIR`).
    - **Never start editing on `main` or in the shared checkout**, and never accumulate uncommitted work there.
-   - **Never `git add` the `node_modules` symlink or `.env`.** `.gitignore` covers both, but `git add -A` once committed a `node_modules` *symlink* (the old `node_modules/` rule only matched directories) — it broke CI with `ENOTDIR` because the symlink points at a Mac-only path. Verify with `git status` before committing in a worktree.
+   - **Never `git add` `node_modules` or `.env`** (`.gitignore` covers both; verify with `git status` before committing).
+   - After pulling changes that add a migration, run `pnpm db:migrate` against your local DB — migrations auto-apply on Vercel deploys but **not locally**, so a stale local DB 500s DB-backed pages (`column "…" does not exist`).
 2. **Never stash, discard (`git checkout -f`/`reset --hard`), switch the branch of, or commit another session's uncommitted changes.** If you find unexpected modifications in the shared tree you didn't make, they belong to another session — leave them alone and work in your own worktree.
 3. **If editing a tracked file would collide with the shared tree** (e.g. it's mid-edit by another session) and you can't use a worktree, commit the file via the GitHub API on a fresh branch instead of the local working tree.
 
