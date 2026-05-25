@@ -194,7 +194,7 @@ function DriverRoster({
         <span>Name</span>
         <span>Tier</span>
         <span>Default vehicle</span>
-        <span>Mobile</span>
+        <span>WhatsApp</span>
         <span>This week</span>
         <span style={{ textAlign: 'right' }}>Status</span>
       </div>

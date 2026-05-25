@@ -78,12 +78,12 @@ describe('services/completion (integration)', () => {
   const clock = fixedClock('2026-06-01T11:30:00.000Z');
   const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL });
 
-  it('generateCompletionLink returns URL + sms: link for booking in awaiting_driver_form', async () => {
+  it('generateCompletionLink returns URL + wa.me for booking in awaiting_driver_form', async () => {
     const r = await generateCompletionLink(bookingId, operatorId, deps());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.url.startsWith(`${APP_URL}/j/`)).toBe(true);
-    expect(r.smsUrl.startsWith('sms:+447911000001')).toBe(true);
+    expect(r.whatsappUrl.startsWith('https://wa.me/447911000001')).toBe(true);
   });
 
   it('generateCompletionLink refuses when not awaiting_driver_form', async () => {

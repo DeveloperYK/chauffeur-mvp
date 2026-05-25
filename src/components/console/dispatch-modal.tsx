@@ -37,7 +37,7 @@ export function DispatchModal({
   const [search, setSearch] = useState('');
   const [minted, setMinted] = useState<{
     url: string;
-    smsUrl: string;
+    whatsappUrl: string;
     driverName: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,13 +87,13 @@ export function DispatchModal({
     setError(null);
     startTransition(async () => {
       const result = await dispatchAction(booking.id, picked);
-      if (!result.ok || !result.url || !result.smsUrl) {
+      if (!result.ok || !result.url || !result.whatsappUrl) {
         setError(result.error ?? 'Could not generate the link.');
         return;
       }
       setMinted({
         url: result.url,
-        smsUrl: result.smsUrl,
+        whatsappUrl: result.whatsappUrl,
         driverName: result.driverName ?? 'driver',
       });
     });
@@ -334,11 +334,11 @@ export function DispatchModal({
               <a
                 className="btn btn--block"
                 style={{ marginTop: 8 }}
-                href={minted.smsUrl}
+                href={minted.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Sms /> Also text the driver (optional)
+                <Icon.Whatsapp /> Also message on WhatsApp (optional)
               </a>
 
               <div className="link-warning">

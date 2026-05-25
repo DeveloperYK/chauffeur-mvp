@@ -50,7 +50,7 @@ export async function generateLinkAction(formData: FormData): Promise<void> {
 
   const q = new URLSearchParams({
     url: result.url,
-    sms: result.smsUrl,
+    wa: result.whatsappUrl,
   });
   redirect(`/dashboard/bookings/${bookingId}?${q.toString()}`);
 }
@@ -71,7 +71,7 @@ export async function generateCompletionLinkAction(formData: FormData): Promise<
   if (!result.ok) {
     redirect(`/dashboard/bookings/${bookingId}?error=${encodeURIComponent(result.reason)}`);
   }
-  const q = new URLSearchParams({ url: result.url, sms: result.smsUrl });
+  const q = new URLSearchParams({ url: result.url, wa: result.whatsappUrl });
   redirect(`/dashboard/bookings/${bookingId}?${q.toString()}`);
 }
 
