@@ -70,7 +70,7 @@ export async function sendDriverDispatchSmsAction(
   if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason ?? ''}.` };
   const sent = await notifications().sendSms({
     to: link.driver.whatsappNumber,
-    body: dispatchSms(link.booking, link.driver, link.url),
+    body: dispatchSms(link.booking, link.shortUrl),
   });
   if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
   revalidatePath('/dashboard');
@@ -89,7 +89,7 @@ export async function sendDriverCompletionSmsAction(bookingId: string): Promise<
   if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason}.` };
   const sent = await notifications().sendSms({
     to: link.driver.whatsappNumber,
-    body: completionRequestSms(link.booking, link.driver, link.url),
+    body: completionRequestSms(link.booking, link.shortUrl),
   });
   if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
   revalidatePath('/dashboard');

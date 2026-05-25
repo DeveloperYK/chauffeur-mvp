@@ -75,7 +75,7 @@ describe('services/clock-tick (integration)', () => {
     const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
     expect(b?.state).toBe('in_progress');
     expect(notifications.sent.length).toBe(1);
-    expect(notifications.sent[0]?.body).toContain('en route');
+    expect(notifications.sent[0]?.body).toContain('on the way');
   });
 
   it('does not transition assigned before T-1h', async () => {

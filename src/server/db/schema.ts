@@ -194,6 +194,15 @@ export const consumedTokens = pgTable('consumed_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
 
+// Branded short links (/s/<code> -> destination) used in driver/exec messages
+// instead of the long signed /j/<token> URLs. The token still gates access;
+// the code is an opaque lookup key.
+export const shortLinks = pgTable('short_links', {
+  code: text('code').primaryKey(),
+  destination: text('destination').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];

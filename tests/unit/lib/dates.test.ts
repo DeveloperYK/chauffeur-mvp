@@ -1,9 +1,11 @@
 import {
   calendarGrid,
+  formatLondonDateTime,
   formatLondonDay,
   formatLondonDayLong,
   formatLondonMonth,
   formatLondonMonthLong,
+  formatLondonTimeOfDay,
   londonDayRangeUtc,
   londonDayStartUtc,
   londonMonthRangeUtc,
@@ -16,6 +18,28 @@ import {
 import { describe, expect, it } from 'vitest';
 
 const HOUR = 60 * 60 * 1000;
+
+describe('formatLondonTimeOfDay', () => {
+  it('renders winter (GMT) time unchanged', () => {
+    expect(formatLondonTimeOfDay(new Date('2026-01-15T08:30:00Z'))).toBe('08:30');
+  });
+  it('renders summer (BST) time +1h', () => {
+    expect(formatLondonTimeOfDay(new Date('2026-06-01T08:30:00Z'))).toBe('09:30');
+  });
+});
+
+describe('formatLondonDateTime', () => {
+  it('includes the BST-adjusted time and the date', () => {
+    const s = formatLondonDateTime(new Date('2026-06-01T08:30:00Z'));
+    expect(s).toContain('09:30');
+    expect(s).toContain('Jun');
+    expect(s).toContain('2026');
+    expect(s).not.toContain('UTC');
+  });
+  it('is unchanged in winter (GMT)', () => {
+    expect(formatLondonDateTime(new Date('2026-01-15T08:30:00Z'))).toContain('08:30');
+  });
+});
 
 describe('londonOffsetMs', () => {
   it('returns 0 during GMT (winter)', () => {

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { bookingRef } from '@/lib/booking-ref';
 import type { Database } from '@/server/db';
 import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
@@ -12,6 +11,8 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
+import { createShortLink } from './short-links';
+import { completionRequestSms } from './sms-templates';
 
 export interface CompletionDeps {
   db: Database;
@@ -22,7 +23,14 @@ export interface CompletionDeps {
 }
 
 export type GenerateCompletionLinkResult =
-  | { ok: true; url: string; whatsappUrl: string; booking: Booking; driver: Driver }
+  | {
+      ok: true;
+      url: string;
+      shortUrl: string;
+      whatsappUrl: string;
+      booking: Booking;
+      driver: Driver;
+    }
   | { ok: false; reason: 'booking_not_found' | 'wrong_state' | 'no_driver' };
 
 export async function generateCompletionLink(
@@ -57,8 +65,12 @@ export async function generateCompletionLink(
     expiresAt: completionLinkExpiry(booking.pickupAt),
   });
 
-  const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
-  const text = `${bookingRef(booking.seq)} — please submit the completion form when you have a moment:\nJob: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n${url}`;
+  const appBase = deps.appUrl.replace(/\/+$/, '');
+  const url = `${appBase}/j/${token}`;
+  // Branded short link for the message (the long signed URL is the destination).
+  const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
+  // The manual WhatsApp message reuses the same formatted body as the SMS.
+  const text = completionRequestSms(booking, shortUrl);
   const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 
@@ -74,7 +86,7 @@ export async function generateCompletionLink(
 
   // Link is not auto-texted — the operator sends it explicitly once Twilio is
   // configured; for now they copy/open it directly.
-  return { ok: true, url, whatsappUrl, booking, driver };
+  return { ok: true, url, shortUrl, whatsappUrl, booking, driver };
 }
 
 export const completionFormSchema = z

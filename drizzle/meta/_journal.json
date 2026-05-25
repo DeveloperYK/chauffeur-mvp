@@ -50,6 +50,13 @@
       "when": 1779730000000,
       "tag": "0006_add_booking_seq",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779735000000,
+      "tag": "0007_add_short_links",
+      "breakpoints": true
     }
   ]
 }

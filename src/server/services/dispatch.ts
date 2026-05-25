@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { bookingRef } from '@/lib/booking-ref';
 import type { Database } from '@/server/db';
 import {
   type Booking,
@@ -19,7 +18,8 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
-import { assignedSms } from './sms-templates';
+import { createShortLink } from './short-links';
+import { assignedSms, dispatchSms } from './sms-templates';
 
 export interface DispatchDeps {
   db: Database;
@@ -34,6 +34,8 @@ export type GenerateLinkResult =
   | {
       ok: true;
       url: string;
+      /** Branded short link (/s/<code>) used in the driver SMS/WhatsApp message. */
+      shortUrl: string;
       /** wa.me link that pre-fills a WhatsApp message to the driver with the job link. */
       whatsappUrl: string;
       driver: Driver;
@@ -75,13 +77,12 @@ export async function generateDispatchLink(
     expiresAt: dispatchLinkExpiry(booking.pickupAt),
   });
 
-  const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
-  // Pre-fill a WhatsApp message via the wa.me scheme. Operator clicks → WhatsApp opens.
-  const destination = booking.dropoffAddress ?? 'As directed';
-  const text =
-    `${bookingRef(booking.seq)} — Job offer for ${driver.name}.\n` +
-    `Pickup: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n` +
-    `From: ${booking.pickupAddress}\nTo: ${destination}\n${url}`;
+  const appBase = deps.appUrl.replace(/\/+$/, '');
+  const url = `${appBase}/j/${token}`;
+  // Branded short link for messages (the long signed URL is the destination).
+  const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
+  // The manual WhatsApp message reuses the same formatted body as the SMS.
+  const text = dispatchSms(booking, shortUrl);
   const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 
@@ -98,7 +99,7 @@ export async function generateDispatchLink(
   // Note: the link is NOT auto-texted here. The operator triggers the SMS
   // explicitly (sendDriverDispatchSmsAction) once Twilio is configured; for now
   // they copy/open the link directly. Keeps minting side-effect-free.
-  return { ok: true, url, whatsappUrl, driver, booking };
+  return { ok: true, url, shortUrl, whatsappUrl, driver, booking };
 }
 
 export type AcceptResult =
