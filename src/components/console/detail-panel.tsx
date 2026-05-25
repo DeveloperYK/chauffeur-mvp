@@ -29,9 +29,8 @@ interface DetailPanelProps {
   onMutated: (toast: string) => void;
 }
 
-function smsLink(number: string, text: string): string {
-  // `sms:` deep link — opens the operator's messaging app with the text drafted.
-  return `sms:${number}?&body=${encodeURIComponent(text)}`;
+function waLink(number: string, text: string): string {
+  return `https://wa.me/${number.replace(/^\+/, '')}?text=${encodeURIComponent(text)}`;
 }
 
 export function DetailPanel({
@@ -49,7 +48,7 @@ export function DetailPanel({
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [completionLink, setCompletionLink] = useState<{ url: string; smsUrl: string } | null>(
+  const [completionLink, setCompletionLink] = useState<{ url: string; whatsappUrl: string } | null>(
     null,
   );
   const [completionSms, setCompletionSms] = useState<string | null>(null);
@@ -124,11 +123,11 @@ export function DetailPanel({
     setError(null);
     startTransition(async () => {
       const result = await generateCompletionLinkAction(booking.id);
-      if (!result.ok || !result.url || !result.smsUrl) {
+      if (!result.ok || !result.url || !result.whatsappUrl) {
         setError(result.error ?? 'Could not generate the completion link.');
         return;
       }
-      setCompletionLink({ url: result.url, smsUrl: result.smsUrl });
+      setCompletionLink({ url: result.url, whatsappUrl: result.whatsappUrl });
     });
   };
   const messageDriverCompletion = () => {
@@ -162,14 +161,14 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn btn--primary btn--lg"
-                href={smsLink(
+                href={waLink(
                   driver.whatsappNumber,
                   `Hi ${driver.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Sms /> Text driver via SMS
+                <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
             <button type="button" className="btn" onClick={onEdit}>
@@ -191,11 +190,11 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn"
-                href={smsLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
+                href={waLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Sms /> Text
+                <Icon.Whatsapp /> Message
               </a>
             ) : null}
           </div>
@@ -214,14 +213,14 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn"
-                href={smsLink(
+                href={waLink(
                   driver.whatsappNumber,
                   `Hi ${driver.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Sms /> Chase driver
+                <Icon.Whatsapp /> WhatsApp driver
               </a>
             ) : null}
           </div>
