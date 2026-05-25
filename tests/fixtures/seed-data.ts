@@ -141,6 +141,7 @@ export interface BookingOverrides {
   execMobile?: string;
   clientName?: string;
   accountCode?: string;
+  caseCode?: string | null;
   contractPricePence?: number;
   notes?: string | null;
   createdByOperatorId?: string | null;
