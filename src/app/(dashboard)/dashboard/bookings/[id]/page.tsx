@@ -41,7 +41,7 @@ export default async function BookingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ url?: string; wa?: string; error?: string }>;
+  searchParams: Promise<{ url?: string; sms?: string; error?: string }>;
 }) {
   const { id } = await params;
   const search = await searchParams;
@@ -307,15 +307,15 @@ export default async function BookingPage({
                     </a>
                   </div>
                 </div>
-                {search.wa ? (
+                {search.sms ? (
                   <a
                     className="btn btn--success"
-                    href={decodeURIComponent(search.wa)}
+                    href={decodeURIComponent(search.sms)}
                     rel="noopener noreferrer"
                     target="_blank"
                     style={{ width: 'fit-content' }}
                   >
-                    Send via WhatsApp →
+                    Text driver via SMS →
                   </a>
                 ) : null}
               </div>
@@ -367,15 +367,15 @@ export default async function BookingPage({
                 >
                   {decodeURIComponent(search.url)}
                 </a>
-                {search.wa ? (
+                {search.sms ? (
                   <a
                     className="btn btn--success"
-                    href={decodeURIComponent(search.wa)}
+                    href={decodeURIComponent(search.sms)}
                     rel="noopener noreferrer"
                     target="_blank"
                     style={{ width: 'fit-content' }}
                   >
-                    Send via WhatsApp →
+                    Text driver via SMS →
                   </a>
                 ) : null}
               </div>

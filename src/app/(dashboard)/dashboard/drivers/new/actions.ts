@@ -30,7 +30,7 @@ export async function newDriverAction(formData: FormData): Promise<void> {
     if (result.reason === 'duplicate_whatsapp') {
       redirect(
         `/dashboard/drivers/new?error=${encodeURIComponent(
-          'A driver with that WhatsApp number already exists.',
+          'A driver with that mobile number already exists.',
         )}`,
       );
     }

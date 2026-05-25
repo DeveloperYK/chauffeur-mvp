@@ -1052,13 +1052,22 @@ a:hover {
   overflow: hidden;
 }
 .list__row {
+  /* Reset the <button> data rows so they align exactly with the <div> header
+     (UA button border/background/appearance would otherwise inset them). */
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  text-align: left;
+  background: none;
+  color: inherit;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-soft);
   display: grid;
-  grid-template-columns: 22px 130px 1.5fr 1.4fr 0.9fr 130px 32px 90px;
+  grid-template-columns: 22px 130px 1.5fr 1.4fr 0.9fr 130px 64px 90px;
   gap: 14px;
   padding: 0 16px;
   align-items: center;
   height: var(--d-row-h);
-  border-bottom: 1px solid var(--hairline-soft);
   cursor: pointer;
   transition: background 100ms ease;
 }
@@ -2107,7 +2116,8 @@ a:hover {
    ───────────────────────────────────────────────────────────── */
 
 .dt-row--load {
-  grid-template-columns: 1.5fr 90px 130px 150px 140px 80px;
+  /* Wider final column so the status lozenge + Edit/Deactivate actions don't crowd. */
+  grid-template-columns: 1.5fr 90px 130px 140px 120px 190px;
 }
 .load-cell {
   display: flex;

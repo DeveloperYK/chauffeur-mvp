@@ -45,7 +45,7 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
       </Field>
 
       <Field
-        label="WhatsApp number"
+        label="Mobile number"
         required
         helper="International format, with country code: e.g. +44 7911 123 456."
         className="md:col-span-2"
