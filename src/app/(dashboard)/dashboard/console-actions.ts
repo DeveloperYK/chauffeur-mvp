@@ -32,7 +32,7 @@ export interface ActionResult {
 
 export interface DispatchActionResult extends ActionResult {
   url?: string;
-  whatsappUrl?: string;
+  smsUrl?: string;
   driverName?: string;
 }
 
@@ -126,7 +126,7 @@ export async function dispatchAction(
   return {
     ok: true,
     url: result.url,
-    whatsappUrl: result.whatsappUrl,
+    smsUrl: result.smsUrl,
     driverName: result.driver.name,
   };
 }
@@ -146,7 +146,7 @@ export async function generateCompletionLinkAction(
   });
   if (!result.ok) return { ok: false, error: `Cannot generate link: ${result.reason}.` };
   revalidatePath('/dashboard');
-  return { ok: true, url: result.url, whatsappUrl: result.whatsappUrl };
+  return { ok: true, url: result.url, smsUrl: result.smsUrl };
 }
 
 export async function approveBookingAction(bookingId: string): Promise<ActionResult> {

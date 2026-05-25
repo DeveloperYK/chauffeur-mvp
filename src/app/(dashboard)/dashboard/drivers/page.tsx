@@ -194,7 +194,7 @@ function DriverRoster({
         <span>Name</span>
         <span>Tier</span>
         <span>Default vehicle</span>
-        <span>WhatsApp</span>
+        <span>Mobile</span>
         <span>This week</span>
         <span style={{ textAlign: 'right' }}>Status</span>
       </div>
@@ -234,7 +234,7 @@ function DriverRoster({
               style={{
                 textAlign: 'right',
                 display: 'flex',
-                gap: 6,
+                gap: 12,
                 justifyContent: 'flex-end',
                 alignItems: 'center',
               }}

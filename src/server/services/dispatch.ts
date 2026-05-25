@@ -33,7 +33,8 @@ export type GenerateLinkResult =
   | {
       ok: true;
       url: string;
-      whatsappUrl: string;
+      /** `sms:` deep link that pre-fills a text to the driver with the job link. */
+      smsUrl: string;
       driver: Driver;
       booking: Booking;
     }
@@ -74,13 +75,15 @@ export async function generateDispatchLink(
   });
 
   const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
-  // Pre-fill a WhatsApp message via the wa.me scheme. Operator clicks → WhatsApp opens.
+  // Pre-fill an SMS to the driver via the `sms:` scheme. Operator clicks → their
+  // messaging app opens with the text drafted. (The automated Twilio SMS is the
+  // primary channel; this is the manual fallback.)
+  const destination = booking.dropoffAddress ?? 'As directed';
   const text =
     `Job offer for ${driver.name}.\n` +
     `Pickup: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n` +
-    `From: ${booking.pickupAddress}\nTo: ${booking.dropoffAddress}\n${url}`;
-  const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+    `From: ${booking.pickupAddress}\nTo: ${destination}\n${url}`;
+  const smsUrl = `sms:${driver.whatsappNumber}?&body=${encodeURIComponent(text)}`;
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -95,7 +98,7 @@ export async function generateDispatchLink(
   // Note: the link is NOT auto-texted here. The operator triggers the SMS
   // explicitly (sendDriverDispatchSmsAction) once Twilio is configured; for now
   // they copy/open the link directly. Keeps minting side-effect-free.
-  return { ok: true, url, whatsappUrl, driver, booking };
+  return { ok: true, url, smsUrl, driver, booking };
 }
 
 export type AcceptResult =

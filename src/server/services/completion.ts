@@ -21,7 +21,7 @@ export interface CompletionDeps {
 }
 
 export type GenerateCompletionLinkResult =
-  | { ok: true; url: string; whatsappUrl: string; booking: Booking; driver: Driver }
+  | { ok: true; url: string; smsUrl: string; booking: Booking; driver: Driver }
   | { ok: false; reason: 'booking_not_found' | 'wrong_state' | 'no_driver' };
 
 export async function generateCompletionLink(
@@ -58,8 +58,8 @@ export async function generateCompletionLink(
 
   const url = `${deps.appUrl.replace(/\/+$/, '')}/j/${token}`;
   const text = `Please submit the completion form when you have a moment:\nJob: ${booking.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n${url}`;
-  const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+  // `sms:` deep link — opens the operator's messaging app with the text drafted.
+  const smsUrl = `sms:${driver.whatsappNumber}?&body=${encodeURIComponent(text)}`;
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -73,7 +73,7 @@ export async function generateCompletionLink(
 
   // Link is not auto-texted — the operator sends it explicitly once Twilio is
   // configured; for now they copy/open it directly.
-  return { ok: true, url, whatsappUrl, booking, driver };
+  return { ok: true, url, smsUrl, booking, driver };
 }
 
 export const completionFormSchema = z
