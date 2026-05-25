@@ -46,10 +46,10 @@ export function Rail({
           <Icon.Drivers /> <span>Drivers</span>
         </Link>
         <Link
-          className={`rail__item ${pathname === '/dashboard/activity' ? 'is-active' : ''}`}
-          href="/dashboard/activity"
+          className={`rail__item ${pathname?.startsWith('/dashboard/invoicing') ? 'is-active' : ''}`}
+          href="/dashboard/invoicing"
         >
-          <Icon.List /> <span>Activity</span>
+          <Icon.Receipt /> <span>Invoicing</span>
         </Link>
         {showSimulator ? (
           <Link

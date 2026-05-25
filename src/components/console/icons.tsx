@@ -96,6 +96,12 @@ export const Icon = {
       <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   ),
+  Receipt: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M5 3v18l2-1.3L9 21l2-1.3L13 21l2-1.3L17 21l2-1.3V3l-2 1.3L15 3l-2 1.3L11 3 9 4.3 7 3z" />
+      <path d="M8.5 8.5h7M8.5 12h7" />
+    </svg>
+  ),
   Send: (p: SVGProps<SVGSVGElement>) => (
     <svg {...base(p)}>
       <path d="M21 3 10.5 13.5M21 3l-7 18-3.5-7.5L3 10z" />
