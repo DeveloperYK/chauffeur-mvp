@@ -1,7 +1,8 @@
+import { parseBookingQuery } from '@/lib/booking-ref';
 import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
 import type { Database } from '@/server/db';
-import { type Booking, type BookingState, bookings } from '@/server/db/schema';
-import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
+import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -61,6 +62,73 @@ export async function listBookingsBetween(
     .where(and(gte(bookings.pickupAt, startUtc), lt(bookings.pickupAt, endUtc)))
     .orderBy(asc(bookings.pickupAt))
     .limit(2000);
+}
+
+export interface BookingSearchHit extends Booking {
+  /** Name of the assigned driver, if any — joined for both matching and display. */
+  driverName: string | null;
+}
+
+const SEARCH_LIMIT = 20;
+
+/** Escape LIKE wildcards so a literal % or _ in the query matches literally. */
+function likeContains(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/**
+ * Global booking search for the command palette. Matches:
+ * - the exact booking reference (`seq`) when the query parses as an ID
+ *   (`42` / `00042` / `BKNG-00042`), otherwise
+ * - a case-insensitive substring across passenger name, assigned driver name,
+ *   pickup/dropoff address, account code, case code, and vehicle.
+ *
+ * Optionally scopes to one driver (with or without a term). Bounded, newest
+ * pickup first. Plain ILIKE only (no pg_trgm/tsvector) so it runs identically
+ * on Supabase and the PGlite test DB; revisit with a trigram index past ~100k rows.
+ */
+export async function searchBookings(
+  db: Database,
+  query: string,
+  opts: { driverId?: string; limit?: number } = {},
+): Promise<BookingSearchHit[]> {
+  const q = query.trim();
+  const { driverId } = opts;
+  if (!q && !driverId) return [];
+
+  const conditions: SQL[] = [];
+
+  if (q) {
+    const seq = parseBookingQuery(q);
+    if (seq !== null) {
+      conditions.push(eq(bookings.seq, seq));
+    } else {
+      const pattern = likeContains(q);
+      const term = or(
+        ilike(bookings.passengerFirstName, pattern),
+        ilike(bookings.passengerLastName, pattern),
+        ilike(drivers.name, pattern),
+        ilike(bookings.pickupAddress, pattern),
+        ilike(bookings.dropoffAddress, pattern),
+        ilike(bookings.accountCode, pattern),
+        ilike(bookings.caseCode, pattern),
+        ilike(bookings.carForThisJob, pattern),
+      );
+      if (term) conditions.push(term);
+    }
+  }
+
+  if (driverId) conditions.push(eq(bookings.assignedDriverId, driverId));
+
+  const rows = await db
+    .select({ booking: bookings, driverName: drivers.name })
+    .from(bookings)
+    .leftJoin(drivers, eq(bookings.assignedDriverId, drivers.id))
+    .where(and(...conditions))
+    .orderBy(desc(bookings.pickupAt))
+    .limit(opts.limit ?? SEARCH_LIMIT);
+
+  return rows.map((r) => ({ ...r.booking, driverName: r.driverName ?? null }));
 }
 
 export async function listRecentCompletedAndCancelled(
