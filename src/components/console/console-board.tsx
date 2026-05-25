@@ -179,6 +179,7 @@ export function ConsoleBoard({
                         operator={
                           b.assignedOperatorId ? operatorById.get(b.assignedOperatorId) : undefined
                         }
+                        driver={b.assignedDriverId ? driverById.get(b.assignedDriverId) : undefined}
                         selected={selectedId === b.id}
                         onClick={() => onSelect(b.id)}
                       />
@@ -338,15 +339,16 @@ export function ConsoleBoard({
 function BoardCard({
   booking,
   operator,
+  driver,
   selected,
   onClick,
 }: {
   booking: ConsoleBooking;
   operator: ConsoleOperator | undefined;
+  driver: ConsoleDriver | undefined;
   selected: boolean;
   onClick: () => void;
 }) {
-  const vehicle = booking.carForThisJob;
   return (
     <button
       type="button"
@@ -371,7 +373,7 @@ function BoardCard({
         <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
       </div>
       <div className="card__meta">
-        {vehicle ? <Tag>{vehicle}</Tag> : <span className="tag">No vehicle yet</span>}
+        {driver ? <Tag>{driver.name}</Tag> : <span className="tag">No driver yet</span>}
         <span className="card__meta-right">
           {operator ? (
             <Avatar
