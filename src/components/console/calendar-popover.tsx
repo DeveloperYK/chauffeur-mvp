@@ -111,10 +111,10 @@ export function CalendarPopover({ selectedDay, visibleMonth, counts }: Props) {
                             <span className="tabnum">{c.unassigned}</span>
                           </span>
                         ) : null}
-                        {c.dispatched > 0 ? (
+                        {c.assigned > 0 ? (
                           <span className="dc-pill muted">
                             <span className="bullet" />
-                            <span className="tabnum">{c.dispatched}</span>
+                            <span className="tabnum">{c.assigned}</span>
                           </span>
                         ) : null}
                       </div>
@@ -134,7 +134,7 @@ export function CalendarPopover({ selectedDay, visibleMonth, counts }: Props) {
                 </span>
                 <span className="lg">
                   <span className="bullet muted" />
-                  Dispatched
+                  Assigned
                 </span>
               </span>
             </div>

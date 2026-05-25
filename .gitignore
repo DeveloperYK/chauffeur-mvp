@@ -59,5 +59,6 @@ pnpm-debug.log*
 # Playwright MCP scratch artifacts
 .playwright-mcp/
 
-# background tooling lock
+# background tooling locks
 .observer.lock
+.claude/scheduled_tasks.lock
