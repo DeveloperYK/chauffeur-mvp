@@ -92,6 +92,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // Operator sees the waiting charge breakdown (here the seeded 10 min is within
   // the free period, so no charge applies).
   await expect(page.locator('.panel.is-open')).toContainText('Waiting charge');
+  // The headline Price is the all-in total: the seeded £5 car park surfaces a
+  // fare breakdown under the price.
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Fare');
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);
 

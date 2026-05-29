@@ -60,11 +60,16 @@ Surfaced in:
 
 - **Operator review panel** — a "Waiting charge" row shows the customer fee,
   chargeable minutes, and the driver's share, so operators see exactly what is
-  billed and what the driver earns before approving.
+  billed and what the driver earns before approving. The panel's headline
+  **Price** shows the all-in total (fare + car park + waiting), with a fare
+  breakdown sub-line, so the operator reviews the final charge — matching the
+  invoicing line total. The stored `contractPricePence` is unchanged (the total
+  is derived, so baking waiting in would double-count in invoicing).
 - **Driver completion form** — the field formerly labelled "Car park / waiting
   fee (£)" is relabelled **"Car park (£)"** (waiting is now auto-computed from
-  minutes, so the old label would double-charge), plus a one-line policy note
-  rendered from the config.
+  minutes, so the old label would double-charge). The waiting charge is **not**
+  explained to the driver on the form — surfacing the pay formula invites
+  inflated waiting times.
 - **Invoicing reconciliation** — line total becomes
   `contract + car park + waiting`, with a new **Waiting (£)** column in the CSV.
 - **Google Sheets mirror** — the previously-empty **Waiting (£)** column (X) is

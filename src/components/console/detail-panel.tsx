@@ -89,6 +89,13 @@ export function DetailPanel({
   const hasCompletion =
     booking.dropoffAt != null || booking.carParkPence != null || booking.waitingTimeMinutes != null;
 
+  // Headline price is the all-in total once the driver's completion data lands:
+  // agreed fare + car park + waiting charge (matches the invoicing line total).
+  const carParkPence = booking.carParkPence ?? 0;
+  const waitingChargePence = booking.waitingFee.customerFeePence;
+  const priceExtrasPence = carParkPence + waitingChargePence;
+  const totalPricePence = booking.contractPricePence + priceExtrasPence;
+
   const toggleHistory = () => {
     const next = !showHistory;
     setShowHistory(next);
@@ -295,7 +302,14 @@ export function DetailPanel({
               </div>
               <div className="dp-stat dp-stat--price">
                 <div className="dp-stat__lbl">Price</div>
-                <div className="dp-stat__val tabnum">{fmtPrice(booking.contractPricePence)}</div>
+                <div className="dp-stat__val tabnum">{fmtPrice(totalPricePence)}</div>
+                {priceExtrasPence > 0 ? (
+                  <div className="dp-stat__sub">
+                    Fare {fmtPrice(booking.contractPricePence)}
+                    {carParkPence > 0 ? ` + car park ${fmtPrice(carParkPence)}` : ''}
+                    {waitingChargePence > 0 ? ` + waiting ${fmtPrice(waitingChargePence)}` : ''}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
