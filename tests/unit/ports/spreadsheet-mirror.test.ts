@@ -114,6 +114,19 @@ describe('rowFromBooking', () => {
     expect(row[17]).toBe('');
   });
 
+  it('renders the waiting charge in the Waiting (£) column (X), blank within the free period', () => {
+    // 50 min waited -> 20 chargeable min @ £0.50 = £10.00
+    const charged = rowFromBooking({
+      booking: { ...baseBooking, waitingTimeMinutes: 50 },
+      driver,
+    });
+    expect(charged[23]).toBe('10.00'); // Waiting (£)
+
+    // base booking waited 12 min -> within the free period -> blank
+    const free = rowFromBooking({ booking: baseBooking, driver });
+    expect(free[23]).toBe('');
+  });
+
   it('renders Yes/No for invoice flag based on completed state', () => {
     const completed = rowFromBooking({ booking: baseBooking, driver });
     expect(completed[18]).toBe('Yes');

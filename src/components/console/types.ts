@@ -31,6 +31,16 @@ export interface ConsoleBooking {
   carForThisJob: string | null;
   carParkPence: number | null;
   waitingTimeMinutes: number | null;
+  /**
+   * Waiting charge computed live (server-side) from `waitingTimeMinutes`.
+   * Always present; all-zero when no chargeable waiting. Lets the panel show
+   * the customer fee and the driver's share without importing server domain.
+   */
+  waitingFee: {
+    chargeableMinutes: number;
+    customerFeePence: number;
+    driverPayPence: number;
+  };
   dropoffAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;
