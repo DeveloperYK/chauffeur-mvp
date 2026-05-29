@@ -7,6 +7,7 @@
  *   unassigned ──(cancel)──► cancelled
  *
  *   assigned ──(clock_pickup_minus_1h)──► in_progress
+ *   assigned ──(driver_released)──► unassigned   (driver pulled out; re-dispatch)
  *   assigned ──(cancel)──► cancelled
  *
  *   in_progress ──(clock_expected_end)──► awaiting_driver_form
@@ -23,6 +24,7 @@ import type { BookingState } from '@/server/db/schema';
 export type BookingEvent =
   | { type: 'driver_accept' }
   | { type: 'driver_decline' }
+  | { type: 'driver_released' }
   | { type: 'cancel' }
   | { type: 'clock_pickup_minus_1h' }
   | { type: 'clock_expected_end' }
@@ -37,6 +39,7 @@ export type Transition =
 export type SideEffect =
   | { kind: 'notify_exec_assigned' }
   | { kind: 'notify_exec_en_route' }
+  | { kind: 'notify_driver_released' }
   | { kind: 'mint_completion_link' };
 
 export type TransitionError = 'illegal_transition' | 'terminal_state' | 'unknown_event';
@@ -66,6 +69,15 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
           ok: true,
           next: 'in_progress',
           sideEffects: [{ kind: 'notify_exec_en_route' }],
+        };
+      }
+      if (event.type === 'driver_released') {
+        // Driver pulled out before the trip. Back to unassigned so it re-enters
+        // the dispatch queue; the dropped driver is told they're off.
+        return {
+          ok: true,
+          next: 'unassigned',
+          sideEffects: [{ kind: 'notify_driver_released' }],
         };
       }
       if (event.type === 'cancel') {

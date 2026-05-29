@@ -7,6 +7,7 @@ import {
   bookingHistoryAction,
   generateCompletionLinkAction,
   rejectBookingAction,
+  releaseDriverAction,
   sendDriverCompletionSmsAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
@@ -127,6 +128,11 @@ export function DetailPanel({
   const approve = () => run(() => approveBookingAction(booking.id), 'Trip approved & completed.');
   const reject = () =>
     run(() => rejectBookingAction(booking.id), 'Form rejected — driver to resubmit.');
+  const releaseDriver = () =>
+    run(
+      () => releaseDriverAction(booking.id),
+      'Driver released — booking back in the queue to reassign.',
+    );
   const generateCompletion = () => {
     setError(null);
     startTransition(async () => {
@@ -179,8 +185,8 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
-            <button type="button" className="btn" onClick={onDispatch}>
-              <Icon.Send /> Reassign driver
+            <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
+              <Icon.Reset /> Driver pulled out — unassign
             </button>
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit

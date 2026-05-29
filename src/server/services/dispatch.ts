@@ -44,7 +44,6 @@ export type GenerateLinkResult =
   | { ok: false; reason: 'booking_not_found' }
   | { ok: false; reason: 'driver_not_found' }
   | { ok: false; reason: 'driver_inactive' }
-  | { ok: false; reason: 'same_driver' }
   | { ok: false; reason: 'wrong_state'; state: string };
 
 export async function generateDispatchLink(
@@ -60,16 +59,12 @@ export async function generateDispatchLink(
     .where(eq(bookings.id, bookingId))
     .limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
-  // Initial dispatch is from 'unassigned'; reassignment ("swap") is allowed
-  // while still 'assigned' — see acceptDispatchLink for the swap-on-accept
-  // behaviour. Anything past 'assigned' (in_progress, awaiting_*, terminal)
-  // is out of scope.
-  if (booking.state !== 'unassigned' && booking.state !== 'assigned') {
+  // Dispatch is only from 'unassigned'. Reassigning a driver who pulled out is
+  // a two-step flow: the operator first releases the booking back to
+  // 'unassigned' (see releaseDriver), then dispatches a new driver here. So a
+  // booking that's already 'assigned' (or further) is out of scope.
+  if (booking.state !== 'unassigned') {
     return { ok: false, reason: 'wrong_state', state: booking.state };
-  }
-  // No-op swap: operator picked the same driver who's already on it.
-  if (booking.state === 'assigned' && booking.assignedDriverId === driverId) {
-    return { ok: false, reason: 'same_driver' };
   }
 
   const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
@@ -157,73 +152,9 @@ export async function acceptDispatchLink(
   const carForJob: CarType = input.carOverride ?? driver.defaultCarType;
   const now = clock.now();
 
-  // Swap path: booking was already 'assigned' to someone else. State stays
-  // 'assigned' — we just point it at the new driver, then SMS the old driver
-  // and re-confirm with the exec. The state machine has no transition for
-  // this (it's not a state change), so we bypass `transition()` here.
-  if (booking.state === 'assigned') {
-    const previousDriverId = booking.assignedDriverId;
-    if (!previousDriverId || previousDriverId === driver.id) {
-      return { ok: false, reason: 'wrong_state', state: booking.state };
-    }
-
-    // Atomic gate on (state, previousDriverId): if another swap landed first,
-    // the previousDriverId no longer matches and the update is a no-op.
-    const [updated] = await deps.db
-      .update(bookings)
-      .set({
-        assignedDriverId: driver.id,
-        carForThisJob: carForJob,
-        assignedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(bookings.id, booking.id),
-          eq(bookings.state, 'assigned'),
-          eq(bookings.assignedDriverId, previousDriverId),
-        ),
-      )
-      .returning();
-    if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
-
-    await deps.db.insert(consumedTokens).values({ jti, expiresAt: new Date(exp * 1000) });
-
-    await recordAuditEvent(deps.db, {
-      actorType: 'driver',
-      actorId: driver.id,
-      entityType: 'booking',
-      entityId: booking.id,
-      action: 'driver_swap',
-      before: { state: booking.state, driverId: previousDriverId },
-      after: { state: updated.state, driverId: driver.id, carForJob },
-    });
-
-    // Notify the dropped driver so they know they're off the job.
-    const [previousDriver] = await deps.db
-      .select()
-      .from(drivers)
-      .where(eq(drivers.id, previousDriverId))
-      .limit(1);
-    if (previousDriver) {
-      await deps.notifications.sendSms({
-        to: previousDriver.whatsappNumber,
-        body: unassignedSms(updated),
-      });
-    }
-
-    // Exec was previously SMS'd with the old driver — re-confirm with the new.
-    await deps.notifications.sendSms({
-      to: booking.execMobile,
-      body: assignedSms(updated, driver, carForJob),
-    });
-
-    if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
-
-    return { ok: true, booking: updated, driver, carForJob };
-  }
-
-  // Initial dispatch path: unassigned → assigned.
+  // Accept always lands on the initial dispatch path: unassigned → assigned.
+  // A driver who pulled out is handled by releaseDriver (assigned → unassigned)
+  // before a new driver is dispatched, so there's no in-place "swap" here.
   const t = transition(booking.state, { type: 'driver_accept' });
   if (!t.ok) {
     return { ok: false, reason: 'wrong_state', state: booking.state };
@@ -269,6 +200,83 @@ export async function acceptDispatchLink(
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
   return { ok: true, booking: updated, driver, carForJob };
+}
+
+export type ReleaseDriverResult =
+  | { ok: true; booking: Booking }
+  | { ok: false; reason: 'booking_not_found' | 'wrong_state'; state?: string };
+
+/**
+ * Release the currently-assigned driver and move the booking back to
+ * 'unassigned' (the "driver pulled out" flow). The dropped driver is SMS'd that
+ * they're off; the booking re-enters the dispatch queue so the operator can
+ * send a fresh dispatch link to someone else. The exec is NOT messaged here —
+ * they only ever get a confirmation when a driver accepts.
+ */
+export async function releaseDriver(
+  bookingId: string,
+  operatorId: string,
+  deps: DispatchDeps,
+): Promise<ReleaseDriverResult> {
+  const clock = deps.clock ?? systemClock;
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+
+  const t = transition(booking.state, { type: 'driver_released' });
+  if (!t.ok) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+  const previousDriverId = booking.assignedDriverId;
+  const now = clock.now();
+
+  // Atomic gate on the current state so a concurrent transition (e.g. the clock
+  // moving it to in_progress) can't be clobbered. Clears the driver assignment
+  // and resets the no-accept flag so the 24h timer restarts from now.
+  const [updated] = await deps.db
+    .update(bookings)
+    .set({
+      state: t.next,
+      assignedDriverId: null,
+      carForThisJob: null,
+      assignedAt: null,
+      flaggedAt: null,
+      updatedAt: now,
+    })
+    .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'assigned')))
+    .returning();
+  if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+  await recordAuditEvent(deps.db, {
+    actorType: 'operator',
+    actorId: operatorId,
+    entityType: 'booking',
+    entityId: booking.id,
+    action: 'driver_released',
+    before: { state: booking.state, driverId: previousDriverId },
+    after: { state: updated.state, driverId: null },
+  });
+
+  // Tell the dropped driver they're off the job.
+  if (previousDriverId) {
+    const [previousDriver] = await deps.db
+      .select()
+      .from(drivers)
+      .where(eq(drivers.id, previousDriverId))
+      .limit(1);
+    if (previousDriver) {
+      await deps.notifications.sendSms({
+        to: previousDriver.whatsappNumber,
+        body: unassignedSms(updated),
+      });
+    }
+  }
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+
+  return { ok: true, booking: updated };
 }
 
 export type DeclineResult =
@@ -344,14 +352,9 @@ export async function previewDispatchLink(
   if (!booking) return { ok: false, reason: 'booking_not_found' };
   const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
   if (!driver) return { ok: false, reason: 'driver_not_found' };
-  // Allow preview during 'assigned' too — swap links target an already-assigned
-  // booking. Any state past that (in_progress, terminal, etc.) is closed.
-  if (booking.state !== 'unassigned' && booking.state !== 'assigned') {
-    return { ok: false, reason: 'wrong_state' };
-  }
-  // Swap link addressed to the driver who is already on the job is a no-op
-  // even if the token is otherwise valid; surface that as wrong_state.
-  if (booking.state === 'assigned' && booking.assignedDriverId === driver.id) {
+  // A dispatch link is only valid while the booking is still unassigned. Once a
+  // driver has accepted (assigned) or the trip has moved on, the link is closed.
+  if (booking.state !== 'unassigned') {
     return { ok: false, reason: 'wrong_state' };
   }
   return { ok: true, preview: { booking, driver, expiresAt: new Date(exp * 1000) } };
