@@ -9,6 +9,7 @@ import {
 } from '@/server/composition';
 import { submitCompletionForm } from '@/server/services/completion';
 import { acceptDispatchLink, declineDispatchLink } from '@/server/services/dispatch';
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -53,6 +54,8 @@ export async function acceptAction(formData: FormData): Promise<void> {
     redirect(`/j/${parsed.data.token}?error=${encodeURIComponent(msg)}`);
   }
 
+  // Operator console needs to reflect the new (or swapped) driver promptly.
+  revalidatePath('/dashboard');
   redirect(`/j/${parsed.data.token}?status=accepted`);
 }
 

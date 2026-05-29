@@ -179,6 +179,9 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
+            <button type="button" className="btn" onClick={onDispatch}>
+              <Icon.Send /> Reassign driver
+            </button>
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>

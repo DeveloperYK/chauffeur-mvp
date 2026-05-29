@@ -44,7 +44,9 @@ export async function generateLinkAction(formData: FormData): Promise<void> {
           ? 'Driver not found'
           : result.reason === 'driver_inactive'
             ? 'Driver is inactive'
-            : `Cannot dispatch from state: ${result.state}`;
+            : result.reason === 'same_driver'
+              ? 'That driver is already assigned to this booking'
+              : `Cannot dispatch from state: ${result.state}`;
     redirect(`/dashboard/bookings/${bookingId}?error=${encodeURIComponent(msg)}`);
   }
 

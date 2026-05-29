@@ -61,9 +61,64 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Set' }).click());
   await expectSimState(page, LEGO, 'Assigned');
 
-  // ── Clock: assigned → in_progress (pickup in 30 min) ─────────
+  // Fast-forward into the pickup window so the booking lands on today's
+  // board (needed for both the swap step below and the in_progress tick).
   await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+
+  // ── Console: swap driver from the detail panel ───────────────
+  // The 24h-out scenario — the assigned driver can't make it, operator picks
+  // someone else, the new driver taps Accept on the link. Verifies the
+  // relaxed dispatch gate, the "Reassign driver" action, and that the panel
+  // reflects the new driver afterwards.
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  // Next.js dev RSC cache can lag a single revalidatePath; reload forces a
+  // fresh server render so the just-assigned booking shows on the board.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  const driverNameBefore = (
+    await page
+      .locator('.panel.is-open .ir', { hasText: 'Driver' })
+      .locator('.ir__row > span')
+      .nth(1)
+      .textContent()
+  )?.trim();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Reassign driver' }).click();
+  const swapModal = page.locator('.modal.is-open');
+  await expect(swapModal).toBeVisible();
+  await expect(swapModal).toContainText('Reassign driver');
+  // Currently-assigned driver row is marked CURRENT and disabled.
+  await expect(swapModal.locator('.driver-row', { hasText: 'CURRENT' })).toBeVisible();
+  // Pick the first row that is NOT current and NOT busy.
+  const pickable = swapModal.locator('.driver-row:not(.is-busy):not(:has-text("CURRENT"))').first();
+  await pickable.click();
+  await swapModal.getByRole('button', { name: /Generate link/i }).click();
+  await expect(swapModal.locator('.dispatch-result')).toBeVisible();
+  // Drive the driver-side accept by opening the generated link.
+  const linkUrl = (
+    await swapModal.locator('.dispatch-result__url span').first().textContent()
+  )?.trim();
+  expect(linkUrl, 'expected a dispatch link in the modal').toBeTruthy();
+  await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Accept job' }).click();
+  // Booking should still be `assigned` but with a new driver.
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  const driverNameAfter = (
+    await page
+      .locator('.panel.is-open .ir', { hasText: 'Driver' })
+      .locator('.ir__row > span')
+      .nth(1)
+      .textContent()
+  )?.trim();
+  expect(driverNameAfter).toBeTruthy();
+  expect(driverNameAfter).not.toBe(driverNameBefore);
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Assigned');
+
+  // ── Clock: assigned → in_progress (pickup in 30 min, already fast-fwd'd) ─
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, LEGO, 'In progress');
 
