@@ -16,7 +16,7 @@ import {
   generateCompletionLink,
   rejectBooking,
 } from '@/server/services/completion';
-import { generateDispatchLink, releaseDriver } from '@/server/services/dispatch';
+import { generateDispatchLinks, releaseDriver } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import { assignOperator } from '@/server/services/operators';
 import { revalidatePath } from 'next/cache';
@@ -33,6 +33,20 @@ export interface DispatchActionResult extends ActionResult {
   url?: string;
   whatsappUrl?: string;
   driverName?: string;
+}
+
+/** One minted link in a fan-out, serializable for the client modal. */
+export interface DispatchOfferResult {
+  driverId: string;
+  driverName: string;
+  url: string;
+  whatsappUrl: string;
+}
+
+export interface DispatchManyActionResult extends ActionResult {
+  offers?: DispatchOfferResult[];
+  /** Drivers that couldn't be offered (inactive / not found). */
+  skippedCount?: number;
 }
 
 export interface HistoryEntry {
@@ -53,41 +67,6 @@ async function requireOperator(): Promise<{ id: string } | null> {
 // operator from their device, so delivery is implicit (we don't need a
 // Twilio call here and we don't have to surface a send error).
 
-export async function dispatchAction(
-  bookingId: string,
-  driverId: string,
-): Promise<DispatchActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
-  if (!bookingId || !driverId) return { ok: false, error: 'Missing booking or driver.' };
-
-  const result = await generateDispatchLink(bookingId, driverId, op.id, {
-    db: db(),
-    notifications: notifications(),
-    secret: driverLinkSecret(),
-    appUrl: appUrl(),
-    mirror: spreadsheetMirror(),
-  });
-  if (!result.ok) {
-    const error =
-      result.reason === 'booking_not_found'
-        ? 'Booking not found.'
-        : result.reason === 'driver_not_found'
-          ? 'Driver not found.'
-          : result.reason === 'driver_inactive'
-            ? 'Driver is inactive.'
-            : `Cannot dispatch from state: ${result.state}.`;
-    return { ok: false, error };
-  }
-  revalidatePath('/dashboard');
-  return {
-    ok: true,
-    url: result.url,
-    whatsappUrl: result.whatsappUrl,
-    driverName: result.driver.name,
-  };
-}
-
 export async function generateCompletionLinkAction(
   bookingId: string,
 ): Promise<DispatchActionResult> {
@@ -104,6 +83,46 @@ export async function generateCompletionLinkAction(
   if (!result.ok) return { ok: false, error: `Cannot generate link: ${result.reason}.` };
   revalidatePath('/dashboard');
   return { ok: true, url: result.url, whatsappUrl: result.whatsappUrl };
+}
+
+export async function dispatchManyAction(
+  bookingId: string,
+  driverIds: string[],
+): Promise<DispatchManyActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+  if (!Array.isArray(driverIds) || driverIds.length === 0) {
+    return { ok: false, error: 'Select at least one driver.' };
+  }
+
+  const result = await generateDispatchLinks(bookingId, driverIds, op.id, {
+    db: db(),
+    notifications: notifications(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'no_drivers'
+          ? 'Select at least one driver.'
+          : `Cannot dispatch from state: ${result.state}.`;
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return {
+    ok: true,
+    offers: result.offers.map((o) => ({
+      driverId: o.driver.id,
+      driverName: o.driver.name,
+      url: o.url,
+      whatsappUrl: o.whatsappUrl,
+    })),
+    skippedCount: result.skipped.length,
+  };
 }
 
 export async function approveBookingAction(bookingId: string): Promise<ActionResult> {

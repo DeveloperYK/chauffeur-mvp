@@ -47,31 +47,28 @@ export type GenerateLinkResult =
   | { ok: false; reason: 'driver_inactive' }
   | { ok: false; reason: 'wrong_state'; state: string };
 
-export async function generateDispatchLink(
-  bookingId: string,
-  driverId: string,
+/** A minted, ready-to-send dispatch link for one driver. */
+export interface DispatchLinkOffer {
+  driver: Driver;
+  url: string;
+  /** Branded short link (/s/<code>) used in the WhatsApp message. */
+  shortUrl: string;
+  /** WhatsApp Web link that pre-fills a message to the driver with the job link. */
+  whatsappUrl: string;
+}
+
+/**
+ * Mint one per-driver dispatch link and record the audit row. The caller must
+ * have already verified the booking is dispatchable (unassigned) and that the
+ * driver is active. Side-effect-free beyond the short link + audit (no SMS).
+ */
+async function mintDispatchLinkFor(
+  booking: Booking,
+  driver: Driver,
   operatorId: string,
   deps: DispatchDeps,
-): Promise<GenerateLinkResult> {
+): Promise<DispatchLinkOffer> {
   const clock = deps.clock ?? systemClock;
-  const [booking] = await deps.db
-    .select()
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return { ok: false, reason: 'booking_not_found' };
-  // Dispatch is only from 'unassigned'. Reassigning a driver who pulled out is
-  // a two-step flow: the operator first releases the booking back to
-  // 'unassigned' (see releaseDriver), then dispatches a new driver here. So a
-  // booking that's already 'assigned' (or further) is out of scope.
-  if (booking.state !== 'unassigned') {
-    return { ok: false, reason: 'wrong_state', state: booking.state };
-  }
-
-  const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
-  if (!driver) return { ok: false, reason: 'driver_not_found' };
-  if (!driver.active) return { ok: false, reason: 'driver_inactive' };
-
   const jti = randomUUID();
   const token = await signDriverLink(deps.secret, {
     jobId: booking.id,
@@ -100,9 +97,95 @@ export async function generateDispatchLink(
     after: { driverId: driver.id, jti },
   });
 
+  return { driver, url, shortUrl, whatsappUrl };
+}
+
+export async function generateDispatchLink(
+  bookingId: string,
+  driverId: string,
+  operatorId: string,
+  deps: DispatchDeps,
+): Promise<GenerateLinkResult> {
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+  // Dispatch is only from 'unassigned'. Reassigning a driver who pulled out is
+  // a two-step flow: the operator first releases the booking back to
+  // 'unassigned' (see releaseDriver), then dispatches a new driver here. So a
+  // booking that's already 'assigned' (or further) is out of scope.
+  if (booking.state !== 'unassigned') {
+    return { ok: false, reason: 'wrong_state', state: booking.state };
+  }
+
+  const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
+  if (!driver) return { ok: false, reason: 'driver_not_found' };
+  if (!driver.active) return { ok: false, reason: 'driver_inactive' };
+
   // Note: minting is side-effect-free. The operator delivers the link to
   // the driver themselves via the WhatsApp deep-link button on the modal.
-  return { ok: true, url, shortUrl, whatsappUrl, driver, booking };
+  const offer = await mintDispatchLinkFor(booking, driver, operatorId, deps);
+  return {
+    ok: true,
+    url: offer.url,
+    shortUrl: offer.shortUrl,
+    whatsappUrl: offer.whatsappUrl,
+    driver,
+    booking,
+  };
+}
+
+export type GenerateLinksResult =
+  | {
+      ok: true;
+      offers: DispatchLinkOffer[];
+      skipped: { driverId: string; reason: 'driver_not_found' | 'driver_inactive' }[];
+    }
+  | { ok: false; reason: 'booking_not_found' | 'wrong_state' | 'no_drivers'; state?: string };
+
+/**
+ * Fan-out dispatch: mint a per-driver link for each selected driver in one pass
+ * (the operator then sends each over WhatsApp). The booking stays unassigned —
+ * no driver is committed — and the first to accept wins via the existing atomic
+ * gate in `acceptDispatchLink`. Unknown/inactive drivers are skipped, not fatal.
+ */
+export async function generateDispatchLinks(
+  bookingId: string,
+  driverIds: string[],
+  operatorId: string,
+  deps: DispatchDeps,
+): Promise<GenerateLinksResult> {
+  const unique = [...new Set(driverIds)];
+  if (unique.length === 0) return { ok: false, reason: 'no_drivers' };
+
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+  if (booking.state !== 'unassigned') {
+    return { ok: false, reason: 'wrong_state', state: booking.state };
+  }
+
+  const offers: DispatchLinkOffer[] = [];
+  const skipped: { driverId: string; reason: 'driver_not_found' | 'driver_inactive' }[] = [];
+  for (const driverId of unique) {
+    const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
+    if (!driver) {
+      skipped.push({ driverId, reason: 'driver_not_found' });
+      continue;
+    }
+    if (!driver.active) {
+      skipped.push({ driverId, reason: 'driver_inactive' });
+      continue;
+    }
+    offers.push(await mintDispatchLinkFor(booking, driver, operatorId, deps));
+  }
+
+  return { ok: true, offers, skipped };
 }
 
 export type AcceptResult =

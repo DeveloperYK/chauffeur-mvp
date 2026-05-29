@@ -303,9 +303,9 @@ export function ConsoleBoard({
         assignments={assignments}
         isOpen={dispatchOpen}
         onClose={() => setDispatchOpen(false)}
-        onSent={(driverName) => {
+        onSent={(summary) => {
           setDispatchOpen(false);
-          handleMutated(`Dispatch link ready for ${driverName.split(' ')[0]}.`);
+          handleMutated(summary);
         }}
       />
 
