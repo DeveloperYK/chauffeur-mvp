@@ -8,7 +8,6 @@ import {
   generateCompletionLinkAction,
   rejectBookingAction,
   releaseDriverAction,
-  sendDriverCompletionSmsAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
@@ -50,7 +49,6 @@ export function DetailPanel({
   const [completionLink, setCompletionLink] = useState<{ url: string; whatsappUrl: string } | null>(
     null,
   );
-  const [completionSms, setCompletionSms] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -60,7 +58,6 @@ export function DetailPanel({
       setShowHistory(false);
       setHistory(null);
       setCompletionLink(null);
-      setCompletionSms(null);
       setError(null);
     }
   }, [isOpen, booking?.id]);
@@ -141,14 +138,6 @@ export function DetailPanel({
       setCompletionLink({ url: result.url, whatsappUrl: result.whatsappUrl });
     });
   };
-  const messageDriverCompletion = () => {
-    setCompletionSms(null);
-    startTransition(async () => {
-      const res = await sendDriverCompletionSmsAction(booking.id);
-      setCompletionSms(res.ok ? 'Texted the driver.' : (res.error ?? 'Could not send SMS.'));
-    });
-  };
-
   // Contextual actions per state. Only offers what the backend can actually do.
   const renderActions = () => {
     switch (booking.state) {
@@ -349,30 +338,16 @@ export function DetailPanel({
                 >
                   <Icon.ArrowRight /> Open link (test)
                 </a>
-                <button
-                  type="button"
-                  className="btn"
+                <a
+                  className="btn btn--primary"
                   style={{ flex: 1 }}
-                  onClick={messageDriverCompletion}
-                  disabled={isPending}
+                  href={completionLink.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  <Icon.Send /> {isPending ? 'Sending…' : 'Message driver (SMS)'}
-                </button>
+                  <Icon.Whatsapp /> Message driver on WhatsApp
+                </a>
               </div>
-              <a
-                className="btn btn--primary btn--block"
-                style={{ marginTop: 8 }}
-                href={completionLink.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Icon.Whatsapp /> Message driver on WhatsApp
-              </a>
-              {completionSms ? (
-                <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-                  {completionSms}
-                </div>
-              ) : null}
             </div>
           ) : null}
 

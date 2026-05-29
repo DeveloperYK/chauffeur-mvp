@@ -100,9 +100,8 @@ export async function generateDispatchLink(
     after: { driverId: driver.id, jti },
   });
 
-  // Note: the link is NOT auto-texted here. The operator triggers the SMS
-  // explicitly (sendDriverDispatchSmsAction) once Twilio is configured; for now
-  // they copy/open the link directly. Keeps minting side-effect-free.
+  // Note: minting is side-effect-free. The operator delivers the link to
+  // the driver themselves via the WhatsApp deep-link button on the modal.
   return { ok: true, url, shortUrl, whatsappUrl, driver, booking };
 }
 

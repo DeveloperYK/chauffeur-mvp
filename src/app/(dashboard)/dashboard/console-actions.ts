@@ -19,7 +19,6 @@ import {
 import { generateDispatchLink, releaseDriver } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import { assignOperator } from '@/server/services/operators';
-import { completionRequestSms, dispatchSms } from '@/server/services/sms-templates';
 import { revalidatePath } from 'next/cache';
 
 // All console actions return a typed result so client overlays can react in
@@ -48,53 +47,11 @@ async function requireOperator(): Promise<{ id: string } | null> {
   return session ? { id: session.operator.id } : null;
 }
 
-// ── Explicit driver SMS ──────────────────────────────────────────────
-// Sending is operator-triggered (a "Message driver (SMS)" button), not
-// automatic on link generation. Until Twilio is configured these will fail
-// (or no-op on the in-memory fake); the operator copies/opens the link
-// directly in the meantime.
-
-export async function sendDriverDispatchSmsAction(
-  bookingId: string,
-  driverId: string,
-): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
-  const link = await generateDispatchLink(bookingId, driverId, op.id, {
-    db: db(),
-    notifications: notifications(),
-    secret: driverLinkSecret(),
-    appUrl: appUrl(),
-    mirror: spreadsheetMirror(),
-  });
-  if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason ?? ''}.` };
-  const sent = await notifications().sendSms({
-    to: link.driver.whatsappNumber,
-    body: dispatchSms(link.booking, link.shortUrl),
-  });
-  if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
-export async function sendDriverCompletionSmsAction(bookingId: string): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
-  const link = await generateCompletionLink(bookingId, op.id, {
-    db: db(),
-    secret: driverLinkSecret(),
-    appUrl: appUrl(),
-    mirror: spreadsheetMirror(),
-  });
-  if (!link.ok) return { ok: false, error: `Cannot generate link: ${link.reason}.` };
-  const sent = await notifications().sendSms({
-    to: link.driver.whatsappNumber,
-    body: completionRequestSms(link.booking, link.shortUrl),
-  });
-  if (!sent.ok) return { ok: false, error: `SMS not sent (${sent.reason}). Not set up yet?` };
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
+// Driver messaging is WhatsApp-only — operators use the WhatsApp Web
+// deep-link button on the dispatch/completion surfaces. There are no server-side
+// driver SMS actions: the WhatsApp message is composed and sent by the
+// operator from their device, so delivery is implicit (we don't need a
+// Twilio call here and we don't have to surface a send error).
 
 export async function dispatchAction(
   bookingId: string,
