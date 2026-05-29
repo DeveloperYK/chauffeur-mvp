@@ -14,6 +14,7 @@ function bk(overrides: Partial<BillableBooking> = {}): BillableBooking {
     pickupAt: new Date('2026-06-01T09:00:00.000Z'),
     contractPricePence: 30000,
     carParkPence: 500,
+    waitingTimeMinutes: null,
     ...overrides,
   };
 }
@@ -32,6 +33,31 @@ describe('reconcile', () => {
 
     const noPark = reconcile([bk({ contractPricePence: 20000, carParkPence: null })]);
     expect(noPark.accounts[0]?.caseCodes[0]?.lines[0]?.totalPence).toBe(20000);
+  });
+
+  it('adds a waiting charge for time beyond the free period to the line total', () => {
+    // 50 min waited -> 20 chargeable min -> £10.00 waiting fee
+    const r = reconcile([
+      bk({ contractPricePence: 30000, carParkPence: 500, waitingTimeMinutes: 50 }),
+    ]);
+    const line = r.accounts[0]?.caseCodes[0]?.lines[0];
+    expect(line?.waitingFeePence).toBe(1000);
+    expect(line?.totalPence).toBe(31500); // 30000 + 500 + 1000
+    expect(r.accounts[0]?.caseCodes[0]?.subtotalPence).toBe(31500);
+    expect(r.grandTotalPence).toBe(31500);
+  });
+
+  it('adds no waiting charge within the free period or when unrecorded', () => {
+    const within = reconcile([
+      bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: 20 }),
+    ]);
+    expect(within.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
+    expect(within.accounts[0]?.caseCodes[0]?.lines[0]?.totalPence).toBe(10000);
+
+    const unrecorded = reconcile([
+      bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: null }),
+    ]);
+    expect(unrecorded.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
   });
 
   it('groups by account then case code, with subtotals and trip counts', () => {
@@ -101,16 +127,19 @@ describe('reconciliationCsv', () => {
         caseCode: 'LEGO-1',
         contractPricePence: 30000,
         carParkPence: 500,
+        waitingTimeMinutes: 50, // 20 chargeable min -> £10.00
       }),
     ]);
     const csv = reconciliationCsv(report);
     const lines = csv.trim().split('\n');
     expect(lines[0]).toContain('Customer Account');
     expect(lines[0]).toContain('Case Code');
+    expect(lines[0]).toContain('Waiting');
     expect(lines[0]).toContain('Total');
     expect(lines[1]).toContain('LEGO Group');
     expect(lines[1]).toContain('LEGO-1');
-    expect(lines[1]).toContain('305.00'); // 30000 + 500 pence
+    expect(lines[1]).toContain('10.00'); // waiting fee in pounds
+    expect(lines[1]).toContain('315.00'); // 30000 + 500 + 1000 pence
   });
 
   it('escapes fields containing commas', () => {

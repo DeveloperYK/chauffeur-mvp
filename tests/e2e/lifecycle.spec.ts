@@ -89,6 +89,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('AWAITING REVIEW');
   // Completion form the driver "submitted" is visible.
   await expect(page.locator('.panel.is-open')).toContainText('Driver completion form');
+  // Operator sees the waiting charge breakdown (here the seeded 10 min is within
+  // the free period, so no charge applies).
+  await expect(page.locator('.panel.is-open')).toContainText('Waiting charge');
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);
 

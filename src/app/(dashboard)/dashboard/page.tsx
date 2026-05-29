@@ -15,6 +15,7 @@ import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import type { Booking, BookingState } from '@/server/db/schema';
+import { waitingFee } from '@/server/domain/waiting-fee';
 import {
   type DayCounts,
   driverDispatchData,
@@ -65,6 +66,14 @@ function toConsoleBooking(b: Booking): ConsoleBooking {
     carForThisJob: b.carForThisJob,
     carParkPence: b.carParkPence,
     waitingTimeMinutes: b.waitingTimeMinutes,
+    waitingFee: (() => {
+      const f = waitingFee(b.waitingTimeMinutes);
+      return {
+        chargeableMinutes: f.chargeableMinutes,
+        customerFeePence: f.customerFeePence,
+        driverPayPence: f.driverPayPence,
+      };
+    })(),
     dropoffAt: b.dropoffAt ? b.dropoffAt.toISOString() : null,
     cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
     cancellationReason: b.cancellationReason,

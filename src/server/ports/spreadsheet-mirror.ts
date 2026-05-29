@@ -1,6 +1,7 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
+import { waitingFee } from '@/server/domain/waiting-fee';
 
 /** Columns A–AD from the existing JJ DATA workbook. */
 export const SHEET_HEADERS = [
@@ -74,6 +75,12 @@ function carLabel(c: string | null): string {
   }
 }
 
+/** Waiting charge in pounds for the sheet's "Waiting (£)" column; blank when none. */
+function waitingPounds(waitingTimeMinutes: number | null): string {
+  const fee = waitingFee(waitingTimeMinutes).customerFeePence;
+  return fee > 0 ? (fee / 100).toFixed(2) : '';
+}
+
 function tierLabel(t: string | null): string {
   if (t === 'premium') return 'Employee';
   if (t === 'ordinary') return 'Employee';
@@ -121,11 +128,14 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     `${booking.passengerFirstName}${booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}`,
     `${totalMinutes} min`,
     `${booking.pickupAddress} → ${booking.dropoffAddress}`,
-    '',
-    '',
-    '',
-    '',
-    '',
+    // Waiting (£) — computed live from the reported waiting minutes; blank when
+    // none is chargeable. Net Due / VAT / Total stay blank for the sheet's own
+    // formulas (see docs/shaping/invoicing-reporting.md).
+    waitingPounds(booking.waitingTimeMinutes),
+    '', // Net Due (£)
+    '', // VAT (£)
+    '', // Total (£)
+    '', // Sub-contractor Cost
     pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'Europe/London' }),
     pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'Europe/London' }),
   ];

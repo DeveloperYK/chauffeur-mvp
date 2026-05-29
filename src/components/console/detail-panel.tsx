@@ -487,6 +487,22 @@ export function DetailPanel({
                   <div className="ir__v">{booking.waitingTimeMinutes ?? 0} min</div>
                 </div>
                 <div className="ir">
+                  <div className="ir__k">Waiting charge</div>
+                  <div className="ir__v">
+                    {booking.waitingFee.customerFeePence > 0 ? (
+                      <>
+                        {fmtPrice(booking.waitingFee.customerFeePence)}{' '}
+                        <span className="muted">
+                          ({booking.waitingFee.chargeableMinutes} chargeable min · driver gets{' '}
+                          {fmtPrice(booking.waitingFee.driverPayPence)})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="muted">None — within free period</span>
+                    )}
+                  </div>
+                </div>
+                <div className="ir">
                   <div className="ir__k">Drop-off</div>
                   <div className="ir__v">
                     {booking.dropoffAt ? fmtTimeWithDay(booking.dropoffAt) : '—'}

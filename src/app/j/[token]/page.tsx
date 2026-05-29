@@ -9,6 +9,7 @@ import {
   drivers as driversTable,
 } from '@/server/db/schema';
 import { verifyDriverLink } from '@/server/domain/link-tokens';
+import { WAITING_FEE_RULES } from '@/server/domain/waiting-fee';
 import { previewDispatchLink } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import type { ReactNode } from 'react';
@@ -299,7 +300,7 @@ async function CompletionPage({
         <input type="hidden" name="token" value={token} />
         <div className="field">
           <label htmlFor="carParkPounds">
-            Car park / waiting fee (£) <span className="req">*</span>
+            Car park (£) <span className="req">*</span>
           </label>
           <input
             id="carParkPounds"
@@ -327,6 +328,11 @@ async function CompletionPage({
             defaultValue={0}
             required
           />
+          <p className="hint">
+            First {WAITING_FEE_RULES.freeMinutes} min free, then{' '}
+            {fmtPrice(WAITING_FEE_RULES.perMinutePence)}/min. You're paid{' '}
+            {WAITING_FEE_RULES.driverSharePercent}% of the waiting charge.
+          </p>
         </div>
         <div className="field">
           <label htmlFor="dropoffAt">

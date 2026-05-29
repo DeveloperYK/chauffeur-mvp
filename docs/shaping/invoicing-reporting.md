@@ -45,7 +45,7 @@ shaping: true
 | R4 | Aggregate by **case code** and **customer account** over a selectable **month**; show subtotals + grand total. | Must-have |
 | R5 | Only **completed/approved** bookings are billable (exclude cancelled / in-flight); edits & cancellations must not double-count or leave stale figures. | Must-have |
 | R6 | Export the breakdown in a format the client's finance can use (CSV at minimum). | Must-have |
-| R7 | 🟡 Line total = **contract price + car park**, all-in. No separate waiting-time charge, no VAT line. | 🟡 Decided |
+| R7 | ~~Line total = contract price + car park, all-in. No separate waiting-time charge.~~ **SUPERSEDED by [ADR 0008](../adr/0008-driver-waiting-time-charge.md):** line total = contract + car park + **waiting charge**. Still no VAT line. | 🟡 Superseded |
 | R8 | 🟡 v1 is **report-only**. Invoice/payment status tracking and customer-facing PDF invoices are **out of scope** (possible later). | 🟡 Out (v1) |
 
 **Chunking note:** at 9 — fine for now.
@@ -59,7 +59,7 @@ shaping: true
 | Q1 | Report-only vs stateful ledger? | 🟡 **Report-only → Shape A.** |
 | Q2 | Internal report vs customer-facing PDF? | 🟡 **Internal reconciliation report** (in-app + CSV). PDF is future. |
 | Q3 | VAT? | 🟡 **No VAT line** in v1. |
-| Q4 | Waiting time → money? | 🟡 **No waiting charge.** Contract price is all-in; car park is the only add-on. |
+| Q4 | Waiting time → money? | ~~No waiting charge.~~ **SUPERSEDED by [ADR 0008](../adr/0008-driver-waiting-time-charge.md):** waiting beyond a free period is charged per-minute (30 min free, £0.50/min placeholder) and the driver gets a share. |
 | Q5 | Grouping unit? | 🟡 **Customer account → case code → bookings**, per selectable month. |
 
 **Selected shape: A — Reporting view.**
@@ -113,7 +113,7 @@ Lean on the sheet the client already uses for finance. Compute Net/VAT/Total ser
 | R4 | Aggregate by case code + account / month | Must-have | ✅ |
 | R5 | Only billable bookings; no stale double-count | Must-have | ✅ (live derived view — always current) |
 | R6 | CSV export for finance | Must-have | ✅ |
-| R7 | Line total = contract price + car park | Decided | ✅ |
+| R7 | Line total = contract + car park + **waiting charge** (per [ADR 0008](../adr/0008-driver-waiting-time-charge.md); was "+ car park" only) | Superseded | ✅ |
 | R8 | Report-only (status/PDF out of scope) | Out (v1) | ✅ (by design) |
 
 **Nothing unsolved** — all requirements pass for Shape A. B/C retained above as audit trail.
@@ -124,7 +124,7 @@ Lean on the sheet the client already uses for finance. Compute Net/VAT/Total ser
 
 **Billable set:** bookings with `state = 'completed'` whose **pickup falls in the selected London month** (the trip's month — how the client reconciles). Cancelled / in-flight excluded. Live view — no snapshot, so edits/cancels are always reflected (R5).
 
-**Line total:** `contractPricePence + (carParkPence ?? 0)` (R7).
+**Line total:** `contractPricePence + (carParkPence ?? 0) + waitingFee(waitingTimeMinutes)` (R7, per [ADR 0008](../adr/0008-driver-waiting-time-charge.md)).
 
 ### UI affordances
 
