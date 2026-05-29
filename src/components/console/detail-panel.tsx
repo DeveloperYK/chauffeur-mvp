@@ -11,6 +11,7 @@ import {
   sendDriverCompletionSmsAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
@@ -29,10 +30,6 @@ interface DetailPanelProps {
   onEdit: () => void;
   onCancel: () => void;
   onMutated: (toast: string) => void;
-}
-
-function waLink(number: string, text: string): string {
-  return `https://wa.me/${number.replace(/^\+/, '')}?text=${encodeURIComponent(text)}`;
 }
 
 export function DetailPanel({
@@ -159,7 +156,7 @@ export function DetailPanel({
         return (
           <div className="dp-actions">
             <button type="button" className="btn btn--primary btn--lg" onClick={onDispatch}>
-              <Icon.Send /> Generate dispatch link
+              <Icon.Search /> Find a driver
             </button>
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
@@ -175,7 +172,7 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn btn--primary btn--lg"
-                href={waLink(
+                href={whatsappWebLink(
                   driver.whatsappNumber,
                   `Hi ${driver.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
                 )}
@@ -207,7 +204,7 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn"
-                href={waLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
+                href={whatsappWebLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -230,7 +227,7 @@ export function DetailPanel({
             {driver ? (
               <a
                 className="btn"
-                href={waLink(
+                href={whatsappWebLink(
                   driver.whatsappNumber,
                   `Hi ${driver.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
                 )}
@@ -354,7 +351,7 @@ export function DetailPanel({
                 </a>
                 <button
                   type="button"
-                  className="btn btn--primary"
+                  className="btn"
                   style={{ flex: 1 }}
                   onClick={messageDriverCompletion}
                   disabled={isPending}
@@ -362,6 +359,15 @@ export function DetailPanel({
                   <Icon.Send /> {isPending ? 'Sending…' : 'Message driver (SMS)'}
                 </button>
               </div>
+              <a
+                className="btn btn--primary btn--block"
+                style={{ marginTop: 8 }}
+                href={completionLink.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Icon.Whatsapp /> Message driver on WhatsApp
+              </a>
               {completionSms ? (
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
                   {completionSms}

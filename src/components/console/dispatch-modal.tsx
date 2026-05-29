@@ -138,7 +138,7 @@ export function DispatchModal({
           <div className="row">
             <div>
               <div className="modal__title">
-                Generate dispatch link{' '}
+                Find a driver{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>

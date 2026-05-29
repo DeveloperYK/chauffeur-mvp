@@ -92,13 +92,10 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
-  await page
-    .locator('.panel.is-open')
-    .getByRole('button', { name: 'Generate dispatch link' })
-    .click();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
   const dispatchModal = page.locator('.modal.is-open');
   await expect(dispatchModal).toBeVisible();
-  await expect(dispatchModal).toContainText('Generate dispatch link');
+  await expect(dispatchModal).toContainText('Find a driver');
   await dispatchModal.locator('.driver-row:not(.is-busy)').first().click();
   await dispatchModal.getByRole('button', { name: /Generate link/i }).click();
   await expect(dispatchModal.locator('.dispatch-result')).toBeVisible();

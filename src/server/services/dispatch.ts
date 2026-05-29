@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
 import {
   type Booking,
@@ -36,7 +37,7 @@ export type GenerateLinkResult =
       url: string;
       /** Branded short link (/s/<code>) used in the driver SMS/WhatsApp message. */
       shortUrl: string;
-      /** wa.me link that pre-fills a WhatsApp message to the driver with the job link. */
+      /** WhatsApp Web link that pre-fills a message to the driver with the job link. */
       whatsappUrl: string;
       driver: Driver;
       booking: Booking;
@@ -87,8 +88,7 @@ export async function generateDispatchLink(
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
   const text = dispatchSms(booking, shortUrl);
-  const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, text);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
