@@ -97,6 +97,24 @@ describe('booking state machine', () => {
     });
   });
 
+  describe('driver released back to unassigned', () => {
+    it('driver_released moves assigned → unassigned and notifies the dropped driver', () => {
+      const t = transition('assigned', { type: 'driver_released' });
+      expect(t.ok && t.next).toBe('unassigned');
+      expect(t.ok && t.sideEffects).toEqual([{ kind: 'notify_driver_released' }]);
+    });
+
+    it.each([
+      'unassigned',
+      'in_progress',
+      'awaiting_driver_form',
+      'awaiting_operator_review',
+    ] as const)('driver_released is illegal from %s', (state) => {
+      const t = transition(state, { type: 'driver_released' });
+      expect(t.ok).toBe(false);
+    });
+  });
+
   describe('illegal transitions', () => {
     it.each([
       ['unassigned', 'clock_pickup_minus_1h'],

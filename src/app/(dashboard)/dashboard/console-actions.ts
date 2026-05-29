@@ -16,7 +16,7 @@ import {
   generateCompletionLink,
   rejectBooking,
 } from '@/server/services/completion';
-import { generateDispatchLink } from '@/server/services/dispatch';
+import { generateDispatchLink, releaseDriver } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import { assignOperator } from '@/server/services/operators';
 import { completionRequestSms, dispatchSms } from '@/server/services/sms-templates';
@@ -119,9 +119,7 @@ export async function dispatchAction(
           ? 'Driver not found.'
           : result.reason === 'driver_inactive'
             ? 'Driver is inactive.'
-            : result.reason === 'same_driver'
-              ? 'That driver is already assigned to this booking.'
-              : `Cannot dispatch from state: ${result.state}.`;
+            : `Cannot dispatch from state: ${result.state}.`;
     return { ok: false, error };
   }
   revalidatePath('/dashboard');
@@ -175,6 +173,27 @@ export async function rejectBookingAction(bookingId: string): Promise<ActionResu
     mirror: spreadsheetMirror(),
   });
   if (!result.ok) return { ok: false, error: `Cannot reject: ${result.reason}.` };
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+export async function releaseDriverAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  const result = await releaseDriver(bookingId, op.id, {
+    db: db(),
+    notifications: notifications(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : 'This booking no longer has a driver to release.';
+    return { ok: false, error };
+  }
   revalidatePath('/dashboard');
   return { ok: true };
 }

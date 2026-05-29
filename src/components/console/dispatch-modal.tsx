@@ -138,7 +138,7 @@ export function DispatchModal({
           <div className="row">
             <div>
               <div className="modal__title">
-                {booking.state === 'assigned' ? 'Reassign driver' : 'Find a driver'}{' '}
+                Find a driver{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>
@@ -216,18 +216,9 @@ export function DispatchModal({
               <div className="dispatch-hint">
                 <Icon.Question style={{ width: 12, height: 12 }} />
                 <span>
-                  {booking.state === 'assigned' ? (
-                    <>
-                      Pick a different driver. They'll get a link to accept the swap; the
-                      currently-assigned driver will be SMS'd that they're off.
-                    </>
-                  ) : (
-                    <>
-                      <strong>Busy</strong> = driver has a job overlapping this pickup window.{' '}
-                      <strong>Bandwidth bar</strong> shows their week load (~{WEEK_TARGET} jobs/wk).
-                      Drivers with more free time rank higher.
-                    </>
-                  )}
+                  <strong>Busy</strong> = driver has a job overlapping this pickup window.{' '}
+                  <strong>Bandwidth bar</strong> shows their week load (~{WEEK_TARGET} jobs/wk).
+                  Drivers with more free time rank higher.
                 </span>
               </div>
 
@@ -239,22 +230,15 @@ export function DispatchModal({
                 ) : null}
                 {visible.map((d) => {
                   const loadPct = Math.min(100, Math.round((d.jobsThisWeek / WEEK_TARGET) * 100));
-                  const isCurrent = booking.assignedDriverId === d.id;
                   return (
                     <button
                       type="button"
                       key={d.id}
-                      className={`driver-row ${picked === d.id ? 'is-selected' : ''} ${d.busy || isCurrent ? 'is-busy' : ''}`}
-                      disabled={d.busy || isCurrent}
+                      className={`driver-row ${picked === d.id ? 'is-selected' : ''} ${d.busy ? 'is-busy' : ''}`}
+                      disabled={d.busy}
                       aria-pressed={picked === d.id}
                       onClick={() => setPicked(d.id)}
-                      title={
-                        isCurrent
-                          ? 'Already assigned to this booking'
-                          : d.busy
-                            ? 'Already on a job at this time'
-                            : ''
-                      }
+                      title={d.busy ? 'Already on a job at this time' : ''}
                     >
                       <Avatar name={d.name} id={d.id} size={32} />
                       <div>
@@ -278,9 +262,7 @@ export function DispatchModal({
                         </span>
                       </div>
                       <div className="driver-row__avail">
-                        {isCurrent ? (
-                          <Lozenge tone="gray">CURRENT</Lozenge>
-                        ) : d.busy ? (
+                        {d.busy ? (
                           <Lozenge tone="red">BUSY</Lozenge>
                         ) : (
                           <Lozenge tone="green">FREE</Lozenge>
