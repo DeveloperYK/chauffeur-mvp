@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
 import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
@@ -71,8 +72,7 @@ export async function generateCompletionLink(
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
   const text = completionRequestSms(booking, shortUrl);
-  const whatsappNumber = driver.whatsappNumber.replace(/^\+/, '');
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, text);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',

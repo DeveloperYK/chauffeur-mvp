@@ -215,6 +215,10 @@ export default async function DashboardHome({
   };
 
   const isToday = selectedDay === today;
+  // Past days are history: the live workflow columns (unassigned/assigned/…) are
+  // not useful, so the board collapses to a completed-bookings view. Saved views
+  // span days, so they never count as "past".
+  const isPast = !savedView && selectedDay < today;
 
   // Serialize for the client console shell.
   const consoleBookings: ConsoleBooking[] = filtered.map(toConsoleBooking);
@@ -351,6 +355,7 @@ export default async function DashboardHome({
         me={{ id: session.operator.id, name: session.operator.name }}
         layout={layout}
         showDone={showDone}
+        isPast={isPast}
         initialNewOpen={params.new === '1'}
       />
     </>

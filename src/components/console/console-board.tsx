@@ -39,6 +39,8 @@ interface ConsoleBoardProps {
   me: { id: string; name: string };
   layout: 'board' | 'list';
   showDone: boolean;
+  /** Selected day is before today — show a completed-bookings view, not the live workflow columns. */
+  isPast: boolean;
   initialNewOpen?: boolean;
 }
 
@@ -50,6 +52,7 @@ export function ConsoleBoard({
   me,
   layout,
   showDone,
+  isPast,
   initialNewOpen = false,
 }: ConsoleBoardProps) {
   const router = useRouter();
@@ -147,10 +150,71 @@ export function ConsoleBoard({
     [bookings, showDone],
   );
 
+  // Past days are history: everything that ran on the day, split into the jobs
+  // that happened (completed/whatever they finished as) and the cancelled ones.
+  const pastGroups = useMemo(() => {
+    const sorted = bookings
+      .slice()
+      .sort((a, b) => new Date(a.pickupAt).getTime() - new Date(b.pickupAt).getTime());
+    return {
+      completed: sorted.filter((b) => b.state !== 'cancelled'),
+      cancelled: sorted.filter((b) => b.state === 'cancelled'),
+    };
+  }, [bookings]);
+
   return (
     <>
       <div className="content">
-        {layout === 'board' ? (
+        {isPast ? (
+          <div className="list">
+            <div className="list__row head">
+              <span />
+              <span>Pickup</span>
+              <span>Customer</span>
+              <span>Route</span>
+              <span>Driver</span>
+              <span>Status</span>
+              <span>Assignee</span>
+              <span style={{ textAlign: 'right' }}>Price</span>
+            </div>
+            <div className="list__section">Completed bookings · {pastGroups.completed.length}</div>
+            {pastGroups.completed.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-4)' }}>
+                No bookings ran on this day.
+              </div>
+            ) : (
+              pastGroups.completed.map((b) => (
+                <ListRow
+                  key={b.id}
+                  booking={b}
+                  driver={b.assignedDriverId ? driverById.get(b.assignedDriverId) : undefined}
+                  assignee={
+                    b.assignedOperatorId ? operatorById.get(b.assignedOperatorId) : undefined
+                  }
+                  selected={selectedId === b.id}
+                  onClick={() => onSelect(b.id)}
+                />
+              ))
+            )}
+            {pastGroups.cancelled.length > 0 ? (
+              <>
+                <div className="list__section">Cancelled · {pastGroups.cancelled.length}</div>
+                {pastGroups.cancelled.map((b) => (
+                  <ListRow
+                    key={b.id}
+                    booking={b}
+                    driver={b.assignedDriverId ? driverById.get(b.assignedDriverId) : undefined}
+                    assignee={
+                      b.assignedOperatorId ? operatorById.get(b.assignedOperatorId) : undefined
+                    }
+                    selected={selectedId === b.id}
+                    onClick={() => onSelect(b.id)}
+                  />
+                ))}
+              </>
+            ) : null}
+          </div>
+        ) : layout === 'board' ? (
           <div className="board">
             {cols.map((state) => (
               <section className="column" aria-label={COL_LABEL[state]} key={state}>
@@ -201,65 +265,16 @@ export function ConsoleBoard({
               <span>Assignee</span>
               <span style={{ textAlign: 'right' }}>Price</span>
             </div>
-            {listVisible.map((b) => {
-              const driver = b.assignedDriverId ? driverById.get(b.assignedDriverId) : undefined;
-              const assignee = b.assignedOperatorId
-                ? operatorById.get(b.assignedOperatorId)
-                : undefined;
-              return (
-                <button
-                  type="button"
-                  key={b.id}
-                  className={`list__row ${selectedId === b.id ? 'is-selected' : ''}`}
-                  onClick={() => onSelect(b.id)}
-                >
-                  <span>
-                    {b.flaggedAt ? (
-                      <Icon.Flag style={{ color: 'var(--prio-high)', width: 12, height: 12 }} />
-                    ) : (
-                      <span style={{ width: 12, display: 'inline-block' }} />
-                    )}
-                  </span>
-                  <span className="time">{fmtTimeWithDay(b.pickupAt)}</span>
-                  <span className="pax">
-                    {b.accountCode}
-                    <div className="pax__sub">
-                      {passengerName(b)}
-                      {b.caseCode ? ` · ${b.caseCode}` : ''}
-                    </div>
-                  </span>
-                  <span className="route">
-                    {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
-                  </span>
-                  <span className="driver-cell">
-                    {driver ? (
-                      <>
-                        <Avatar name={driver.name} id={driver.id} size={20} />
-                        {driver.name}
-                      </>
-                    ) : (
-                      <span style={{ color: 'var(--ink-4)' }}>—</span>
-                    )}
-                  </span>
-                  <span>
-                    <StateLozenge state={b.state} />
-                  </span>
-                  <span>
-                    {assignee ? (
-                      <Avatar
-                        name={assignee.name}
-                        id={assignee.id}
-                        size={22}
-                        title={assignee.name}
-                      />
-                    ) : (
-                      <UnassignedAvatar size={22} />
-                    )}
-                  </span>
-                  <span className="price-cell">{fmtPrice(b.contractPricePence)}</span>
-                </button>
-              );
-            })}
+            {listVisible.map((b) => (
+              <ListRow
+                key={b.id}
+                booking={b}
+                driver={b.assignedDriverId ? driverById.get(b.assignedDriverId) : undefined}
+                assignee={b.assignedOperatorId ? operatorById.get(b.assignedOperatorId) : undefined}
+                selected={selectedId === b.id}
+                onClick={() => onSelect(b.id)}
+              />
+            ))}
             {listVisible.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-4)' }}>
                 No bookings match this view.
@@ -333,6 +348,68 @@ export function ConsoleBoard({
         ))}
       </div>
     </>
+  );
+}
+
+function ListRow({
+  booking: b,
+  driver,
+  assignee,
+  selected,
+  onClick,
+}: {
+  booking: ConsoleBooking;
+  driver: ConsoleDriver | undefined;
+  assignee: ConsoleOperator | undefined;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`list__row ${selected ? 'is-selected' : ''}`}
+      onClick={onClick}
+    >
+      <span>
+        {b.flaggedAt ? (
+          <Icon.Flag style={{ color: 'var(--prio-high)', width: 12, height: 12 }} />
+        ) : (
+          <span style={{ width: 12, display: 'inline-block' }} />
+        )}
+      </span>
+      <span className="time">{fmtTimeWithDay(b.pickupAt)}</span>
+      <span className="pax">
+        {b.accountCode}
+        <div className="pax__sub">
+          {passengerName(b)}
+          {b.caseCode ? ` · ${b.caseCode}` : ''}
+        </div>
+      </span>
+      <span className="route">
+        {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
+      </span>
+      <span className="driver-cell">
+        {driver ? (
+          <>
+            <Avatar name={driver.name} id={driver.id} size={20} />
+            {driver.name}
+          </>
+        ) : (
+          <span style={{ color: 'var(--ink-4)' }}>—</span>
+        )}
+      </span>
+      <span>
+        <StateLozenge state={b.state} />
+      </span>
+      <span>
+        {assignee ? (
+          <Avatar name={assignee.name} id={assignee.id} size={22} title={assignee.name} />
+        ) : (
+          <UnassignedAvatar size={22} />
+        )}
+      </span>
+      <span className="price-cell">{fmtPrice(b.contractPricePence)}</span>
+    </button>
   );
 }
 

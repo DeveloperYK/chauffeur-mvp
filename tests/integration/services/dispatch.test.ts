@@ -85,12 +85,12 @@ describe('services/dispatch (integration)', () => {
     appUrl: APP_URL,
   });
 
-  it('generates a dispatch link and a wa.me URL', async () => {
+  it('generates a dispatch link and a WhatsApp Web URL', async () => {
     const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.url.startsWith(`${APP_URL}/j/`)).toBe(true);
-    expect(r.whatsappUrl.startsWith('https://wa.me/447911000001')).toBe(true);
+    expect(r.whatsappUrl.startsWith('https://web.whatsapp.com/send?phone=447911000001')).toBe(true);
 
     const events = await db.select().from(auditEvents);
     expect(events.length).toBe(1);

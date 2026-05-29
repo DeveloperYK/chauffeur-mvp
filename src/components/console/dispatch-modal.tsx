@@ -138,7 +138,7 @@ export function DispatchModal({
           <div className="row">
             <div>
               <div className="modal__title">
-                {booking.state === 'assigned' ? 'Reassign driver' : 'Generate dispatch link'}{' '}
+                {booking.state === 'assigned' ? 'Reassign driver' : 'Find a driver'}{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>
