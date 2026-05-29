@@ -97,6 +97,21 @@ export function dispatchSms(booking: Booking, url: string): string {
 }
 
 /**
+ * Driver — they've been removed from a job they previously accepted
+ * (operator reassigned the booking to someone else). Short and unambiguous;
+ * the driver should know the job is no longer theirs.
+ *
+ *   Chauffeur MVP - BKNG-00001
+ *   This booking has been reassigned. You're no longer on it.
+ */
+export function unassignedSms(booking: Booking): string {
+  return [
+    `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
+    "This booking has been reassigned. You're no longer on it.",
+  ].join('\n');
+}
+
+/**
  * Driver — completion-form request after the trip.
  *
  *   Chauffeur MVP - BKNG-00001

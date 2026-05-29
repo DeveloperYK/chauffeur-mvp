@@ -107,8 +107,10 @@ describe('services/dispatch (integration)', () => {
     if (!r.ok) expect(r.reason).toBe('driver_inactive');
   });
 
-  it('refuses to generate for non-unassigned booking', async () => {
-    await db.update(bookings).set({ state: 'assigned' }).where(eq(bookings.id, bookingId));
+  it('refuses to generate once booking is past assigned (in_progress)', async () => {
+    // Driver-swap is allowed during 'assigned' (see swap-path tests below); once
+    // the booking is in progress, picking a different driver is out of scope.
+    await db.update(bookings).set({ state: 'in_progress' }).where(eq(bookings.id, bookingId));
     const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('wrong_state');
@@ -236,6 +238,142 @@ describe('services/dispatch (integration)', () => {
       expect(r.preview.driver.id).toBe(driverId);
       expect(r.preview.booking.id).toBe(bookingId);
     }
+  });
+
+  // -----------------------------------------------------------------------
+  // Driver swap during the 'assigned' state.
+  //
+  // The 24-hours-out scenario: an already-assigned driver tells the operator
+  // they can't make the job. Operator picks a different driver, who taps the
+  // link to accept the swap. The previously-assigned driver gets one SMS
+  // letting them know they're off; the exec is re-SMS'd with the new driver's
+  // name + car so the original confirmation isn't left stale.
+  // -----------------------------------------------------------------------
+  describe('swap during assigned state', () => {
+    let secondDriverId: string;
+
+    beforeEach(async () => {
+      const [drv2] = await db
+        .insert(drivers)
+        .values({
+          name: 'Marcus',
+          tier: 'premium',
+          defaultCarType: 'mpv',
+          whatsappNumber: '+447911000002',
+        })
+        .returning();
+      secondDriverId = drv2?.id ?? '';
+    });
+
+    it('generates a swap link when booking is assigned', async () => {
+      // Set the booking up as already assigned to the original driver.
+      await db
+        .update(bookings)
+        .set({
+          state: 'assigned',
+          assignedDriverId: driverId,
+          assignedAt: clock.now(),
+        })
+        .where(eq(bookings.id, bookingId));
+
+      const r = await generateDispatchLink(bookingId, secondDriverId, operatorId, deps());
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.url.startsWith(`${APP_URL}/j/`)).toBe(true);
+    });
+
+    it('refuses to generate a swap link to the same driver (no-op)', async () => {
+      await db
+        .update(bookings)
+        .set({ state: 'assigned', assignedDriverId: driverId, assignedAt: clock.now() })
+        .where(eq(bookings.id, bookingId));
+
+      const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('same_driver');
+    });
+
+    it('accept on a swap link flips driver, SMS’s old driver, re-SMS’s exec, writes driver_swap audit', async () => {
+      // Stage: booking is assigned to original driver. (Skip the real accept
+      // flow for the original — set directly so the test focuses on the swap.)
+      await db
+        .update(bookings)
+        .set({
+          state: 'assigned',
+          assignedDriverId: driverId,
+          assignedAt: clock.now(),
+          carForThisJob: 's_class',
+        })
+        .where(eq(bookings.id, bookingId));
+
+      const gen = await generateDispatchLink(bookingId, secondDriverId, operatorId, deps());
+      if (!gen.ok) throw new Error('setup: generate failed');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+
+      const r = await acceptDispatchLink({ token }, deps());
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+
+      // Booking now points at the new driver, state stays 'assigned', car
+      // reflects the new driver's default unless overridden.
+      expect(r.booking.state).toBe('assigned');
+      expect(r.booking.assignedDriverId).toBe(secondDriverId);
+      expect(r.carForJob).toBe('mpv');
+
+      // Two SMS: old driver "you're off" + exec re-confirmation with new driver.
+      const messages = notifications.sent;
+      expect(messages.length).toBe(2);
+      const toOldDriver = messages.find((m) => m.to === driverWhatsapp);
+      const toExec = messages.find((m) => m.to === '+447911999999');
+      expect(toOldDriver?.body).toContain('reassigned');
+      expect(toExec?.body).toContain('Marcus');
+
+      // Audit captures the swap (not a fresh driver_accept).
+      const events = await db.select().from(auditEvents);
+      const swap = events.find((e) => e.action === 'driver_swap');
+      expect(swap).toBeDefined();
+      expect((swap?.before as { driverId?: string } | null)?.driverId).toBe(driverId);
+      expect((swap?.after as { driverId?: string } | null)?.driverId).toBe(secondDriverId);
+      // We did NOT also write a driver_accept event for the swap.
+      expect(events.filter((e) => e.action === 'driver_accept').length).toBe(0);
+    });
+
+    it('swap accept honours car override', async () => {
+      await db
+        .update(bookings)
+        .set({
+          state: 'assigned',
+          assignedDriverId: driverId,
+          assignedAt: clock.now(),
+          carForThisJob: 's_class',
+        })
+        .where(eq(bookings.id, bookingId));
+      const gen = await generateDispatchLink(bookingId, secondDriverId, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+      const r = await acceptDispatchLink({ token, carOverride: 's_class' }, deps());
+      expect(r.ok && r.carForJob).toBe('s_class');
+    });
+
+    it('swap accept is refused if the booking has moved past assigned (e.g. cancelled or in_progress)', async () => {
+      // Operator mints a swap link, but before the new driver taps accept the
+      // booking has already moved on (cancelled by the customer, or the clock
+      // ticked it to in_progress). Accepting the swap must not retroactively
+      // un-cancel or reassign an in-progress trip.
+      await db
+        .update(bookings)
+        .set({ state: 'assigned', assignedDriverId: driverId, assignedAt: clock.now() })
+        .where(eq(bookings.id, bookingId));
+      const gen = await generateDispatchLink(bookingId, secondDriverId, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+
+      await db.update(bookings).set({ state: 'cancelled' }).where(eq(bookings.id, bookingId));
+
+      const r = await acceptDispatchLink({ token }, deps());
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('wrong_state');
+    });
   });
 
   it('previewDispatchLink rejects consumed token', async () => {

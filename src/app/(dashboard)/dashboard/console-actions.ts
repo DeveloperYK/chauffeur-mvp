@@ -119,7 +119,9 @@ export async function dispatchAction(
           ? 'Driver not found.'
           : result.reason === 'driver_inactive'
             ? 'Driver is inactive.'
-            : `Cannot dispatch from state: ${result.state}.`;
+            : result.reason === 'same_driver'
+              ? 'That driver is already assigned to this booking.'
+              : `Cannot dispatch from state: ${result.state}.`;
     return { ok: false, error };
   }
   revalidatePath('/dashboard');
