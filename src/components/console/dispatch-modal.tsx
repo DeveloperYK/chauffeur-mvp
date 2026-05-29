@@ -1,9 +1,6 @@
 'use client';
 
-import {
-  dispatchAction,
-  sendDriverDispatchSmsAction,
-} from '@/app/(dashboard)/dashboard/console-actions';
+import { dispatchAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
@@ -43,7 +40,6 @@ export function DispatchModal({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [smsMsg, setSmsMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset picker state only when the modal opens or the booking changes
@@ -55,7 +51,6 @@ export function DispatchModal({
       setSearch('');
       setError(null);
       setCopied(false);
-      setSmsMsg(null);
     }
   }, [isOpen, booking?.id]);
 
@@ -109,19 +104,6 @@ export function DispatchModal({
     } catch {
       setCopied(false);
     }
-  };
-
-  const messageDriver = () => {
-    if (!picked) return;
-    setSmsMsg(null);
-    startTransition(async () => {
-      const res = await sendDriverDispatchSmsAction(booking.id, picked);
-      setSmsMsg(
-        res.ok
-          ? `Texted ${minted?.driverName?.split(' ')[0] ?? 'the driver'}.`
-          : (res.error ?? 'Could not send SMS.'),
-      );
-    });
   };
 
   const expiry = fmtTimeWithDay(
@@ -316,31 +298,16 @@ export function DispatchModal({
                 >
                   <Icon.ArrowRight /> Open link (test)
                 </a>
-                <button
-                  type="button"
+                <a
                   className="btn btn--primary"
                   style={{ flex: 1 }}
-                  onClick={messageDriver}
-                  disabled={isPending}
+                  href={minted.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  <Icon.Send /> {isPending ? 'Sending…' : 'Message driver (SMS)'}
-                </button>
+                  <Icon.Whatsapp /> Message driver on WhatsApp
+                </a>
               </div>
-              {smsMsg ? (
-                <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-                  {smsMsg}
-                </div>
-              ) : null}
-
-              <a
-                className="btn btn--block"
-                style={{ marginTop: 8 }}
-                href={minted.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Icon.Whatsapp /> Also message on WhatsApp (optional)
-              </a>
 
               <div className="link-warning">
                 <Icon.Flag style={{ width: 14, height: 14 }} />
