@@ -1,7 +1,18 @@
 import { parseBookingQuery } from '@/lib/booking-ref';
-import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
+import {
+  formatLondonDay,
+  londonDayRangeUtc,
+  londonMonthRangeUtc,
+  londonTodayString,
+} from '@/lib/dates';
 import type { Database } from '@/server/db';
-import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
+import {
+  type Booking,
+  type BookingState,
+  bookings,
+  driverTimeOff,
+  drivers,
+} from '@/server/db/schema';
 import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
@@ -233,15 +244,22 @@ void sql;
 /**
  * Per-driver dispatch context used by the dispatch picker:
  * - `weekLoads`: how many open jobs each driver holds in the current week
- *   (drives the bandwidth bar), keyed by driver id.
+ *   (drives the bandwidth bar — slated for removal in V2 of the
+ *   driver-availability work).
  * - `windows`: busy windows (start/end ms) for every open assignment, so the
  *   picker can flag drivers whose existing job overlaps the new pickup.
+ * - `timeOff`: planned, time-bounded unavailability per driver. Each row is
+ *   an inclusive `[startsOn, endsOn]` whole-day range. The dispatch modal
+ *   filters out drivers off on the pickup date; the drivers page surfaces
+ *   upcoming time-off as a lozenge. Only rows whose range hasn't fully
+ *   expired (ends today or later, London time) are returned.
  *
  * "Open" excludes completed and cancelled bookings.
  */
 export interface DriverDispatchData {
   weekLoads: Record<string, number>;
   windows: Array<{ driverId: string; startMs: number; endMs: number }>;
+  timeOff: Record<string, Array<{ startsOn: string; endsOn: string }>>;
 }
 
 export async function driverDispatchData(
@@ -276,7 +294,28 @@ export async function driverDispatchData(
       weekLoads[r.assignedDriverId] = (weekLoads[r.assignedDriverId] ?? 0) + 1;
     }
   }
-  return { weekLoads, windows };
+
+  // Time-off: every row that has not yet fully passed (ends on/after today).
+  // No upper bound — the table is sparse and we'd rather return a future
+  // range that's currently in the dispatch modal than silently omit it.
+  const todayLondon = londonTodayString(now);
+  const offRows = await db
+    .select({
+      driverId: driverTimeOff.driverId,
+      startsOn: driverTimeOff.startsOn,
+      endsOn: driverTimeOff.endsOn,
+    })
+    .from(driverTimeOff)
+    .where(gte(driverTimeOff.endsOn, todayLondon));
+
+  const timeOff: DriverDispatchData['timeOff'] = {};
+  for (const r of offRows) {
+    const list = timeOff[r.driverId] ?? [];
+    list.push({ startsOn: r.startsOn, endsOn: r.endsOn });
+    timeOff[r.driverId] = list;
+  }
+
+  return { weekLoads, windows, timeOff };
 }
 
 export { ACTIVE_STATES };

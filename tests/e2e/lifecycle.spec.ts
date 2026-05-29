@@ -106,8 +106,11 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Accept job' }).click();
 
-  // New driver accepted → back to assigned.
+  // New driver accepted → back to assigned. Wait for the accept redirect
+  // before navigating away so the DB write is definitely committed.
+  await page.waitForURL(/\/j\/[^/]+\?status=accepted/);
   await gotoSimulator(page);
+  await page.reload({ waitUntil: 'networkidle' });
   await expectSimState(page, LEGO, 'Assigned');
 
   // ── Clock: assigned → in_progress (pickup in 30 min, already fast-fwd'd) ─
@@ -165,4 +168,45 @@ test('booking moves through every stage via the simulator + console', async ({ p
 
   await gotoSimulator(page);
   await expectSimState(page, MERC, 'Cancelled');
+
+  // ── Drivers page: mark a driver off → excluded from dispatch ──
+  // The third seed booking (Sophia Lefevre) is still unassigned. Fast-forward
+  // it onto today's board, mark a driver off for today, then open the
+  // dispatch modal and confirm that driver is in the "Off on" group rather
+  // than the candidate list.
+  const SOPHIA = 'Sophia Lefevre';
+  await row(page, SOPHIA).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, SOPHIA).getByRole('button', { name: 'Apply' }).click());
+
+  await page.goto('/dashboard/drivers', { waitUntil: 'networkidle' });
+  // Mark the first listed driver off for today only. Capture their name so
+  // we can assert against it in the dispatch modal.
+  const firstDriverRow = page.locator('.dt-row.dt-row--load').nth(1); // [0] is the header row
+  const offDriverName = (await firstDriverRow.locator('.name span').nth(1).textContent())?.trim();
+  expect(offDriverName, 'expected a driver name in the roster').toBeTruthy();
+  await firstDriverRow.getByRole('button', { name: 'Off…' }).click();
+  const offModal = page.locator('.modal.is-open');
+  await expect(offModal).toBeVisible();
+  await expect(offModal).toContainText('Time off');
+  // Inputs default to today; just submit.
+  await offModal.getByRole('button', { name: 'Save' }).click();
+  await expect(offModal).toBeHidden();
+  // Roster now shows an OFF lozenge for that driver.
+  await expect(firstDriverRow).toContainText('OFF');
+
+  // Open the dispatch modal for Sophia's booking and verify the off driver
+  // is in the "Off on" group, not in the candidate list.
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
+  const offDispatchModal = page.locator('.modal.is-open');
+  await expect(offDispatchModal).toBeVisible();
+  await expect(offDispatchModal.locator('.dispatch-off-group')).toContainText(
+    offDriverName as string,
+  );
+  // The off driver should NOT appear as a pickable row.
+  const pickableRows = offDispatchModal.locator('.driver-row');
+  await expect(pickableRows.filter({ hasText: offDriverName as string })).toHaveCount(0);
 });

@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
+  date,
   index,
   integer,
   jsonb,
@@ -203,6 +205,32 @@ export const shortLinks = pgTable('short_links', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Planned, time-bounded driver unavailability. Distinct from `drivers.active`
+// (a global on/off switch — "no longer works for us"). A row here marks the
+// driver off for the inclusive date range [starts_on, ends_on]. Whole days
+// only by design — no half-days, no time-of-day precision. No recurring
+// patterns — drivers are nominally available every day until marked off.
+// No reason field — operators capture context out-of-band.
+export const driverTimeOff = pgTable(
+  'driver_time_off',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    driverId: uuid('driver_id')
+      .references(() => drivers.id, { onDelete: 'cascade' })
+      .notNull(),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    createdByOperatorId: uuid('created_by_operator_id').references(() => operators.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('driver_time_off_driver_dates_idx').on(t.driverId, t.startsOn, t.endsOn),
+    check('driver_time_off_range_ck', sql`${t.endsOn} >= ${t.startsOn}`),
+  ],
+);
+
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
@@ -223,3 +251,5 @@ export type Booking = typeof bookings.$inferSelect;
 export type NewBooking = typeof bookings.$inferInsert;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type NewAuditEvent = typeof auditEvents.$inferInsert;
+export type DriverTimeOff = typeof driverTimeOff.$inferSelect;
+export type NewDriverTimeOff = typeof driverTimeOff.$inferInsert;

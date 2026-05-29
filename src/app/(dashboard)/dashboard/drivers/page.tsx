@@ -1,12 +1,14 @@
 import { Avatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
+import { TimeOffButton } from '@/components/drivers/time-off-button';
 import { formatLondonDay, londonDayRangeUtc, londonTodayString, parseDayString } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
-import type { Booking, Driver } from '@/server/db/schema';
+import type { Booking, Driver, DriverTimeOff } from '@/server/db/schema';
 import { listBookingsBetween } from '@/server/services/bookings-query';
+import { listAllUpcomingTimeOff } from '@/server/services/driver-availability';
 import { listAllDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
 import { deactivateDriverAction, reactivateDriverAction } from './actions';
@@ -32,6 +34,21 @@ function fmtTime(d: Date): string {
     minute: '2-digit',
     hour12: false,
   }).format(d);
+}
+
+// "2026-06-04" + "2026-06-07" → "THU 4 – SUN 7 JUN" for the OFF lozenge.
+// Single day collapses to "THU 4 JUN".
+function fmtOffRange(startsOn: string, endsOn: string): string {
+  const fmt = (iso: string, opts: Intl.DateTimeFormatOptions) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+    return new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', ...opts })
+      .format(new Date(Date.UTC(y, m - 1, d, 12)))
+      .toUpperCase();
+  };
+  if (startsOn === endsOn) {
+    return fmt(startsOn, { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  return `${fmt(startsOn, { weekday: 'short', day: 'numeric' })} – ${fmt(endsOn, { weekday: 'short', day: 'numeric', month: 'short' })}`;
 }
 
 function addDays(dayStr: string, n: number): string {
@@ -71,6 +88,9 @@ export default async function DriversPage({
   const schedDate = params.schedDate && parseDayString(params.schedDate) ? params.schedDate : today;
 
   const allDrivers = await listAllDrivers(db);
+  // Per-driver upcoming time-off (ends today or later). Drives the OFF
+  // lozenge on the roster and seeds the time-off modal's "current" list.
+  const upcomingTimeOff = await listAllUpcomingTimeOff(db, today);
 
   // This week's bookings (for roster load bars + active-job counts).
   const weekStartDay = weekMonday(today);
@@ -155,7 +175,13 @@ export default async function DriversPage({
                 </Link>
               </div>
             </div>
-            <DriverRoster drivers={visible} jobsThisWeek={jobsThisWeek} activeJobs={activeJobs} />
+            <DriverRoster
+              drivers={visible}
+              jobsThisWeek={jobsThisWeek}
+              activeJobs={activeJobs}
+              upcomingTimeOff={upcomingTimeOff}
+              today={today}
+            />
           </>
         ) : (
           <Schedule
@@ -176,10 +202,14 @@ function DriverRoster({
   drivers,
   jobsThisWeek,
   activeJobs,
+  upcomingTimeOff,
+  today,
 }: {
   drivers: Driver[];
   jobsThisWeek: (id: string) => number;
   activeJobs: (id: string) => number;
+  upcomingTimeOff: Record<string, DriverTimeOff[]>;
+  today: string;
 }) {
   if (drivers.length === 0) {
     return (
@@ -203,6 +233,10 @@ function DriverRoster({
         const loadPct = Math.min(100, Math.round((week / 15) * 100));
         const loadClass = loadPct > 80 ? 'high' : loadPct > 50 ? 'med' : '';
         const active = activeJobs(d.id);
+        const off = upcomingTimeOff[d.id] ?? [];
+        // Show only the first upcoming range as the inline lozenge — the
+        // modal lists all of them when the operator opens it.
+        const nextOff = off[0];
         return (
           <div className="dt-row dt-row--load" key={d.id}>
             <span className="name">
@@ -212,6 +246,13 @@ function DriverRoster({
                 {active > 0 ? (
                   <span style={{ marginLeft: 8 }}>
                     <Lozenge tone="blue">{active} ACTIVE</Lozenge>
+                  </span>
+                ) : null}
+                {nextOff ? (
+                  <span style={{ marginLeft: 8 }}>
+                    <Lozenge tone="orange">
+                      OFF {fmtOffRange(nextOff.startsOn, nextOff.endsOn)}
+                    </Lozenge>
                   </span>
                 ) : null}
               </span>
@@ -244,6 +285,16 @@ function DriverRoster({
               ) : (
                 <Lozenge tone="gray">INACTIVE</Lozenge>
               )}
+              <TimeOffButton
+                driverId={d.id}
+                driverName={d.name}
+                upcoming={off.map((t) => ({
+                  id: t.id,
+                  startsOn: t.startsOn,
+                  endsOn: t.endsOn,
+                }))}
+                todayLondon={today}
+              />
               <Link className="link-btn" href={`/dashboard/drivers/${d.id}/edit`}>
                 Edit
               </Link>

@@ -2,6 +2,7 @@
 
 import { dispatchAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { formatLondonDay } from '@/lib/dates';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -63,9 +64,27 @@ export function DispatchModal({
       assignments.some((a) => a.driverId === driverId && a.startMs < end && a.endMs > start);
   }, [booking, assignments]);
 
+  // Pickup day in London — date-only string, matches `driver_time_off`'s
+  // `starts_on/ends_on` column type so the in-memory check is a string compare.
+  const pickupDay = useMemo(
+    () => (booking ? formatLondonDay(new Date(booking.pickupAt)) : ''),
+    [booking],
+  );
+
+  // A driver is off if any of their time-off rows covers the pickup day.
+  const isOff = useMemo(() => {
+    if (!booking) return () => false;
+    return (driver: ConsoleDriver) =>
+      driver.timeOff.some((t) => t.startsOn <= pickupDay && pickupDay <= t.endsOn);
+  }, [booking, pickupDay]);
+
+  // Pickable candidates: active, matching tier/search filter, and not off
+  // on the pickup day. Off drivers are surfaced in a separate group below
+  // so the operator knows they exist but cannot pick them.
   const visible = useMemo(() => {
     return drivers
       .filter((d) => d.active)
+      .filter((d) => !isOff(d))
       .filter((d) => (filter === 'all' ? true : d.tier === filter))
       .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
       .map((d) => ({ ...d, busy: isBusy(d.id) }))
@@ -74,7 +93,19 @@ export function DispatchModal({
         if (a.busy !== b.busy) return a.busy ? 1 : -1;
         return a.jobsThisWeek - b.jobsThisWeek;
       });
-  }, [drivers, filter, search, isBusy]);
+  }, [drivers, filter, search, isBusy, isOff]);
+
+  // Drivers off on the pickup day — shown in a collapsed group so the
+  // operator can see who's unavailable without being able to pick them.
+  // Filter/search apply here too so the modal stays consistent.
+  const offDrivers = useMemo(() => {
+    return drivers
+      .filter((d) => d.active)
+      .filter((d) => isOff(d))
+      .filter((d) => (filter === 'all' ? true : d.tier === filter))
+      .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [drivers, filter, search, isOff]);
 
   if (!booking) return null;
 
@@ -205,7 +236,7 @@ export function DispatchModal({
               </div>
 
               <div style={{ maxHeight: 380, overflowY: 'auto', padding: 1 }}>
-                {visible.length === 0 ? (
+                {visible.length === 0 && offDrivers.length === 0 ? (
                   <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-4)' }}>
                     No active drivers match.
                   </div>
@@ -253,6 +284,27 @@ export function DispatchModal({
                     </button>
                   );
                 })}
+
+                {offDrivers.length > 0 ? (
+                  <div
+                    className="dispatch-off-group"
+                    style={{
+                      marginTop: 12,
+                      padding: '8px 10px',
+                      borderTop: '1px solid var(--border)',
+                      fontSize: 12,
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    <strong style={{ color: 'var(--ink-2)' }}>Off on {pickupDay}:</strong>{' '}
+                    {offDrivers.map((d, i) => (
+                      <span key={d.id}>
+                        {i > 0 ? ', ' : ''}
+                        {d.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </>
           ) : (

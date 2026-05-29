@@ -230,6 +230,7 @@ export default async function DashboardHome({
     whatsappNumber: d.whatsappNumber,
     active: d.active,
     jobsThisWeek: dispatch.weekLoads[d.id] ?? 0,
+    timeOff: dispatch.timeOff[d.id] ?? [],
   }));
   const consoleOperators: ConsoleOperator[] = operatorList.map((o) => ({ id: o.id, name: o.name }));
 

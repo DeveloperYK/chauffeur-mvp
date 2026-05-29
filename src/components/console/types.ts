@@ -56,6 +56,12 @@ export interface ConsoleDriver {
   active: boolean;
   /** Derived: count of this driver's open bookings in the current week. */
   jobsThisWeek: number;
+  /**
+   * Upcoming or in-progress planned time-off — every range whose end date
+   * is today or later (London). Inclusive `[startsOn, endsOn]`, both
+   * `YYYY-MM-DD`. Empty array when the driver has no scheduled off-time.
+   */
+  timeOff: Array<{ startsOn: string; endsOn: string }>;
 }
 
 export interface ConsoleOperator {

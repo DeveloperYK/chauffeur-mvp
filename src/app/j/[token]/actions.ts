@@ -56,6 +56,9 @@ export async function acceptAction(formData: FormData): Promise<void> {
 
   // Operator console needs to reflect the new (or swapped) driver promptly.
   revalidatePath('/dashboard');
+  // Simulator's bookings table also reflects state — keep it in step so
+  // a tester (and the lifecycle e2e) sees the new state immediately.
+  revalidatePath('/dashboard/simulator');
   redirect(`/j/${parsed.data.token}?status=accepted`);
 }
 
