@@ -1,6 +1,14 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDateTimeShort, formatLondonTimeOfDay } from '@/lib/dates';
-import type { Booking, Driver } from '@/server/db/schema';
+import type { Booking } from '@/server/db/schema';
+
+/**
+ * The exec-facing templates only need the driver's display name. Taking the
+ * narrow `{ name }` shape (rather than a full `Driver` row) lets the same
+ * template name a backfill/subcontractor driver, who has no `drivers` row —
+ * the operator-entered `backfillDriverName` is passed straight through.
+ */
+type NamedDriver = { name: string };
 
 /**
  * Brand name on every customer-facing SMS so recipients can see at a glance
@@ -45,7 +53,7 @@ function formatHireDuration(minutes: number): string {
  *   Driver: Marcus Bell (Mercedes S-Class)
  *   Pickup: 12 King St, London
  */
-export function assignedSms(booking: Booking, driver: Driver, carForJob: string): string {
+export function assignedSms(booking: Booking, driver: NamedDriver, carForJob: string): string {
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
     `Confirmed: ${formatLondonDateTimeShort(booking.pickupAt)}`,
@@ -60,7 +68,7 @@ export function assignedSms(booking: Booking, driver: Driver, carForJob: string)
  *   Chauffeur MVP - BKNG-00001
  *   Your driver Marcus Bell is on the way for your 14:00 pickup.
  */
-export function enRouteSms(booking: Booking, driver: Driver): string {
+export function enRouteSms(booking: Booking, driver: NamedDriver): string {
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
     `Your driver ${driver.name} is on the way for your ${formatLondonTimeOfDay(booking.pickupAt)} pickup.`,

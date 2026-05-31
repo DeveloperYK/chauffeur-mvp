@@ -26,6 +26,8 @@ interface DetailPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onDispatch: () => void;
+  onBackfill: () => void;
+  onCloseout: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onMutated: (toast: string) => void;
@@ -39,6 +41,8 @@ export function DetailPanel({
   isOpen,
   onClose,
   onDispatch,
+  onBackfill,
+  onCloseout,
   onEdit,
   onCancel,
   onMutated,
@@ -168,6 +172,9 @@ export function DetailPanel({
                 <Icon.Search />{' '}
                 {booking.openOffers.length > 0 ? 'Offer to more drivers' : 'Find a driver'}
               </button>
+              <button type="button" className="btn" onClick={onBackfill}>
+                <Icon.Person /> Hand to backfill
+              </button>
               <button type="button" className="btn" onClick={onEdit}>
                 <Icon.Pencil /> Edit
               </button>
@@ -180,6 +187,19 @@ export function DetailPanel({
       case 'assigned':
         return (
           <div className="dp-actions">
+            {booking.isBackfill && booking.backfillDriverName && booking.backfillDriverPhone ? (
+              <a
+                className="btn btn--primary btn--lg"
+                href={whatsappWebLink(
+                  booking.backfillDriverPhone,
+                  `Hi ${booking.backfillDriverName.split(' ')[0]}, about the ${passengerName(booking)} job…`,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Icon.Whatsapp /> Message backfill driver on WhatsApp
+              </a>
+            ) : null}
             {driver ? (
               <a
                 className="btn btn--primary btn--lg"
@@ -193,9 +213,11 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
-            <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
-              <Icon.Reset /> Driver pulled out — unassign
-            </button>
+            {!booking.isBackfill ? (
+              <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
+                <Icon.Reset /> Driver pulled out — unassign
+              </button>
+            ) : null}
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>
@@ -207,6 +229,16 @@ export function DetailPanel({
       case 'in_progress':
         return (
           <div className="dp-actions">
+            {booking.isBackfill ? (
+              <button
+                type="button"
+                className="btn btn--success btn--lg"
+                onClick={onCloseout}
+                disabled={isPending}
+              >
+                <Icon.Check /> Close out &amp; complete
+              </button>
+            ) : null}
             {driver ? (
               <a className="btn btn--primary btn--lg" href={`tel:${driver.whatsappNumber}`}>
                 <Icon.Phone /> Call driver
@@ -220,6 +252,11 @@ export function DetailPanel({
                 rel="noopener noreferrer"
               >
                 <Icon.Whatsapp /> Message
+              </a>
+            ) : null}
+            {booking.isBackfill && booking.backfillDriverPhone ? (
+              <a className="btn" href={`tel:${booking.backfillDriverPhone}`}>
+                <Icon.Phone /> Call backfill driver
               </a>
             ) : null}
           </div>
@@ -295,6 +332,7 @@ export function DetailPanel({
           <div className="dp-hero">
             <div className="dp-hero__lozenges">
               <StateLozenge state={booking.state} lg />
+              {booking.isBackfill ? <Lozenge tone="purple">BACKFILL</Lozenge> : null}
               {booking.flaggedAt ? (
                 <Lozenge tone="red">
                   <Icon.Flag style={{ width: 10, height: 10, marginRight: 4 }} />
@@ -464,7 +502,22 @@ export function DetailPanel({
               <div className="ir">
                 <div className="ir__k">Driver</div>
                 <div className="ir__v">
-                  {driver ? (
+                  {booking.isBackfill ? (
+                    <div className="ir__row">
+                      <Avatar
+                        name={booking.backfillDriverName ?? 'Backfill'}
+                        id={booking.id}
+                        size={22}
+                      />
+                      <span>{booking.backfillDriverName ?? 'Backfill driver'}</span>
+                      <Lozenge tone="purple">BACKFILL</Lozenge>
+                      {booking.backfillDriverPhone ? (
+                        <span className="ir__sub mono" style={{ marginLeft: 4 }}>
+                          {booking.backfillDriverPhone}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : driver ? (
                     <div className="ir__row">
                       <Avatar name={driver.name} id={driver.id} size={22} />
                       <span>{driver.name}</span>

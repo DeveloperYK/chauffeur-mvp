@@ -68,6 +68,9 @@ function toConsoleBooking(
     assignedOperatorId: b.assignedOperatorId,
     assignedDriverId: b.assignedDriverId,
     carForThisJob: b.carForThisJob,
+    isBackfill: b.isBackfill,
+    backfillDriverName: b.backfillDriverName,
+    backfillDriverPhone: b.backfillDriverPhone,
     carParkPence: b.carParkPence,
     waitingTimeMinutes: b.waitingTimeMinutes,
     waitingFee: (() => {

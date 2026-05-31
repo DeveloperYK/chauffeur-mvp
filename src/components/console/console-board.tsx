@@ -4,13 +4,15 @@ import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
+import { BackfillCloseoutModal } from './backfill-closeout-modal';
+import { BackfillModal } from './backfill-modal';
 import { CancelModal } from './cancel-modal';
 import { DetailPanel } from './detail-panel';
 import { DispatchModal } from './dispatch-modal';
 import { EditBookingModal } from './edit-booking-modal';
 import { fmtPrice, fmtTime, fmtTimeWithDay, passengerName, truncate } from './format';
 import { Icon } from './icons';
-import { COL_LABEL, StateLozenge, Tag } from './lozenge';
+import { COL_LABEL, Lozenge, StateLozenge, Tag } from './lozenge';
 import { NewBookingModal } from './new-booking-modal';
 import type { AssignmentWindow, ConsoleBooking, ConsoleDriver, ConsoleOperator } from './types';
 
@@ -60,6 +62,8 @@ export function ConsoleBoard({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
+  const [closeoutOpen, setCloseoutOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
@@ -92,6 +96,8 @@ export function ConsoleBoard({
         if (cancelOpen) setCancelOpen(false);
         else if (editOpen) setEditOpen(false);
         else if (dispatchOpen) setDispatchOpen(false);
+        else if (backfillOpen) setBackfillOpen(false);
+        else if (closeoutOpen) setCloseoutOpen(false);
         else if (newOpen) setNewOpen(false);
         else if (panelOpen) setPanelOpen(false);
       }
@@ -102,7 +108,7 @@ export function ConsoleBoard({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cancelOpen, editOpen, dispatchOpen, newOpen, panelOpen]);
+  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, closeoutOpen, newOpen, panelOpen]);
 
   const onSelect = (id: string) => {
     setSelectedId(id);
@@ -292,9 +298,16 @@ export function ConsoleBoard({
         isOpen={panelOpen}
         onClose={() => setPanelOpen(false)}
         onDispatch={() => setDispatchOpen(true)}
+        onBackfill={() => setBackfillOpen(true)}
+        onCloseout={() => setCloseoutOpen(true)}
         onEdit={() => setEditOpen(true)}
         onCancel={() => setCancelOpen(true)}
-        onMutated={(toast) => handleMutated(toast, toast.startsWith('Trip approved'))}
+        onMutated={(toast) =>
+          handleMutated(
+            toast,
+            toast.startsWith('Trip approved') || toast.startsWith('Backfill job'),
+          )
+        }
       />
 
       <DispatchModal
@@ -306,6 +319,26 @@ export function ConsoleBoard({
         onSent={(summary) => {
           setDispatchOpen(false);
           handleMutated(summary);
+        }}
+      />
+
+      <BackfillModal
+        booking={selected}
+        isOpen={backfillOpen}
+        onClose={() => setBackfillOpen(false)}
+        onHandedOff={(summary) => {
+          setBackfillOpen(false);
+          handleMutated(summary);
+        }}
+      />
+
+      <BackfillCloseoutModal
+        booking={selected}
+        isOpen={closeoutOpen}
+        onClose={() => setCloseoutOpen(false)}
+        onClosedOut={(summary) => {
+          setCloseoutOpen(false);
+          handleMutated(summary, true);
         }}
       />
 
@@ -389,7 +422,12 @@ function ListRow({
         {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
       </span>
       <span className="driver-cell">
-        {driver ? (
+        {b.isBackfill ? (
+          <>
+            <Lozenge tone="purple">BACKFILL</Lozenge>
+            <span style={{ marginLeft: 6 }}>{b.backfillDriverName ?? 'Backfill driver'}</span>
+          </>
+        ) : driver ? (
           <>
             <Avatar name={driver.name} id={driver.id} size={20} />
             {driver.name}
@@ -450,7 +488,12 @@ function BoardCard({
         <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
       </div>
       <div className="card__meta">
-        {driver ? (
+        {booking.isBackfill ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Lozenge tone="purple">BACKFILL</Lozenge>
+            <Tag>{booking.backfillDriverName ?? 'Backfill driver'}</Tag>
+          </span>
+        ) : driver ? (
           <Tag>{driver.name}</Tag>
         ) : booking.openOffers.length > 0 ? (
           <span

@@ -141,6 +141,16 @@ export const bookings = pgTable(
     carForThisJob: text('car_for_this_job'),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
 
+    // Backfill (subcontractor) driver — used when no internal driver is
+    // available and the operator hands the job to someone from the WhatsApp
+    // group. The booking moves through assigned → in_progress → completed with
+    // `assignedDriverId` null and these free-text fields recording who covered
+    // it. The car they bring reuses `carForThisJob`; only the driver's identity
+    // (name + phone) needs its own fields. See docs/shaping/backfill-drivers.
+    isBackfill: boolean('is_backfill').notNull().default(false),
+    backfillDriverName: text('backfill_driver_name'),
+    backfillDriverPhone: text('backfill_driver_phone'),
+
     // Completion form (filled by driver)
     carParkPence: integer('car_park_pence'),
     waitingTimeMinutes: integer('waiting_time_minutes'),

@@ -23,6 +23,7 @@ import { type Page, expect, test } from '@playwright/test';
 
 const LEGO = 'Eric French'; // LEGO Group booking — the one we walk through
 const MERC = 'Martin Finch'; // Mercedes-Benz UK booking — the one we cancel
+const JJ = 'Sophia Lefevre'; // Johnson & Johnson booking — the backfill-driver arm
 
 test.describe.configure({ mode: 'serial' });
 
@@ -172,4 +173,64 @@ test('booking moves through every stage via the simulator + console', async ({ p
 
   await gotoSimulator(page);
   await expectSimState(page, MERC, 'Cancelled');
+});
+
+test('backfill driver: hand off → clock en-route → operator close-out', async ({ page }) => {
+  // Fresh data so the J&J booking starts unassigned regardless of the prior arm.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+  await expectSimState(page, JJ, 'Unassigned');
+
+  // Bring it onto today's board so we can open it from the console.
+  await row(page, JJ).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
+
+  // ── Console: hand to a backfill (subcontractor) driver ───────
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Hand to backfill' }).click();
+  const bfModal = page.locator('.modal.is-open');
+  await expect(bfModal).toBeVisible();
+  await bfModal.getByPlaceholder('e.g. Dave Smith').fill('Dave Smith');
+  await bfModal.getByPlaceholder('e.g. +44 7911 123456').fill('+44 7911 123456');
+  await bfModal.getByPlaceholder('e.g. BMW 5 Series').fill('BMW 5 Series');
+  await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
+  await expect(page.locator('.toast')).toContainText(/backfill/i);
+
+  // → Assigned, flagged as backfill (no internal driver committed).
+  await gotoSimulator(page);
+  await expectSimState(page, JJ, 'Assigned');
+
+  // ── Clock: assigned → in_progress, en-route SMS naming the backfill driver ─
+  await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
+  await expectSimState(page, JJ, 'In progress');
+  await expect(page.getByText('No SMS yet.')).toHaveCount(0);
+
+  // ── Clock guard: a finished backfill trip must NOT auto-advance to the
+  //    driver form — it stays in_progress for the operator to close out. ──
+  await row(page, JJ).locator('select[name="scenario"]').selectOption('trip_finished');
+  await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
+  await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
+  await expectSimState(page, JJ, 'In progress');
+
+  // ── Console: operator close-out → completed (skips the driver-form states) ─
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Close out & complete/i })
+    .click();
+  const coModal = page.locator('.modal.is-open');
+  await expect(coModal).toBeVisible();
+  await coModal.getByRole('button', { name: 'Complete booking' }).click();
+  await expect(page.locator('.toast')).toContainText(/completed/i);
+
+  await gotoSimulator(page);
+  await expectSimState(page, JJ, 'Completed');
 });

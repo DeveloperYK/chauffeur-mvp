@@ -19,6 +19,11 @@ export async function mirrorBooking(
       .where(eq(drivers.id, booking.assignedDriverId))
       .limit(1);
     driver = rows[0] ?? null;
+  } else if (booking.isBackfill && booking.backfillDriverName) {
+    // A backfill job has no `drivers` row — surface the operator-entered
+    // subcontractor name in the sheet's Driver Name column so the billing
+    // record still shows who covered the trip.
+    driver = { name: booking.backfillDriverName } as typeof drivers.$inferSelect;
   }
 
   let operator = null;

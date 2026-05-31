@@ -72,4 +72,21 @@ describe('services/bookings-query listBillableBookings (integration)', () => {
     await seed({ pickupAt: new Date('2026-06-10T09:00:00.000Z') });
     expect(await listBillableBookings(db, 'nonsense')).toEqual([]);
   });
+
+  it('includes completed backfill bookings (no internal driver) in the billable set', async () => {
+    await seed({
+      pickupAt: new Date('2026-06-12T09:00:00.000Z'),
+      assignedDriverId: null,
+      isBackfill: true,
+      backfillDriverName: 'Dave Smith',
+      backfillDriverPhone: '+447911123456',
+      carForThisJob: 'BMW 5 Series',
+      carParkPence: 500,
+      waitingTimeMinutes: 20,
+    });
+    const rows = await listBillableBookings(db, '2026-06');
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.isBackfill).toBe(true);
+    expect(rows[0]?.assignedDriverId).toBeNull();
+  });
 });
