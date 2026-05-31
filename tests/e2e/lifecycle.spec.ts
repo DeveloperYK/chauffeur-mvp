@@ -103,7 +103,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   if ((await freeRows.count()) > 1) await freeRows.nth(1).click();
   await dispatchModal.getByRole('button', { name: /Offer to \d+ driver/ }).click();
   // Fan-out list: one row per offered driver, each carrying its own link.
-  const offerRows = dispatchModal.locator('.driver-row[data-link]');
+  const offerRows = dispatchModal.locator('.offer-row[data-link]');
   await expect(offerRows.first()).toBeVisible();
   const linkUrl = (await offerRows.first().getAttribute('data-link'))?.trim();
   expect(linkUrl, 'expected a dispatch link in the fan-out list').toBeTruthy();

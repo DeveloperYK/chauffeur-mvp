@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
+import { lapseOpenOffers } from './offers';
 
 export const cancelBookingSchema = z
   .object({
@@ -83,6 +84,10 @@ export async function cancelBooking(
     before: { state: existing.state },
     after: { state: updated.state, reason },
   });
+
+  // A cancelled booking is no longer on offer to anyone — lapse any open offers
+  // so they stop showing as "awaiting" in the console.
+  await lapseOpenOffers(deps.db, bookingId, now);
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 

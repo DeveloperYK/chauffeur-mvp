@@ -1,5 +1,6 @@
 'use server';
 
+import { parseMonthString } from '@/lib/dates';
 import { logger } from '@/lib/logger';
 import { currentSession } from '@/server/auth/current';
 import {
@@ -10,6 +11,7 @@ import {
   spreadsheetMirror,
 } from '@/server/composition';
 import { listBookingHistory } from '@/server/services/activity';
+import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
   approveBooking,
@@ -275,4 +277,20 @@ export async function bookingHistoryAction(bookingId: string): Promise<HistoryEn
     logger.error({ err: error }, 'Failed to load booking history');
     return [];
   }
+}
+
+/**
+ * Per-day booking counts for a calendar month (YYYY-MM), so the calendar popover
+ * can render its day badges for a month the operator pages to without a full
+ * server navigation. Returns an empty map for an unauthenticated request or a
+ * malformed month.
+ */
+export async function dayCountsAction(month: string): Promise<Record<string, DayCounts>> {
+  const op = await requireOperator();
+  if (!op) return {};
+  if (!parseMonthString(month)) return {};
+  const map = await monthlyDayCounts(db(), month);
+  const out: Record<string, DayCounts> = {};
+  for (const [day, c] of map.entries()) out[day] = c;
+  return out;
 }

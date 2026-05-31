@@ -24,6 +24,7 @@ import {
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
+import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -41,7 +42,10 @@ const SAVED_VIEW_STATE: Record<string, BookingState> = {
 
 const UNASSIGNED = 'unassigned';
 
-function toConsoleBooking(b: Booking): ConsoleBooking {
+function toConsoleBooking(
+  b: Booking,
+  openOffers: { driverId: string; driverName: string }[] = [],
+): ConsoleBooking {
   return {
     id: b.id,
     seq: b.seq,
@@ -78,6 +82,7 @@ function toConsoleBooking(b: Booking): ConsoleBooking {
     cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
     cancellationReason: b.cancellationReason,
     flaggedAt: b.flaggedAt ? b.flaggedAt.toISOString() : null,
+    openOffers,
   };
 }
 
@@ -220,8 +225,15 @@ export default async function DashboardHome({
   // span days, so they never count as "past".
   const isPast = !savedView && selectedDay < today;
 
+  // Open dispatch offers for the unassigned bookings on screen, so each card can
+  // show "Offered to N · awaiting". Only unassigned bookings can have open offers.
+  const unassignedIds = filtered.filter((b) => b.state === 'unassigned').map((b) => b.id);
+  const offersByBooking = await openOffersForBookings(db, unassignedIds);
+
   // Serialize for the client console shell.
-  const consoleBookings: ConsoleBooking[] = filtered.map(toConsoleBooking);
+  const consoleBookings: ConsoleBooking[] = filtered.map((b) =>
+    toConsoleBooking(b, offersByBooking.get(b.id) ?? []),
+  );
   const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
     id: d.id,
     name: d.name,

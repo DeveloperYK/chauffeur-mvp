@@ -19,6 +19,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
+import { recordDispatchOffer, resolveOffersOnAccept } from './offers';
 import { createShortLink } from './short-links';
 import { assignedSms, dispatchSms, unassignedSms } from './sms-templates';
 
@@ -96,6 +97,14 @@ async function mintDispatchLinkFor(
     before: null,
     after: { driverId: driver.id, jti },
   });
+
+  // Persist the offer so the console can show "Offered to N · awaiting" and so
+  // the fan-out can be resolved (winner accepted, rest lapsed) on first accept.
+  await recordDispatchOffer(
+    deps.db,
+    { bookingId: booking.id, driverId: driver.id, jti },
+    clock.now(),
+  );
 
   return { driver, url, shortUrl, whatsappUrl };
 }
@@ -272,6 +281,10 @@ export async function acceptDispatchLink(
     before: { state: booking.state },
     after: { state: updated.state, driverId: driver.id, carForJob },
   });
+
+  // Resolve the fan-out: this driver's offer is accepted, any other open offers
+  // on the booking lapse (the operator's console clears its "awaiting" count).
+  await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
 
   // Side effect: SMS exec
   await deps.notifications.sendSms({

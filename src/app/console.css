@@ -787,6 +787,15 @@ a:hover {
   height: 11px;
   opacity: 0.7;
 }
+/* Unassigned card tag: a job already fanned out to drivers, awaiting a reply */
+.tag.tag--offered {
+  background: var(--lz-blue-bg);
+  color: var(--lz-blue-fg);
+  border-color: var(--lz-blue-fg);
+}
+.tag.tag--offered .icon {
+  opacity: 1;
+}
 
 /* Priority indicator */
 .prio {
@@ -3289,27 +3298,50 @@ a:hover {
   text-align: center;
 }
 
-.dispatch-hint {
+/* Minted fan-out rows: avatar + name on the left, copy + WhatsApp on the right.
+   Plain flex (not the 4-col .driver-row grid) so the WhatsApp button keeps its
+   natural width instead of being crushed into a fixed column. */
+.offer-row {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: var(--r);
-  font-size: 11.5px;
-  color: var(--ink-3);
-  line-height: 1.4;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  margin-bottom: 6px;
 }
-.dispatch-hint .icon {
-  color: var(--ink-4);
-  margin-top: 1px;
+.offer-row__who {
+  flex: 1;
+  min-width: 0;
+}
+.offer-row__name {
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+}
+.offer-row__status {
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+.offer-row__sent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--lz-green-fg);
+  font-weight: 500;
+}
+.offer-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
 }
-.dispatch-hint strong {
-  color: var(--ink);
-  font-weight: 600;
+/* Square icon-only button matching .btn height, for the copy action */
+.btn.btn--icon {
+  padding: 0;
+  width: 30px;
+  justify-content: center;
 }
 
 .link-warning {
@@ -3448,6 +3480,35 @@ a:hover {
 }
 
 /* PRIMARY ACTION row — clear hierarchy: primary big, secondary small */
+/* "Offered to N · awaiting" strip above the unassigned panel actions */
+.dp-offered {
+  margin: 0 24px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--lz-blue-bg);
+  border: 1px solid var(--lz-blue-fg);
+  border-radius: var(--r);
+  font-size: 12px;
+  color: var(--lz-blue-fg);
+}
+.dp-offered .icon {
+  flex: 0 0 auto;
+}
+.dp-offered strong {
+  font-weight: 700;
+}
+.dp-offered__names {
+  margin-left: auto;
+  font-size: 11.5px;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
 .dp-actions {
   padding: 0 24px 18px;
   display: flex;

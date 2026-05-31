@@ -57,6 +57,13 @@
       "when": 1779735000000,
       "tag": "0007_add_short_links",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0008_add_dispatch_offers",
+      "breakpoints": true
     }
   ]
 }

@@ -82,6 +82,10 @@ export function DispatchModal({
 
   if (!booking) return null;
 
+  // Drivers already sitting on an open offer for this booking (operator sent a
+  // link, no reply yet). Marked in the picker so they aren't re-offered blindly.
+  const offeredIds = new Set(booking.openOffers.map((o) => o.driverId));
+
   const toggle = (driverId: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -209,14 +213,6 @@ export function DispatchModal({
                 </span>
               </div>
 
-              <div className="dispatch-hint">
-                <Icon.Question style={{ width: 12, height: 12 }} />
-                <span>
-                  Tick everyone you want to offer this job to — each gets their own link. The{' '}
-                  <strong>first to accept</strong> gets it; the rest are turned away automatically.
-                </span>
-              </div>
-
               <div style={{ maxHeight: 380, overflowY: 'auto', padding: 1 }}>
                 {visible.length === 0 ? (
                   <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-4)' }}>
@@ -277,7 +273,9 @@ export function DispatchModal({
                         </span>
                       </div>
                       <div className="driver-row__avail">
-                        {d.busy ? (
+                        {offeredIds.has(d.id) ? (
+                          <Lozenge tone="blue">OFFERED</Lozenge>
+                        ) : d.busy ? (
                           <Lozenge tone="red">BUSY</Lozenge>
                         ) : (
                           <Lozenge tone="green">FREE</Lozenge>
@@ -297,8 +295,6 @@ export function DispatchModal({
                 <span className="muted" style={{ fontSize: 12 }}>
                   — send each driver theirs on WhatsApp.
                 </span>
-                <span style={{ flex: 1 }} />
-                <Lozenge tone="green">FIRST TO ACCEPT WINS</Lozenge>
               </div>
 
               {skippedCount > 0 ? (
@@ -310,42 +306,39 @@ export function DispatchModal({
 
               <div style={{ maxHeight: 360, overflowY: 'auto', padding: 1 }}>
                 {offers.map((o) => (
-                  <div
-                    key={o.driverId}
-                    className="driver-row"
-                    style={{ cursor: 'default' }}
-                    data-link={o.url}
-                    aria-disabled
-                  >
+                  <div key={o.driverId} className="offer-row" data-link={o.url}>
                     <Avatar name={o.driverName} id={o.driverId} size={32} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="driver-row__name">{o.driverName}</div>
-                      <div className="driver-row__meta">
+                    <div className="offer-row__who">
+                      <div className="offer-row__name">{o.driverName}</div>
+                      <div className="offer-row__status">
                         {opened.has(o.driverId) ? (
-                          <span style={{ color: 'var(--accent, #2e7d32)' }}>✓ Sent</span>
+                          <span className="offer-row__sent">
+                            <Icon.Check style={{ width: 11, height: 11 }} /> Sent
+                          </span>
                         ) : (
                           <span className="muted">Not sent yet</span>
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      style={{ width: 28, height: 28 }}
-                      title={copiedId === o.driverId ? 'Copied' : 'Copy link'}
-                      onClick={() => copyLink(o)}
-                    >
-                      <Icon.Copy style={{ width: 13, height: 13 }} />
-                    </button>
-                    <a
-                      className="btn btn--primary"
-                      href={o.whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => markOpened(o.driverId)}
-                    >
-                      <Icon.Whatsapp /> WhatsApp
-                    </a>
+                    <div className="offer-row__actions">
+                      <button
+                        type="button"
+                        className="btn btn--icon"
+                        title={copiedId === o.driverId ? 'Copied' : 'Copy link'}
+                        onClick={() => copyLink(o)}
+                      >
+                        <Icon.Copy style={{ width: 13, height: 13 }} />
+                      </button>
+                      <a
+                        className="btn btn--primary"
+                        href={o.whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => markOpened(o.driverId)}
+                      >
+                        <Icon.Whatsapp /> WhatsApp
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
