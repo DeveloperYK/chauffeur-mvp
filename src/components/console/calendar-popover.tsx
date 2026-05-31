@@ -1,5 +1,6 @@
 'use client';
 
+import { dayCountsAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { calendarGrid, formatLondonMonthLong, londonTodayString, offsetMonth } from '@/lib/dates';
 import type { DayCounts } from '@/server/services/bookings-query';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,9 +20,30 @@ export function CalendarPopover({ selectedDay, visibleMonth, counts }: Props) {
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(visibleMonth);
+  // Counts cached per month (YYYY-MM). Seeded with the server-rendered month;
+  // other months are lazy-loaded when the operator pages to them, so the day
+  // badges show without a full navigation.
+  const [countsByMonth, setCountsByMonth] = useState<Record<string, Record<string, DayCounts>>>({
+    [visibleMonth]: counts,
+  });
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMonth(visibleMonth), [visibleMonth]);
+  // Keep the server-rendered month's counts fresh (e.g. after a mutation).
+  useEffect(() => {
+    setCountsByMonth((prev) => ({ ...prev, [visibleMonth]: counts }));
+  }, [visibleMonth, counts]);
+  // Lazy-load counts for whatever month is on screen if we don't have them yet.
+  useEffect(() => {
+    if (countsByMonth[month]) return;
+    let cancelled = false;
+    dayCountsAction(month).then((c) => {
+      if (!cancelled) setCountsByMonth((prev) => ({ ...prev, [month]: c }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, countsByMonth]);
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -51,6 +73,7 @@ export function CalendarPopover({ selectedDay, visibleMonth, counts }: Props) {
   };
 
   const days = calendarGrid(month);
+  const monthCounts = countsByMonth[month] ?? {};
 
   return (
     <div className="cal-pop" ref={ref}>
@@ -91,7 +114,7 @@ export function CalendarPopover({ selectedDay, visibleMonth, counts }: Props) {
                 const inMonth = day.startsWith(month);
                 const isToday = day === today;
                 const isSelected = day === selectedDay;
-                const c = counts[day];
+                const c = monthCounts[day];
                 const dayNum = Number(day.slice(8, 10));
                 return (
                   <button

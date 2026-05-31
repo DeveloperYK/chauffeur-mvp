@@ -303,9 +303,9 @@ export function ConsoleBoard({
         assignments={assignments}
         isOpen={dispatchOpen}
         onClose={() => setDispatchOpen(false)}
-        onSent={(driverName) => {
+        onSent={(summary) => {
           setDispatchOpen(false);
-          handleMutated(`Dispatch link ready for ${driverName.split(' ')[0]}.`);
+          handleMutated(summary);
         }}
       />
 
@@ -450,7 +450,19 @@ function BoardCard({
         <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
       </div>
       <div className="card__meta">
-        {driver ? <Tag>{driver.name}</Tag> : <span className="tag">No driver yet</span>}
+        {driver ? (
+          <Tag>{driver.name}</Tag>
+        ) : booking.openOffers.length > 0 ? (
+          <span
+            className="tag tag--offered"
+            title={booking.openOffers.map((o) => o.driverName).join(', ')}
+          >
+            <Icon.Send style={{ width: 10, height: 10 }} /> Offered to {booking.openOffers.length} ·
+            awaiting
+          </span>
+        ) : (
+          <span className="tag">No driver yet</span>
+        )}
         <span className="card__meta-right">
           {operator ? (
             <Avatar

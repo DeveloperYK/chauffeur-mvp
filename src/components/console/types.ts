@@ -45,6 +45,12 @@ export interface ConsoleBooking {
   cancelledAt: string | null;
   cancellationReason: string | null;
   flaggedAt: string | null;
+  /**
+   * Drivers with an open (awaiting) dispatch offer on this booking — the
+   * operator has sent them a link but none has accepted yet. Empty unless the
+   * booking is unassigned. Drives the "Offered to N · awaiting" badge.
+   */
+  openOffers: { driverId: string; driverName: string }[];
 }
 
 export interface ConsoleDriver {

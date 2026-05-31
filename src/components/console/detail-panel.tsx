@@ -143,17 +143,39 @@ export function DetailPanel({
     switch (booking.state) {
       case 'unassigned':
         return (
-          <div className="dp-actions">
-            <button type="button" className="btn btn--primary btn--lg" onClick={onDispatch}>
-              <Icon.Search /> Find a driver
-            </button>
-            <button type="button" className="btn" onClick={onEdit}>
-              <Icon.Pencil /> Edit
-            </button>
-            <button type="button" className="btn btn--danger" onClick={onCancel}>
-              Cancel
-            </button>
-          </div>
+          <>
+            {booking.openOffers.length > 0 ? (
+              <div
+                className="dp-offered"
+                title={booking.openOffers.map((o) => o.driverName).join(', ')}
+              >
+                <Icon.Send style={{ width: 13, height: 13 }} />
+                <span>
+                  Offered to <strong>{booking.openOffers.length}</strong> driver
+                  {booking.openOffers.length === 1 ? '' : 's'} · awaiting a reply
+                </span>
+                <span className="dp-offered__names">
+                  {booking.openOffers
+                    .map((o) => o.driverName.split(' ')[0])
+                    .slice(0, 4)
+                    .join(', ')}
+                  {booking.openOffers.length > 4 ? '…' : ''}
+                </span>
+              </div>
+            ) : null}
+            <div className="dp-actions">
+              <button type="button" className="btn btn--primary btn--lg" onClick={onDispatch}>
+                <Icon.Search />{' '}
+                {booking.openOffers.length > 0 ? 'Offer to more drivers' : 'Find a driver'}
+              </button>
+              <button type="button" className="btn" onClick={onEdit}>
+                <Icon.Pencil /> Edit
+              </button>
+              <button type="button" className="btn btn--danger" onClick={onCancel}>
+                Cancel
+              </button>
+            </div>
+          </>
         );
       case 'assigned':
         return (

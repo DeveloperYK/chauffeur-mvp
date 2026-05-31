@@ -87,7 +87,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Unassigned');
 
-  // Re-dispatch a new driver through the standard flow and accept the link.
+  // Re-dispatch via the multi-select fan-out: tick two free drivers, offer to
+  // both (each gets its own link), then accept one — first-to-accept wins.
   await page.goto('/dashboard', { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
@@ -95,16 +96,22 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
   const dispatchModal = page.locator('.modal.is-open');
   await expect(dispatchModal).toBeVisible();
-  await expect(dispatchModal).toContainText('Find a driver');
-  await dispatchModal.locator('.driver-row:not(.is-busy)').first().click();
-  await dispatchModal.getByRole('button', { name: /Generate link/i }).click();
-  await expect(dispatchModal.locator('.dispatch-result')).toBeVisible();
-  const linkUrl = (
-    await dispatchModal.locator('.dispatch-result__url span').first().textContent()
-  )?.trim();
-  expect(linkUrl, 'expected a dispatch link in the modal').toBeTruthy();
+  await expect(dispatchModal).toContainText('Find drivers');
+  // Select up to two free drivers (checklist multi-select).
+  const freeRows = dispatchModal.locator('.driver-row:not(.is-busy)');
+  await freeRows.first().click();
+  if ((await freeRows.count()) > 1) await freeRows.nth(1).click();
+  await dispatchModal.getByRole('button', { name: /Offer to \d+ driver/ }).click();
+  // Fan-out list: one row per offered driver, each carrying its own link.
+  const offerRows = dispatchModal.locator('.offer-row[data-link]');
+  await expect(offerRows.first()).toBeVisible();
+  const linkUrl = (await offerRows.first().getAttribute('data-link'))?.trim();
+  expect(linkUrl, 'expected a dispatch link in the fan-out list').toBeTruthy();
+  // Drive the driver-side accept by opening one driver's link.
   await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Accept job' }).click();
+  // Wait for the accept to land (driver sees the confirmation) before re-checking.
+  await expect(page.getByRole('heading', { name: 'Job accepted' })).toBeVisible();
 
   // New driver accepted → back to assigned.
   await gotoSimulator(page);

@@ -5,6 +5,7 @@ import {
   acceptDispatchLink,
   declineDispatchLink,
   generateDispatchLink,
+  generateDispatchLinks,
   previewDispatchLink,
   releaseDriver,
 } from '@/server/services/dispatch';
@@ -365,5 +366,130 @@ describe('services/dispatch (integration)', () => {
     const r = await previewDispatchLink(token, { db, clock, secret: SECRET, appUrl: APP_URL });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('token_consumed');
+  });
+
+  // -----------------------------------------------------------------------
+  // Multi-driver fan-out: offer one open job to several drivers at once.
+  // Each driver gets their own per-driver link; first to accept wins (the
+  // existing atomic gate handles that). Minting stays side-effect-free.
+  // -----------------------------------------------------------------------
+  describe('generateDispatchLinks (multi-driver fan-out)', () => {
+    let driver2: string;
+    let driver3: string;
+
+    beforeEach(async () => {
+      const [d2] = await db
+        .insert(drivers)
+        .values({
+          name: 'Marcus',
+          tier: 'premium',
+          defaultCarType: 'mpv',
+          whatsappNumber: '+447911000002',
+        })
+        .returning();
+      driver2 = d2?.id ?? '';
+      const [d3] = await db
+        .insert(drivers)
+        .values({
+          name: 'Priya',
+          tier: 'ordinary',
+          defaultCarType: 'saloon',
+          whatsappNumber: '+447911000003',
+        })
+        .returning();
+      driver3 = d3?.id ?? '';
+    });
+
+    it('mints one per-driver link for each selected driver, side-effect-free', async () => {
+      const r = await generateDispatchLinks(
+        bookingId,
+        [driverId, driver2, driver3],
+        operatorId,
+        deps(),
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.offers.map((o) => o.driver.id).sort()).toEqual([driverId, driver2, driver3].sort());
+      // Each offer carries its own link + a WhatsApp deep link for that driver.
+      for (const o of r.offers) {
+        expect(o.url.startsWith(`${APP_URL}/j/`)).toBe(true);
+        expect(o.whatsappUrl).toContain(o.driver.whatsappNumber.replace('+', ''));
+      }
+      // The booking stays unassigned — minting commits no driver.
+      const [b] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+      expect(b?.state).toBe('unassigned');
+      expect(b?.assignedDriverId).toBeNull();
+      // No SMS on mint.
+      expect(notifications.sent.length).toBe(0);
+      // One dispatch_link_generated audit row per driver.
+      const events = await db.select().from(auditEvents);
+      expect(events.filter((e) => e.action === 'dispatch_link_generated').length).toBe(3);
+    });
+
+    it('the per-driver links are distinct and independently acceptable (first wins)', async () => {
+      const r = await generateDispatchLinks(bookingId, [driverId, driver2], operatorId, deps());
+      if (!r.ok) throw new Error('setup');
+      const tokens = r.offers.map((o) => new URL(o.url).pathname.split('/').pop() ?? '');
+      expect(new Set(tokens).size).toBe(2);
+
+      // First driver accepts → assigned to them.
+      const acc1 = await acceptDispatchLink({ token: tokens[0] as string }, deps());
+      expect(acc1.ok).toBe(true);
+      // Second driver's link now fails — job no longer open.
+      const acc2 = await acceptDispatchLink({ token: tokens[1] as string }, deps());
+      expect(acc2.ok).toBe(false);
+      if (!acc2.ok) expect(acc2.reason).toBe('wrong_state');
+    });
+
+    it('skips inactive and unknown drivers, mints for the rest', async () => {
+      await db.update(drivers).set({ active: false }).where(eq(drivers.id, driver2));
+      const unknown = '00000000-0000-0000-0000-0000000000aa';
+      const r = await generateDispatchLinks(
+        bookingId,
+        [driverId, driver2, unknown],
+        operatorId,
+        deps(),
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.offers.map((o) => o.driver.id)).toEqual([driverId]);
+      expect(r.skipped).toEqual(
+        expect.arrayContaining([
+          { driverId: driver2, reason: 'driver_inactive' },
+          { driverId: unknown, reason: 'driver_not_found' },
+        ]),
+      );
+    });
+
+    it('dedupes repeated driver ids', async () => {
+      const r = await generateDispatchLinks(bookingId, [driverId, driverId], operatorId, deps());
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.offers.length).toBe(1);
+    });
+
+    it('rejects an empty driver list', async () => {
+      const r = await generateDispatchLinks(bookingId, [], operatorId, deps());
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('no_drivers');
+    });
+
+    it('refuses when the booking is not unassigned', async () => {
+      await db.update(bookings).set({ state: 'assigned' }).where(eq(bookings.id, bookingId));
+      const r = await generateDispatchLinks(bookingId, [driverId], operatorId, deps());
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('wrong_state');
+    });
+
+    it('refuses an unknown booking', async () => {
+      const r = await generateDispatchLinks(
+        '00000000-0000-0000-0000-0000000000bb',
+        [driverId],
+        operatorId,
+        deps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('booking_not_found');
+    });
   });
 });

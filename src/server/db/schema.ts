@@ -32,6 +32,13 @@ export const driverTierEnum = pgEnum('driver_tier', ['premium', 'ordinary']);
 
 export const actorTypeEnum = pgEnum('actor_type', ['operator', 'system', 'driver']);
 
+// Lifecycle of a single dispatch offer (one minted link to one driver):
+//   open     — link minted and sent, no resolution yet
+//   accepted — this driver accepted the job (the winner of the fan-out)
+//   lapsed   — superseded: another driver accepted, the booking was cancelled,
+//              or the same driver was re-offered (a fresh open row replaces it)
+export const offerStatusEnum = pgEnum('offer_status', ['open', 'accepted', 'lapsed']);
+
 // How the job is sold: a point-to-point `transfer` (price/time derived from the
 // route) or `hourly` as-directed hire (price from booked hours, no destination).
 export const serviceTypeEnum = pgEnum('service_type', ['transfer', 'hourly']);
@@ -194,6 +201,34 @@ export const consumedTokens = pgTable('consumed_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
 
+// Dispatch offers — one row per minted dispatch link (one driver, one booking).
+// When an operator fans a job out to several drivers, each gets an `open` offer.
+// The first to accept turns their row `accepted` and lapses the rest; cancelling
+// the booking lapses any still-open. Lets the console show "Offered to N ·
+// awaiting" without re-deriving it from the audit log.
+export const dispatchOffers = pgTable(
+  'dispatch_offers',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    driverId: uuid('driver_id')
+      .notNull()
+      .references(() => drivers.id, { onDelete: 'restrict' }),
+    // The signed link's jti, so an offer can be tied back to its token/audit row.
+    jti: text('jti').notNull(),
+    status: offerStatusEnum('status').notNull().default('open'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Set when the offer leaves `open` (accepted or lapsed).
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('dispatch_offers_booking_idx').on(t.bookingId),
+    index('dispatch_offers_booking_status_idx').on(t.bookingId, t.status),
+  ],
+);
+
 // Branded short links (/s/<code> -> destination) used in driver/exec messages
 // instead of the long signed /j/<token> URLs. The token still gates access;
 // the code is an opaque lookup key.
@@ -223,3 +258,6 @@ export type Booking = typeof bookings.$inferSelect;
 export type NewBooking = typeof bookings.$inferInsert;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type NewAuditEvent = typeof auditEvents.$inferInsert;
+export type OfferStatus = (typeof offerStatusEnum.enumValues)[number];
+export type DispatchOffer = typeof dispatchOffers.$inferSelect;
+export type NewDispatchOffer = typeof dispatchOffers.$inferInsert;
