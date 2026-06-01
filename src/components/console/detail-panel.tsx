@@ -13,6 +13,7 @@ import { bookingRef } from '@/lib/booking-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
+import { type CompletionLink, CompletionLinkModal } from './completion-link-modal';
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
 import { Icon } from './icons';
 import { Lozenge, StateLozenge, Tag } from './lozenge';
@@ -48,9 +49,7 @@ export function DetailPanel({
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [completionLink, setCompletionLink] = useState<{ url: string; whatsappUrl: string } | null>(
-    null,
-  );
+  const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -362,39 +361,6 @@ export function DetailPanel({
           {/* PRIMARY ACTIONS */}
           {renderActions()}
 
-          {/* Minted completion link — open to test, or send to the driver */}
-          {completionLink ? (
-            <div className="dispatch-result" style={{ marginTop: 4 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-                Completion link ready — open it to test, or send it to the driver.
-              </div>
-              <div className="dispatch-result__url">
-                <Icon.Link style={{ width: 14, height: 14 }} />
-                <span>{completionLink.url}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <a
-                  className="btn"
-                  style={{ flex: 1 }}
-                  href={completionLink.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Icon.ArrowRight /> Open link (test)
-                </a>
-                <a
-                  className="btn btn--primary"
-                  style={{ flex: 1 }}
-                  href={completionLink.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Icon.Whatsapp /> Message driver on WhatsApp
-                </a>
-              </div>
-            </div>
-          ) : null}
-
           {/* TRIP */}
           <section className="ic">
             <header className="ic__head">
@@ -655,6 +621,15 @@ export function DetailPanel({
           </section>
         </div>
       </aside>
+
+      {/* Rendered outside the transformed .panel so its fixed positioning is
+          relative to the viewport, not the slide-over. */}
+      <CompletionLinkModal
+        booking={booking}
+        driverName={contact?.name ?? null}
+        link={completionLink}
+        onClose={() => setCompletionLink(null)}
+      />
     </>
   );
 }

@@ -226,10 +226,10 @@ test('backfill driver: hand off → clock → driver completion form → approve
     .locator('.panel.is-open')
     .getByRole('button', { name: 'Generate completion link' })
     .click();
-  const completionLink = page.locator('.panel.is-open .dispatch-result__url span');
+  const completionLink = page.locator('.modal.is-open .dispatch-result__url span');
   await expect(completionLink).toBeVisible();
   const completionUrl = (await completionLink.textContent())?.trim();
-  expect(completionUrl, 'expected a completion link in the panel').toBeTruthy();
+  expect(completionUrl, 'expected a completion link in the popup').toBeTruthy();
 
   // ── Backfill driver fills out the same completion form via the link ──
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
