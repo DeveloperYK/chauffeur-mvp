@@ -26,6 +26,7 @@ interface DetailPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onDispatch: () => void;
+  onBackfill: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onMutated: (toast: string) => void;
@@ -39,6 +40,7 @@ export function DetailPanel({
   isOpen,
   onClose,
   onDispatch,
+  onBackfill,
   onEdit,
   onCancel,
   onMutated,
@@ -75,6 +77,14 @@ export function DetailPanel({
   const driver = booking.assignedDriverId
     ? drivers.find((d) => d.id === booking.assignedDriverId)
     : null;
+  // Whoever is driving this job, internal or backfill — so the post-assignment
+  // actions (call / message) are identical regardless. Backfill jobs have no
+  // Driver row, just the operator-entered name + phone on the booking.
+  const contact: { name: string; phone: string } | null = driver
+    ? { name: driver.name, phone: driver.whatsappNumber }
+    : booking.isBackfill && booking.backfillDriverName && booking.backfillDriverPhone
+      ? { name: booking.backfillDriverName, phone: booking.backfillDriverPhone }
+      : null;
   const assignee = booking.assignedOperatorId
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
@@ -168,6 +178,9 @@ export function DetailPanel({
                 <Icon.Search />{' '}
                 {booking.openOffers.length > 0 ? 'Offer to more drivers' : 'Find a driver'}
               </button>
+              <button type="button" className="btn" onClick={onBackfill}>
+                <Icon.Person /> Hand to backfill
+              </button>
               <button type="button" className="btn" onClick={onEdit}>
                 <Icon.Pencil /> Edit
               </button>
@@ -180,12 +193,12 @@ export function DetailPanel({
       case 'assigned':
         return (
           <div className="dp-actions">
-            {driver ? (
+            {contact ? (
               <a
                 className="btn btn--primary btn--lg"
                 href={whatsappWebLink(
-                  driver.whatsappNumber,
-                  `Hi ${driver.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
+                  contact.phone,
+                  `Hi ${contact.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -207,21 +220,29 @@ export function DetailPanel({
       case 'in_progress':
         return (
           <div className="dp-actions">
-            {driver ? (
-              <a className="btn btn--primary btn--lg" href={`tel:${driver.whatsappNumber}`}>
+            {contact ? (
+              <a className="btn btn--primary btn--lg" href={`tel:${contact.phone}`}>
                 <Icon.Phone /> Call driver
               </a>
             ) : null}
-            {driver ? (
+            {contact ? (
               <a
                 className="btn"
-                href={whatsappWebLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
+                href={whatsappWebLink(contact.phone, `Hi ${contact.name.split(' ')[0]}…`)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Whatsapp /> Message
+                <Icon.Whatsapp /> Message driver
               </a>
             ) : null}
+            <a
+              className="btn"
+              href={`sms:${booking.execMobile}?body=${encodeURIComponent(
+                `Hi, an update on your ${passengerName(booking)} booking…`,
+              )}`}
+            >
+              <Icon.Send /> Message passenger (SMS)
+            </a>
           </div>
         );
       case 'awaiting_driver_form':
@@ -235,12 +256,12 @@ export function DetailPanel({
             >
               <Icon.Send /> {isPending ? 'Generating…' : 'Generate completion link'}
             </button>
-            {driver ? (
+            {contact ? (
               <a
                 className="btn"
                 href={whatsappWebLink(
-                  driver.whatsappNumber,
-                  `Hi ${driver.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
+                  contact.phone,
+                  `Hi ${contact.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -295,6 +316,7 @@ export function DetailPanel({
           <div className="dp-hero">
             <div className="dp-hero__lozenges">
               <StateLozenge state={booking.state} lg />
+              {booking.isBackfill ? <Lozenge tone="purple">BACKFILL</Lozenge> : null}
               {booking.flaggedAt ? (
                 <Lozenge tone="red">
                   <Icon.Flag style={{ width: 10, height: 10, marginRight: 4 }} />
@@ -464,7 +486,22 @@ export function DetailPanel({
               <div className="ir">
                 <div className="ir__k">Driver</div>
                 <div className="ir__v">
-                  {driver ? (
+                  {booking.isBackfill ? (
+                    <div className="ir__row">
+                      <Avatar
+                        name={booking.backfillDriverName ?? 'Backfill'}
+                        id={booking.id}
+                        size={22}
+                      />
+                      <span>{booking.backfillDriverName ?? 'Backfill driver'}</span>
+                      <Lozenge tone="purple">BACKFILL</Lozenge>
+                      {booking.backfillDriverPhone ? (
+                        <span className="ir__sub mono" style={{ marginLeft: 4 }}>
+                          {booking.backfillDriverPhone}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : driver ? (
                     <div className="ir__row">
                       <Avatar name={driver.name} id={driver.id} size={22} />
                       <span>{driver.name}</span>

@@ -4,6 +4,7 @@
  * States and legal transitions mirror DESIGN.md §8.
  *
  *   unassigned ──(driver_accept)──► assigned
+ *   unassigned ──(backfill_assign)──► assigned   (no internal driver; subcontractor covers it)
  *   unassigned ──(cancel)──► cancelled
  *
  *   assigned ──(clock_pickup_minus_1h)──► in_progress
@@ -25,6 +26,7 @@ export type BookingEvent =
   | { type: 'driver_accept' }
   | { type: 'driver_decline' }
   | { type: 'driver_released' }
+  | { type: 'backfill_assign' }
   | { type: 'cancel' }
   | { type: 'clock_pickup_minus_1h' }
   | { type: 'clock_expected_end' }
@@ -57,6 +59,16 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
       if (event.type === 'driver_decline') {
         // Decline keeps the ticket unassigned — operator picks the next driver.
         return { ok: true, next: 'unassigned', sideEffects: [] };
+      }
+      if (event.type === 'backfill_assign') {
+        // No internal driver was available — the operator hands the job to a
+        // backfill (subcontractor) driver. Same exec confirmation as a normal
+        // accept; the booking carries an isBackfill flag (no assignedDriverId).
+        return {
+          ok: true,
+          next: 'assigned',
+          sideEffects: [{ kind: 'notify_exec_assigned' }],
+        };
       }
       if (event.type === 'cancel') {
         return { ok: true, next: 'cancelled', sideEffects: [] };

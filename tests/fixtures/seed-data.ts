@@ -159,6 +159,9 @@ export interface BookingOverrides {
   cancelledByOperatorId?: string | null;
   cancellationReason?: string | null;
   flaggedAt?: Date | null;
+  isBackfill?: boolean;
+  backfillDriverName?: string | null;
+  backfillDriverPhone?: string | null;
 }
 
 const DEFAULT_PICKUP = new Date('2026-06-01T10:00:00.000Z');
@@ -378,6 +381,9 @@ export const BookingFactory = {
     cancelledByOperatorId: overrides.cancelledByOperatorId ?? null,
     cancellationReason: overrides.cancellationReason ?? null,
     flaggedAt: overrides.flaggedAt ?? null,
+    isBackfill: overrides.isBackfill ?? false,
+    backfillDriverName: overrides.backfillDriverName ?? null,
+    backfillDriverPhone: overrides.backfillDriverPhone ?? null,
   }),
 };
 

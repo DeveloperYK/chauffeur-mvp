@@ -89,6 +89,13 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
           body: enRouteSms(updated, driver),
         });
       }
+    } else if (updated.isBackfill && updated.backfillDriverName) {
+      // Backfill jobs have no `drivers` row — the en-route SMS names the
+      // operator-entered subcontractor instead. Exec experience is unchanged.
+      await deps.notifications.sendSms({
+        to: updated.execMobile,
+        body: enRouteSms(updated, { name: updated.backfillDriverName }),
+      });
     }
   }
 

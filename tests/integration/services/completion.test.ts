@@ -220,4 +220,79 @@ describe('services/completion (integration)', () => {
       'operator_approve',
     ]);
   });
+
+  describe('backfill bookings (no internal driver)', () => {
+    async function seedBackfillAwaitingForm() {
+      const [b] = await db
+        .insert(bookings)
+        .values({
+          state: 'awaiting_driver_form',
+          assignedDriverId: null,
+          isBackfill: true,
+          backfillDriverName: 'Dave Smith',
+          backfillDriverPhone: '+447911123456',
+          carForThisJob: 'BMW 5 Series',
+          assignedAt: new Date('2026-05-18T08:30:00.000Z'),
+          pickupAt: new Date('2026-06-01T10:00:00.000Z'),
+          expectedDurationMinutes: 90,
+          pickupAddress: 'A',
+          dropoffAddress: 'B',
+          passengerFirstName: 'Eric',
+          passengerLastName: 'French',
+          execMobile: '+447911999999',
+          clientName: 'LEGO Group',
+          accountCode: 'LEGO',
+          contractPricePence: 30000,
+        })
+        .returning();
+      return b?.id ?? '';
+    }
+
+    it('generates a completion link to the backfill driver phone (no Driver row)', async () => {
+      const id = await seedBackfillAwaitingForm();
+      const r = await generateCompletionLink(id, operatorId, deps());
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.driver).toBeNull();
+      expect(r.whatsappUrl.startsWith('https://web.whatsapp.com/send?phone=447911123456')).toBe(
+        true,
+      );
+    });
+
+    it('lets the backfill driver submit the form → awaiting_operator_review, audited without a driver id', async () => {
+      const id = await seedBackfillAwaitingForm();
+      const gen = await generateCompletionLink(id, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+
+      const r = await submitCompletionForm(
+        { token, carParkPence: 600, waitingTimeMinutes: 15, dropoffAt: '2026-06-01T11:25:00.000Z' },
+        deps(),
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.state).toBe('awaiting_operator_review');
+      expect(r.booking.carParkPence).toBe(600);
+
+      const event = (await db.select().from(auditEvents)).find(
+        (e) => e.action === 'driver_submit_form',
+      );
+      expect(event?.actorType).toBe('driver');
+      expect(event?.actorId).toBeNull();
+    });
+
+    it('full backfill arm: generate → submit → approve → completed', async () => {
+      const id = await seedBackfillAwaitingForm();
+      const gen = await generateCompletionLink(id, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+      await submitCompletionForm(
+        { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T11:25:00.000Z' },
+        deps(),
+      );
+      const approved = await approveBooking(id, operatorId, deps());
+      expect(approved.ok).toBe(true);
+      if (approved.ok) expect(approved.booking.state).toBe('completed');
+    });
+  });
 });

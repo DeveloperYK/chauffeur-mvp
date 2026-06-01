@@ -170,4 +170,62 @@ describe('services/clock-tick (integration)', () => {
     row = (await db.select().from(bookings).where(eq(bookings.id, id)))[0];
     expect(row?.state).toBe('awaiting_driver_form');
   });
+
+  describe('backfill bookings', () => {
+    async function seedBackfill(
+      state: 'assigned' | 'in_progress',
+      pickupAtISO: string,
+    ): Promise<string> {
+      const [b] = await db
+        .insert(bookings)
+        .values({
+          state,
+          pickupAt: new Date(pickupAtISO),
+          expectedDurationMinutes: 60,
+          pickupAddress: 'A',
+          dropoffAddress: 'B',
+          passengerFirstName: 'Eric',
+          passengerLastName: 'French',
+          execMobile: '+447911999999',
+          clientName: 'LEGO Group',
+          accountCode: 'LEGO',
+          contractPricePence: 30000,
+          assignedDriverId: null,
+          isBackfill: true,
+          backfillDriverName: 'Dave Smith',
+          backfillDriverPhone: '+447911123456',
+          carForThisJob: 'BMW 5 Series',
+        })
+        .returning();
+      return b?.id ?? '';
+    }
+
+    it('advances a backfill assigned booking to in_progress and fires the en-route SMS naming the backfill driver', async () => {
+      const id = await seedBackfill('assigned', '2026-05-18T10:00:00.000Z');
+      const report = await clockTick({
+        db,
+        clock: fixedClock('2026-05-18T09:00:00.000Z'),
+        notifications,
+      });
+      expect(report.assignedToInProgress).toEqual([id]);
+      const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
+      expect(b?.state).toBe('in_progress');
+      expect(notifications.sent.length).toBe(1);
+      expect(notifications.sent[0]?.to).toBe('+447911999999');
+      expect(notifications.sent[0]?.body).toContain('Dave Smith');
+      expect(notifications.sent[0]?.body).toContain('on the way');
+    });
+
+    it('advances a backfill in_progress booking to awaiting_driver_form like a normal job (backfill driver fills the form)', async () => {
+      const id = await seedBackfill('in_progress', '2026-05-18T10:00:00.000Z');
+      const report = await clockTick({
+        db,
+        clock: fixedClock('2026-05-18T11:00:00.000Z'), // past expected end
+        notifications,
+      });
+      expect(report.inProgressToAwaitingDriverForm).toEqual([id]);
+      const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
+      expect(b?.state).toBe('awaiting_driver_form');
+    });
+  });
 });

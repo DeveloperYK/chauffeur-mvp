@@ -29,6 +29,12 @@ export interface ConsoleBooking {
   assignedOperatorId: string | null;
   assignedDriverId: string | null;
   carForThisJob: string | null;
+  /** True when the job is covered by a backfill (subcontractor) driver, not the internal roster. */
+  isBackfill: boolean;
+  /** Operator-entered backfill driver name (only when isBackfill). */
+  backfillDriverName: string | null;
+  /** Operator-entered backfill driver phone (only when isBackfill). */
+  backfillDriverPhone: string | null;
   carParkPence: number | null;
   waitingTimeMinutes: number | null;
   /**

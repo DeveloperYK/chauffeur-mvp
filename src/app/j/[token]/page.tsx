@@ -292,7 +292,8 @@ async function CompletionPage({
     <Stage>
       <h1>Trip completion</h1>
       <p className="you">
-        For driver <strong>{driver?.name ?? 'unknown'}</strong>. Three quick fields and you're done.
+        For driver <strong>{driver?.name ?? booking.backfillDriverName ?? 'unknown'}</strong>. Three
+        quick fields and you're done.
       </p>
       {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
       <form action={submitCompletionAction} style={{ marginTop: 14 }}>
