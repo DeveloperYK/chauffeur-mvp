@@ -1,11 +1,15 @@
 'use server';
-import { formatLondonDay } from '@/lib/dates';
+import { formatLondonDay, parseMonthString } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { currentSession } from '@/server/auth/current';
 import { spreadsheetMirror } from '@/server/composition';
 import { getDb } from '@/server/db';
 import { createBooking } from '@/server/services/bookings';
+import {
+  type AccountSuggestion,
+  listAccountCodeSuggestions,
+} from '@/server/services/bookings-query';
 import { redirect } from 'next/navigation';
 
 export interface CreateBookingActionResult {
@@ -83,6 +87,22 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
   }
 
   return { success: true, bookingDay: formatLondonDay(result.booking.pickupAt) };
+}
+
+/**
+ * Distinct customer-account strings to autocomplete the account field, scoped
+ * to the booking's pickup month plus recent history. Keeps invoicing consistent
+ * by nudging operators to reuse an existing spelling. Returns `[]` (never throws)
+ * so a typeahead lookup can never block creating a booking.
+ */
+export async function accountSuggestionsAction(month: string): Promise<AccountSuggestion[]> {
+  const session = await currentSession();
+  if (!session) return [];
+  if (!parseMonthString(month)) return [];
+  const url = env().DATABASE_URL;
+  if (!url) return [];
+  const { db } = getDb(url);
+  return listAccountCodeSuggestions(db, month);
 }
 
 // Legacy action for backwards compatibility
