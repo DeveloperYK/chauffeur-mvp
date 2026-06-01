@@ -237,14 +237,11 @@ export function DetailPanel({
             ) : null}
             <a
               className="btn"
-              href={whatsappWebLink(
-                booking.execMobile,
+              href={`sms:${booking.execMobile}?body=${encodeURIComponent(
                 `Hi, an update on your ${passengerName(booking)} booking…`,
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
+              )}`}
             >
-              <Icon.Whatsapp /> Message passenger
+              <Icon.Send /> Message passenger (SMS)
             </a>
           </div>
         );
