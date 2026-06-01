@@ -13,12 +13,14 @@ export interface ActivityEvent {
 const PASSENGER_FALLBACK = 'a booking';
 
 function describe(action: string, passenger: string, after: unknown): string {
-  const a = (after ?? {}) as { reason?: string; state?: string };
+  const a = (after ?? {}) as { reason?: string; state?: string; backfillDriverName?: string };
   switch (action) {
     case 'create':
       return `created the booking for ${passenger}.`;
     case 'dispatch_link_generated':
       return `generated a dispatch link for ${passenger}.`;
+    case 'hand_to_backfill':
+      return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to ${passenger}.`;
     case 'driver_accept':
       return `accepted the job for ${passenger}.`;
     case 'driver_decline':
@@ -101,7 +103,7 @@ export async function listBookingHistory(
 
 /** Booking-panel-specific phrasings that don't name the passenger (the panel already shows it). */
 function describeBookingDetail(action: string, after: unknown): string | null {
-  const a = (after ?? {}) as { changedFields?: string[] };
+  const a = (after ?? {}) as { changedFields?: string[]; backfillDriverName?: string };
   switch (action) {
     case 'create':
       return 'created the booking.';
@@ -113,6 +115,8 @@ function describeBookingDetail(action: string, after: unknown): string | null {
       return 'declined the job.';
     case 'edit':
       return `edited ${a.changedFields?.length ? a.changedFields.join(', ') : 'the booking'}.`;
+    case 'hand_to_backfill':
+      return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to the booking.`;
     case 'operator_approve':
       return 'approved & completed the trip.';
     case 'operator_reject':

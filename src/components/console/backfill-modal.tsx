@@ -86,14 +86,6 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
             </div>
           ) : null}
 
-          <div className="ic" style={{ marginBottom: 12 }}>
-            <div className="ic__body" style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
-              Use this when no internal driver is available and a subcontractor from the WhatsApp
-              group is covering the job. The booking runs through the normal stages — you close it
-              out yourself once the trip is done.
-            </div>
-          </div>
-
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
             <label>

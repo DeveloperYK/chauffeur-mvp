@@ -12,7 +12,6 @@
  *   assigned ──(cancel)──► cancelled
  *
  *   in_progress ──(clock_expected_end)──► awaiting_driver_form
- *   in_progress ──(backfill_complete)──► completed   (operator closes out a backfill job)
  *   in_progress ──(cancel)──► cancelled
  *
  *   awaiting_driver_form ──(driver_submit_form)──► awaiting_operator_review
@@ -28,7 +27,6 @@ export type BookingEvent =
   | { type: 'driver_decline' }
   | { type: 'driver_released' }
   | { type: 'backfill_assign' }
-  | { type: 'backfill_complete' }
   | { type: 'cancel' }
   | { type: 'clock_pickup_minus_1h' }
   | { type: 'clock_expected_end' }
@@ -106,13 +104,6 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
           next: 'awaiting_driver_form',
           sideEffects: [{ kind: 'mint_completion_link' }],
         };
-      }
-      if (event.type === 'backfill_complete') {
-        // Operator close-out for a backfill job: there is no driver completion
-        // form, so we skip awaiting_driver_form + awaiting_operator_review and
-        // land directly on completed. The operator has already entered the
-        // completion data (drop-off / waiting / car park) in the close-out form.
-        return { ok: true, next: 'completed', sideEffects: [] };
       }
       if (event.type === 'cancel') {
         return { ok: true, next: 'cancelled', sideEffects: [] };

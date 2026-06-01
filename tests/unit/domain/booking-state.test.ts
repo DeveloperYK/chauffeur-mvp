@@ -122,12 +122,6 @@ describe('booking state machine', () => {
       expect(t.ok && t.sideEffects).toEqual([{ kind: 'notify_exec_assigned' }]);
     });
 
-    it('backfill_complete moves in_progress → completed directly (no driver form)', () => {
-      const t = transition('in_progress', { type: 'backfill_complete' });
-      expect(t.ok && t.next).toBe('completed');
-      expect(t.ok && t.sideEffects).toEqual([]);
-    });
-
     it.each([
       'assigned',
       'in_progress',
@@ -137,18 +131,6 @@ describe('booking state machine', () => {
       'cancelled',
     ] as const)('backfill_assign is illegal from %s', (state) => {
       const t = transition(state, { type: 'backfill_assign' });
-      expect(t.ok).toBe(false);
-    });
-
-    it.each([
-      'unassigned',
-      'assigned',
-      'awaiting_driver_form',
-      'awaiting_operator_review',
-      'completed',
-      'cancelled',
-    ] as const)('backfill_complete is illegal from %s', (state) => {
-      const t = transition(state, { type: 'backfill_complete' });
       expect(t.ok).toBe(false);
     });
   });

@@ -387,36 +387,6 @@ export const BookingFactory = {
   }),
 };
 
-/**
- * Backfill booking factories — `assignedDriverId` is null; the subcontractor's
- * identity lives in the free-text backfill fields and the car in carForThisJob.
- */
-export const BackfillBookingFactory = {
-  /** A backfill job at `assigned`, freshly handed to a subcontractor. */
-  assigned: (operatorId: string, overrides?: BookingOverrides): NewBooking => ({
-    ...BookingFactory.unassigned(operatorId),
-    state: 'assigned',
-    isBackfill: true,
-    backfillDriverName: 'Dave Smith',
-    backfillDriverPhone: '+447911123456',
-    carForThisJob: 'BMW 5 Series',
-    assignedAt: new Date('2026-05-20T10:00:00.000Z'),
-    ...overrides,
-  }),
-
-  /** A backfill job mid-trip, awaiting operator close-out. */
-  inProgress: (operatorId: string, overrides?: BookingOverrides): NewBooking => ({
-    ...BookingFactory.unassigned(operatorId),
-    state: 'in_progress',
-    isBackfill: true,
-    backfillDriverName: 'Dave Smith',
-    backfillDriverPhone: '+447911123456',
-    carForThisJob: 'BMW 5 Series',
-    assignedAt: new Date('2026-05-20T10:00:00.000Z'),
-    ...overrides,
-  }),
-};
-
 // ─── Test Scenarios ─────────────────────────────────────────────────────────
 
 /**
@@ -465,7 +435,6 @@ export const SeedData = {
   operators: OperatorFactory,
   drivers: DriverFactory,
   bookings: BookingFactory,
-  backfill: BackfillBookingFactory,
   constants: TestConstants,
   invalid: InvalidInputs,
 };

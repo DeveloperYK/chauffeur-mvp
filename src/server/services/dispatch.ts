@@ -329,7 +329,9 @@ export async function releaseDriver(
 
   // Atomic gate on the current state so a concurrent transition (e.g. the clock
   // moving it to in_progress) can't be clobbered. Clears the driver assignment
-  // and resets the no-accept flag so the 24h timer restarts from now.
+  // and resets the no-accept flag so the 24h timer restarts from now. Also
+  // clears the backfill marking — a released booking is a clean unassigned
+  // ticket again, whether the dropped driver was internal or a backfill.
   const [updated] = await deps.db
     .update(bookings)
     .set({
@@ -338,6 +340,9 @@ export async function releaseDriver(
       carForThisJob: null,
       assignedAt: null,
       flaggedAt: null,
+      isBackfill: false,
+      backfillDriverName: null,
+      backfillDriverPhone: null,
       updatedAt: now,
     })
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'assigned')))

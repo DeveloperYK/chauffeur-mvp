@@ -27,7 +27,6 @@ interface DetailPanelProps {
   onClose: () => void;
   onDispatch: () => void;
   onBackfill: () => void;
-  onCloseout: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onMutated: (toast: string) => void;
@@ -42,7 +41,6 @@ export function DetailPanel({
   onClose,
   onDispatch,
   onBackfill,
-  onCloseout,
   onEdit,
   onCancel,
   onMutated,
@@ -79,6 +77,14 @@ export function DetailPanel({
   const driver = booking.assignedDriverId
     ? drivers.find((d) => d.id === booking.assignedDriverId)
     : null;
+  // Whoever is driving this job, internal or backfill — so the post-assignment
+  // actions (call / message) are identical regardless. Backfill jobs have no
+  // Driver row, just the operator-entered name + phone on the booking.
+  const contact: { name: string; phone: string } | null = driver
+    ? { name: driver.name, phone: driver.whatsappNumber }
+    : booking.isBackfill && booking.backfillDriverName && booking.backfillDriverPhone
+      ? { name: booking.backfillDriverName, phone: booking.backfillDriverPhone }
+      : null;
   const assignee = booking.assignedOperatorId
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
@@ -187,25 +193,12 @@ export function DetailPanel({
       case 'assigned':
         return (
           <div className="dp-actions">
-            {booking.isBackfill && booking.backfillDriverName && booking.backfillDriverPhone ? (
+            {contact ? (
               <a
                 className="btn btn--primary btn--lg"
                 href={whatsappWebLink(
-                  booking.backfillDriverPhone,
-                  `Hi ${booking.backfillDriverName.split(' ')[0]}, about the ${passengerName(booking)} job…`,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Icon.Whatsapp /> Message backfill driver on WhatsApp
-              </a>
-            ) : null}
-            {driver ? (
-              <a
-                className="btn btn--primary btn--lg"
-                href={whatsappWebLink(
-                  driver.whatsappNumber,
-                  `Hi ${driver.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
+                  contact.phone,
+                  `Hi ${contact.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -213,11 +206,9 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
-            {!booking.isBackfill ? (
-              <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
-                <Icon.Reset /> Driver pulled out — unassign
-              </button>
-            ) : null}
+            <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
+              <Icon.Reset /> Driver pulled out — unassign
+            </button>
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>
@@ -229,36 +220,32 @@ export function DetailPanel({
       case 'in_progress':
         return (
           <div className="dp-actions">
-            {booking.isBackfill ? (
-              <button
-                type="button"
-                className="btn btn--success btn--lg"
-                onClick={onCloseout}
-                disabled={isPending}
-              >
-                <Icon.Check /> Close out &amp; complete
-              </button>
-            ) : null}
-            {driver ? (
-              <a className="btn btn--primary btn--lg" href={`tel:${driver.whatsappNumber}`}>
+            {contact ? (
+              <a className="btn btn--primary btn--lg" href={`tel:${contact.phone}`}>
                 <Icon.Phone /> Call driver
               </a>
             ) : null}
-            {driver ? (
+            {contact ? (
               <a
                 className="btn"
-                href={whatsappWebLink(driver.whatsappNumber, `Hi ${driver.name.split(' ')[0]}…`)}
+                href={whatsappWebLink(contact.phone, `Hi ${contact.name.split(' ')[0]}…`)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Icon.Whatsapp /> Message
+                <Icon.Whatsapp /> Message driver
               </a>
             ) : null}
-            {booking.isBackfill && booking.backfillDriverPhone ? (
-              <a className="btn" href={`tel:${booking.backfillDriverPhone}`}>
-                <Icon.Phone /> Call backfill driver
-              </a>
-            ) : null}
+            <a
+              className="btn"
+              href={whatsappWebLink(
+                booking.execMobile,
+                `Hi, an update on your ${passengerName(booking)} booking…`,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Icon.Whatsapp /> Message passenger
+            </a>
           </div>
         );
       case 'awaiting_driver_form':
@@ -272,12 +259,12 @@ export function DetailPanel({
             >
               <Icon.Send /> {isPending ? 'Generating…' : 'Generate completion link'}
             </button>
-            {driver ? (
+            {contact ? (
               <a
                 className="btn"
                 href={whatsappWebLink(
-                  driver.whatsappNumber,
-                  `Hi ${driver.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
+                  contact.phone,
+                  `Hi ${contact.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"

@@ -103,10 +103,6 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
   const inProgress = await deps.db.select().from(bookings).where(eq(bookings.state, 'in_progress'));
 
   for (const b of inProgress) {
-    // A backfill job has no driver completion form, so the clock must not push
-    // it into awaiting_driver_form — it stays in_progress until the operator
-    // closes it out manually (see services/backfill closeOutBackfill).
-    if (b.isBackfill) continue;
     if (expectedEndAt(b.pickupAt, b.expectedDurationMinutes).getTime() > now.getTime()) continue;
     const t = transition(b.state, { type: 'clock_expected_end' });
     if (!t.ok) continue;

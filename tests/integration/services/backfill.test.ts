@@ -2,7 +2,9 @@ import { FakeNotificationAdapter } from '@/server/adapters/notification-fake';
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
-import { closeOutBackfill, handToBackfill } from '@/server/services/backfill';
+import { listBookingHistory } from '@/server/services/activity';
+import { handToBackfill } from '@/server/services/backfill';
+import { releaseDriver } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SeedData } from '~test/fixtures/seed-data';
@@ -106,6 +108,14 @@ describe('services/backfill (integration)', () => {
       const events = await db.select().from(auditEvents).where(eq(auditEvents.entityId, id));
       expect(events.some((e) => e.action === 'hand_to_backfill')).toBe(true);
     });
+
+    it('reads in the history as the backfill driver being assigned to the booking', async () => {
+      const id = await seedUnassigned();
+      await handToBackfill(id, validInput, operatorId, deps());
+      const history = await listBookingHistory(db, id);
+      const entry = history.find((h) => h.text.includes('backfill driver'));
+      expect(entry?.text).toBe('assigned backfill driver Dave Smith to the booking.');
+    });
   });
 
   describe('handToBackfill — unhappy paths', () => {
@@ -159,104 +169,24 @@ describe('services/backfill (integration)', () => {
     });
   });
 
-  describe('closeOutBackfill — happy paths', () => {
-    async function seedInProgressBackfill() {
-      const [b] = await db
-        .insert(bookings)
-        .values(SeedData.backfill.inProgress(operatorId))
-        .returning();
-      return b?.id ?? '';
-    }
+  describe('releasing a backfill booking (driver pulled out)', () => {
+    it('returns the booking to a clean unassigned ticket and clears the backfill fields', async () => {
+      const id = await seedUnassigned();
+      await handToBackfill(id, validInput, operatorId, deps());
 
-    const closeInput = {
-      dropoffAt: new Date('2026-05-20T11:30:00.000Z'),
-      waitingTimeMinutes: 20,
-      carParkPence: 500,
-    };
-
-    it('moves an in-progress backfill booking directly to completed', async () => {
-      const id = await seedInProgressBackfill();
-      const result = await closeOutBackfill(id, closeInput, operatorId, deps());
-      expect(result.ok).toBe(true);
+      const released = await releaseDriver(id, operatorId, {
+        ...deps(),
+        secret: 'test-secret-must-be-at-least-32-characters-long',
+        appUrl: 'https://example.test',
+      });
+      expect(released.ok).toBe(true);
 
       const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
-      expect(b?.state).toBe('completed');
-      expect(b?.waitingTimeMinutes).toBe(20);
-      expect(b?.carParkPence).toBe(500);
-      expect(b?.dropoffAt).not.toBeNull();
-      expect(b?.completionSubmittedAt).not.toBeNull();
-      expect(b?.approvedAt).not.toBeNull();
-    });
-
-    it('records a backfill_completed audit event and mirrors', async () => {
-      const id = await seedInProgressBackfill();
-      await closeOutBackfill(id, closeInput, operatorId, deps());
-      const events = await db.select().from(auditEvents).where(eq(auditEvents.entityId, id));
-      expect(events.some((e) => e.action === 'backfill_completed')).toBe(true);
-      expect(mirror.rows.get(id)?.[18]).toBe('Yes'); // column S — Raise an invoice?? = Yes when completed
-    });
-  });
-
-  describe('closeOutBackfill — unhappy paths', () => {
-    it('rejects a missing booking', async () => {
-      const result = await closeOutBackfill(
-        '00000000-0000-0000-0000-000000000000',
-        { dropoffAt: new Date(), waitingTimeMinutes: 0, carParkPence: 0 },
-        operatorId,
-        deps(),
-      );
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe('booking_not_found');
-    });
-
-    it('rejects a non-backfill in-progress booking', async () => {
-      const [drv] = await db.insert(drivers).values(SeedData.drivers.premiumTom()).returning();
-      const [b] = await db
-        .insert(bookings)
-        .values(SeedData.bookings.inProgress(operatorId, drv?.id ?? ''))
-        .returning();
-      const result = await closeOutBackfill(
-        b?.id ?? '',
-        { dropoffAt: new Date(), waitingTimeMinutes: 0, carParkPence: 0 },
-        operatorId,
-        deps(),
-      );
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe('not_backfill');
-    });
-
-    it('rejects a backfill booking that is not in progress', async () => {
-      const [b] = await db
-        .insert(bookings)
-        .values(SeedData.backfill.assigned(operatorId))
-        .returning();
-      const result = await closeOutBackfill(
-        b?.id ?? '',
-        { dropoffAt: new Date(), waitingTimeMinutes: 0, carParkPence: 0 },
-        operatorId,
-        deps(),
-      );
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe('wrong_state');
-    });
-
-    it('rejects negative waiting minutes', async () => {
-      const [b] = await db
-        .insert(bookings)
-        .values(SeedData.backfill.inProgress(operatorId))
-        .returning();
-      const result = await closeOutBackfill(
-        b?.id ?? '',
-        {
-          dropoffAt: new Date('2026-05-20T11:30:00.000Z'),
-          waitingTimeMinutes: -5,
-          carParkPence: 0,
-        },
-        operatorId,
-        deps(),
-      );
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe('validation');
+      expect(b?.state).toBe('unassigned');
+      expect(b?.isBackfill).toBe(false);
+      expect(b?.backfillDriverName).toBeNull();
+      expect(b?.backfillDriverPhone).toBeNull();
+      expect(b?.carForThisJob).toBeNull();
     });
   });
 });

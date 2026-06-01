@@ -216,16 +216,16 @@ describe('services/clock-tick (integration)', () => {
       expect(notifications.sent[0]?.body).toContain('on the way');
     });
 
-    it('does NOT advance a backfill in_progress booking to awaiting_driver_form — it stays in_progress for operator close-out', async () => {
+    it('advances a backfill in_progress booking to awaiting_driver_form like a normal job (backfill driver fills the form)', async () => {
       const id = await seedBackfill('in_progress', '2026-05-18T10:00:00.000Z');
       const report = await clockTick({
         db,
         clock: fixedClock('2026-05-18T11:00:00.000Z'), // past expected end
         notifications,
       });
-      expect(report.inProgressToAwaitingDriverForm).toEqual([]);
+      expect(report.inProgressToAwaitingDriverForm).toEqual([id]);
       const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
-      expect(b?.state).toBe('in_progress');
+      expect(b?.state).toBe('awaiting_driver_form');
     });
   });
 });

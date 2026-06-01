@@ -11,7 +11,7 @@ import {
   spreadsheetMirror,
 } from '@/server/composition';
 import { listBookingHistory } from '@/server/services/activity';
-import { closeOutBackfill, handToBackfill } from '@/server/services/backfill';
+import { handToBackfill } from '@/server/services/backfill';
 import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
@@ -202,48 +202,6 @@ export async function handToBackfillAction(
       result.reason === 'booking_not_found'
         ? 'Booking not found.'
         : `Can only hand a booking to backfill from unassigned (it is ${result.state}).`;
-    return { ok: false, error };
-  }
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
-export async function closeOutBackfillAction(
-  bookingId: string,
-  input: { dropoffAt: string; waitingTimeMinutes: number; carParkPence: number },
-): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
-  if (!bookingId) return { ok: false, error: 'Missing booking.' };
-
-  const result = await closeOutBackfill(
-    bookingId,
-    {
-      dropoffAt: new Date(input.dropoffAt),
-      waitingTimeMinutes: input.waitingTimeMinutes,
-      carParkPence: input.carParkPence,
-    },
-    op.id,
-    {
-      db: db(),
-      notifications: notifications(),
-      mirror: spreadsheetMirror(),
-    },
-  );
-  if (!result.ok) {
-    if (result.reason === 'validation') {
-      const msg = result.issues
-        .map((i) => `${i.path.join('.') || 'field'}: ${i.message}`)
-        .slice(0, 3)
-        .join('; ');
-      return { ok: false, error: msg };
-    }
-    const error =
-      result.reason === 'booking_not_found'
-        ? 'Booking not found.'
-        : result.reason === 'not_backfill'
-          ? 'This booking is not a backfill job.'
-          : `Cannot close out from state: ${result.state}.`;
     return { ok: false, error };
   }
   revalidatePath('/dashboard');

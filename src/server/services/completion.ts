@@ -23,6 +23,14 @@ export interface CompletionDeps {
   mirror?: SpreadsheetMirrorPort;
 }
 
+/**
+ * Sentinel driverId baked into a backfill booking's completion token. A backfill
+ * job has no `drivers` row, but the signed link still needs a (UUID) driverId
+ * claim — the nil UUID marks "backfill, no internal driver". `submitCompletionForm`
+ * recognises it and skips the assigned-driver match.
+ */
+export const BACKFILL_COMPLETION_DRIVER_ID = '00000000-0000-0000-0000-000000000000';
+
 export type GenerateCompletionLinkResult =
   | {
       ok: true;
@@ -30,7 +38,8 @@ export type GenerateCompletionLinkResult =
       shortUrl: string;
       whatsappUrl: string;
       booking: Booking;
-      driver: Driver;
+      /** Null for a backfill job (no internal driver row). */
+      driver: Driver | null;
     }
   | { ok: false; reason: 'booking_not_found' | 'wrong_state' | 'no_driver' };
 
@@ -47,19 +56,34 @@ export async function generateCompletionLink(
     .limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
   if (booking.state !== 'awaiting_driver_form') return { ok: false, reason: 'wrong_state' };
-  if (!booking.assignedDriverId) return { ok: false, reason: 'no_driver' };
 
-  const [driver] = await deps.db
-    .select()
-    .from(drivers)
-    .where(eq(drivers.id, booking.assignedDriverId))
-    .limit(1);
-  if (!driver) return { ok: false, reason: 'no_driver' };
+  // The link is signed for whoever drove the job and the WhatsApp message goes
+  // to them. An internal driver has a `drivers` row; a backfill driver has only
+  // the operator-entered phone, and the token carries the nil-UUID sentinel.
+  let driver: Driver | null = null;
+  let signDriverId: string;
+  let whatsappNumber: string;
+  if (booking.assignedDriverId) {
+    const [row] = await deps.db
+      .select()
+      .from(drivers)
+      .where(eq(drivers.id, booking.assignedDriverId))
+      .limit(1);
+    if (!row) return { ok: false, reason: 'no_driver' };
+    driver = row;
+    signDriverId = row.id;
+    whatsappNumber = row.whatsappNumber;
+  } else if (booking.isBackfill && booking.backfillDriverPhone) {
+    signDriverId = BACKFILL_COMPLETION_DRIVER_ID;
+    whatsappNumber = booking.backfillDriverPhone;
+  } else {
+    return { ok: false, reason: 'no_driver' };
+  }
 
   const jti = randomUUID();
   const token = await signDriverLink(deps.secret, {
     jobId: booking.id,
-    driverId: driver.id,
+    driverId: signDriverId,
     type: 'completion',
     jti,
     now: clock.now(),
@@ -72,7 +96,7 @@ export async function generateCompletionLink(
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
   const text = completionRequestSms(booking, shortUrl);
-  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, text);
+  const whatsappUrl = whatsappWebLink(whatsappNumber, text);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -140,7 +164,16 @@ export async function submitCompletionForm(
   const [booking] = await deps.db.select().from(bookings).where(eq(bookings.id, jobId)).limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
   if (booking.state !== 'awaiting_driver_form') return { ok: false, reason: 'wrong_state' };
-  if (booking.assignedDriverId !== driverId) return { ok: false, reason: 'wrong_state' };
+
+  // A backfill job has no assigned driver — its completion token carries the nil
+  // UUID sentinel instead. For an internal driver, the token's driverId must
+  // match the assigned driver.
+  const isBackfillSubmit = booking.isBackfill && !booking.assignedDriverId;
+  if (isBackfillSubmit) {
+    if (driverId !== BACKFILL_COMPLETION_DRIVER_ID) return { ok: false, reason: 'wrong_state' };
+  } else if (booking.assignedDriverId !== driverId) {
+    return { ok: false, reason: 'wrong_state' };
+  }
 
   const t = transition(booking.state, { type: 'driver_submit_form' });
   if (!t.ok) return { ok: false, reason: 'wrong_state' };
@@ -167,7 +200,9 @@ export async function submitCompletionForm(
 
   await recordAuditEvent(deps.db, {
     actorType: 'driver',
-    actorId: driverId,
+    // A backfill submit has no internal driver row — don't reference a non-
+    // existent driver id in the audit trail.
+    actorId: isBackfillSubmit ? null : driverId,
     entityType: 'booking',
     entityId: booking.id,
     action: 'driver_submit_form',

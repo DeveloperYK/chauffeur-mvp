@@ -4,12 +4,14 @@
  * When no internal driver is available the operator hands a booking to a
  * backfill driver sourced from the WhatsApp group. The system records who is
  * covering it (free text — no `drivers` row) and runs the booking through the
- * normal lifecycle with `assignedDriverId` null:
+ * exact same lifecycle as an internal driver, with `assignedDriverId` null:
  *
  *   unassigned ──(handToBackfill)──► assigned ──(clock)──► in_progress
- *   in_progress ──(closeOutBackfill)──► completed
+ *   ──(clock)──► awaiting_driver_form ──(backfill driver submits form)──►
+ *   awaiting_operator_review ──(operator approve)──► completed
  *
- * See docs/shaping/backfill-drivers.
+ * The backfill driver fills out the same completion form via a link sent over
+ * WhatsApp (see services/completion). See docs/shaping/backfill-drivers.
  */
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
@@ -125,85 +127,6 @@ export async function handToBackfill(
   await deps.notifications.sendSms({
     to: updated.execMobile,
     body: assignedSms(updated, { name }, car),
-  });
-
-  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
-
-  return { ok: true, booking: updated };
-}
-
-export const closeOutBackfillSchema = z
-  .object({
-    dropoffAt: z.coerce.date(),
-    waitingTimeMinutes: z.coerce.number().int().min(0).max(720),
-    carParkPence: z.coerce.number().int().min(0).max(1_000_00),
-  })
-  .strict();
-
-export type CloseOutBackfillInput = z.input<typeof closeOutBackfillSchema>;
-
-export type CloseOutBackfillResult =
-  | { ok: true; booking: Booking }
-  | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
-  | { ok: false; reason: 'booking_not_found' | 'not_backfill' | 'wrong_state'; state?: string };
-
-/**
- * Operator close-out for a backfill job. The subcontractor won't use our driver
- * completion link, so the operator enters the same completion data (drop-off /
- * waiting / car park) and the booking goes straight to `completed`, skipping
- * `awaiting_driver_form` + `awaiting_operator_review`. The completed job is then
- * picked up by the monthly reconciliation like any other.
- */
-export async function closeOutBackfill(
-  bookingId: string,
-  rawInput: CloseOutBackfillInput,
-  operatorId: string,
-  deps: BackfillDeps,
-): Promise<CloseOutBackfillResult> {
-  const parsed = closeOutBackfillSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return { ok: false, reason: 'validation', issues: parsed.error.issues };
-  }
-
-  const clock = deps.clock ?? systemClock;
-  const [booking] = await deps.db
-    .select()
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return { ok: false, reason: 'booking_not_found' };
-  if (!booking.isBackfill) return { ok: false, reason: 'not_backfill' };
-
-  const t = transition(booking.state, { type: 'backfill_complete' });
-  if (!t.ok) return { ok: false, reason: 'wrong_state', state: booking.state };
-
-  const now = clock.now();
-  const { dropoffAt, waitingTimeMinutes, carParkPence } = parsed.data;
-
-  const [updated] = await deps.db
-    .update(bookings)
-    .set({
-      state: t.next,
-      dropoffAt,
-      waitingTimeMinutes,
-      carParkPence,
-      completionSubmittedAt: now,
-      approvedAt: now,
-      approvedByOperatorId: operatorId,
-      updatedAt: now,
-    })
-    .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'in_progress')))
-    .returning();
-  if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
-
-  await recordAuditEvent(deps.db, {
-    actorType: 'operator',
-    actorId: operatorId,
-    entityType: 'booking',
-    entityId: booking.id,
-    action: 'backfill_completed',
-    before: { state: booking.state },
-    after: { state: updated.state, waitingTimeMinutes, carParkPence },
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);

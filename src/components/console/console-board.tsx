@@ -4,7 +4,6 @@ import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
-import { BackfillCloseoutModal } from './backfill-closeout-modal';
 import { BackfillModal } from './backfill-modal';
 import { CancelModal } from './cancel-modal';
 import { DetailPanel } from './detail-panel';
@@ -63,7 +62,6 @@ export function ConsoleBoard({
   const [panelOpen, setPanelOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
-  const [closeoutOpen, setCloseoutOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
@@ -97,7 +95,6 @@ export function ConsoleBoard({
         else if (editOpen) setEditOpen(false);
         else if (dispatchOpen) setDispatchOpen(false);
         else if (backfillOpen) setBackfillOpen(false);
-        else if (closeoutOpen) setCloseoutOpen(false);
         else if (newOpen) setNewOpen(false);
         else if (panelOpen) setPanelOpen(false);
       }
@@ -108,7 +105,7 @@ export function ConsoleBoard({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, closeoutOpen, newOpen, panelOpen]);
+  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, newOpen, panelOpen]);
 
   const onSelect = (id: string) => {
     setSelectedId(id);
@@ -299,15 +296,9 @@ export function ConsoleBoard({
         onClose={() => setPanelOpen(false)}
         onDispatch={() => setDispatchOpen(true)}
         onBackfill={() => setBackfillOpen(true)}
-        onCloseout={() => setCloseoutOpen(true)}
         onEdit={() => setEditOpen(true)}
         onCancel={() => setCancelOpen(true)}
-        onMutated={(toast) =>
-          handleMutated(
-            toast,
-            toast.startsWith('Trip approved') || toast.startsWith('Backfill job'),
-          )
-        }
+        onMutated={(toast) => handleMutated(toast, toast.startsWith('Trip approved'))}
       />
 
       <DispatchModal
@@ -329,16 +320,6 @@ export function ConsoleBoard({
         onHandedOff={(summary) => {
           setBackfillOpen(false);
           handleMutated(summary);
-        }}
-      />
-
-      <BackfillCloseoutModal
-        booking={selected}
-        isOpen={closeoutOpen}
-        onClose={() => setCloseoutOpen(false)}
-        onClosedOut={(summary) => {
-          setCloseoutOpen(false);
-          handleMutated(summary, true);
         }}
       />
 

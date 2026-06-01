@@ -175,7 +175,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expectSimState(page, MERC, 'Cancelled');
 });
 
-test('backfill driver: hand off → clock en-route → operator close-out', async ({ page }) => {
+test('backfill driver: hand off → clock → driver completion form → approve', async ({ page }) => {
   // Fresh data so the J&J booking starts unassigned regardless of the prior arm.
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
@@ -210,26 +210,47 @@ test('backfill driver: hand off → clock en-route → operator close-out', asyn
   await expectSimState(page, JJ, 'In progress');
   await expect(page.getByText('No SMS yet.')).toHaveCount(0);
 
-  // ── Clock guard: a finished backfill trip must NOT auto-advance to the
-  //    driver form — it stays in_progress for the operator to close out. ──
+  // ── Clock: trip ended → awaiting_driver_form, same as a normal driver. The
+  //    backfill driver fills out the completion form via a link. ──
   await row(page, JJ).locator('select[name="scenario"]').selectOption('trip_finished');
   await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
-  await expectSimState(page, JJ, 'In progress');
+  await expectSimState(page, JJ, 'Awaiting driver form');
 
-  // ── Console: operator close-out → completed (skips the driver-form states) ─
+  // ── Console: generate the completion link for the backfill driver ──
   await page.goto('/dashboard', { waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
   await page
     .locator('.panel.is-open')
-    .getByRole('button', { name: /Close out & complete/i })
+    .getByRole('button', { name: 'Generate completion link' })
     .click();
-  const coModal = page.locator('.modal.is-open');
-  await expect(coModal).toBeVisible();
-  await coModal.getByRole('button', { name: 'Complete booking' }).click();
-  await expect(page.locator('.toast')).toContainText(/completed/i);
+  const completionLink = page.locator('.panel.is-open .dispatch-result__url span');
+  await expect(completionLink).toBeVisible();
+  const completionUrl = (await completionLink.textContent())?.trim();
+  expect(completionUrl, 'expected a completion link in the panel').toBeTruthy();
+
+  // ── Backfill driver fills out the same completion form via the link ──
+  await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
+  await page.locator('#carParkPounds').fill('5');
+  await page.locator('#waitingTimeMinutes').fill('10');
+  await page.locator('#dropoffAt').fill('2026-06-01T12:30');
+  await Promise.all([
+    page.waitForURL(/status=submitted/),
+    page.getByRole('button', { name: 'Submit' }).click(),
+  ]);
+
+  await gotoSimulator(page);
+  await expectSimState(page, JJ, 'Awaiting operator review');
+
+  // ── Console: approve → completed (same as a normal driver) ──
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
+  await expect(page.locator('.toast')).toContainText(/approved/i);
 
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Completed');

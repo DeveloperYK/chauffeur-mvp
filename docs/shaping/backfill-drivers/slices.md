@@ -7,6 +7,16 @@ shaping: true
 > Shape: [`shaping.md`](./shaping.md) Shape B. This is the **Detail B** breadboard
 > (affordance tables = source of truth) and the vertical slices.
 
+> **Revised during build (completion path).** This breadboard originally had V3 as a
+> manual operator "close-out" (`closeOutBackfill`, `backfill_complete` event, a
+> close-out modal, and a clock guard keeping backfill jobs in `in_progress`). That
+> was dropped: backfill now follows the **exact internal-driver completion flow** —
+> clock advances to `awaiting_driver_form`, the operator generates a completion link
+> and WhatsApps it to the backfill driver, who fills the **same** form → review →
+> approve → `completed`. The link is signed with a nil-UUID sentinel driver id. So
+> ignore affordances **N2, N4, N11**, place **P4**, and the close-out modal below —
+> they were not built. See [`shaping.md`](./shaping.md) Q3/B4.
+
 ## Places
 
 | # | Place | Status | Where |
