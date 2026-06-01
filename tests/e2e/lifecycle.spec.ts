@@ -265,10 +265,16 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
 
-  await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
-  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+  // Force into awaiting_driver_form (assigns a driver), then onto today's board.
+  // gotoSimulator between each mutation resets the URL so clickAndSettle's
+  // wait-for-?ok= actually blocks on the new navigation (not a stale prior one).
+  await gotoSimulator(page);
   await row(page, LEGO).locator('select[name="state"]').selectOption('awaiting_driver_form');
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Set' }).click());
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+  await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Awaiting driver form');
 
   // ── Console: operator enters the completion details (driver was slow) ──
