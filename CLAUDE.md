@@ -274,13 +274,15 @@ Multiple Claude sessions run against this repo at once. They share one checkout,
 
 **The rule: every session gets its own git worktree. No exceptions — not "only for concurrent work".** You can never be sure another session isn't running (or won't start mid-task), and a branch alone does NOT isolate the working tree — only a worktree gives you a separate checkout. The shared primary checkout (`/Users/.../chauffeur-mvp`) is for the human; agent sessions do not edit in it.
 
-1. **First action of every task — create a worktree, before touching any file:**
+1. **First action of every task — pull the latest `main`, then create a worktree, before touching any file:**
    ```bash
+   git fetch origin                   # ALWAYS fetch first — branch from the freshest main
    git worktree add ../chauffeur-mvp-<slug> -b <type>/<slug> origin/main
    cd ../chauffeur-mvp-<slug>
    pnpm install                       # fast: hardlinks from the shared pnpm store
    cp ../chauffeur-mvp/.env ./.env    # share env (gitignored)
    ```
+   **Never start work on a stale base.** Always `git fetch origin` (or `git pull` in the primary checkout) before branching/worktree-ing — other sessions merge to `main` constantly, and building on an old base causes avoidable merge conflicts and migration-number collisions. The `origin/main` in the worktree command is only as fresh as your last fetch, so fetch first.
    Work, commit, and push from there. Run `git worktree remove ../chauffeur-mvp-<slug>` once the branch is merged. To run the dev server, use a non-default port if the primary tree's `:3000` is in use: `pnpm exec next dev -p 3100`.
    - **Use `pnpm install`, not a `node_modules` symlink.** `pnpm install` in a worktree is seconds (it hardlinks from the global store, no download). A symlinked `node_modules` typechecks and tests fine but **breaks `next dev` — Turbopack panics** with "Symlink … points out of the filesystem root", so you can't run the dev server (and the lifecycle e2e) in the worktree. It also once broke CI when `git add -A` committed the symlink (`ENOTDIR`).
    - **Never start editing on `main` or in the shared checkout**, and never accumulate uncommitted work there.
