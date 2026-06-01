@@ -5,9 +5,15 @@ import { getRouteEstimate } from '@/lib/routes';
 import { PLACEHOLDER_PRICING_RULES, type ServiceType, quoteBooking } from '@/server/domain/pricing';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
+import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
 import type { ConsoleBooking } from './types';
+
+/** "YYYY-MM" of a datetime-local value, or null when not yet a full date. */
+function monthOf(pickupAt: string): string | null {
+  return /^\d{4}-\d{2}/.test(pickupAt) ? pickupAt.slice(0, 7) : null;
+}
 
 interface EditBookingModalProps {
   booking: ConsoleBooking | null;
@@ -328,11 +334,12 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 Customer account<span className="req">*</span>
               </label>
               <div className="ctrl">
-                <input
-                  type="text"
+                <CustomerAccountAutocomplete
                   value={form.customerAccount}
-                  onChange={(e) => set('customerAccount', e.target.value)}
+                  onChange={(v) => set('customerAccount', v)}
+                  month={monthOf(form.pickupAt)}
                   placeholder="e.g. LEGO Group, Mercedes-Benz UK"
+                  ariaLabel="Customer account"
                 />
                 <div className="hint">The company the trip is billed to — not the passenger.</div>
               </div>

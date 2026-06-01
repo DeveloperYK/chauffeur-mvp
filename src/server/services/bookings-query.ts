@@ -1,5 +1,11 @@
 import { parseBookingQuery } from '@/lib/booking-ref';
-import { formatLondonDay, londonDayRangeUtc, londonMonthRangeUtc } from '@/lib/dates';
+import {
+  formatLondonDay,
+  formatLondonMonthShort,
+  londonDayRangeUtc,
+  londonMonthRangeUtc,
+  offsetMonth,
+} from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
 import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-orm';
@@ -81,6 +87,76 @@ export async function listBillableBookings(db: Database, monthStr: string): Prom
     )
     .orderBy(asc(bookings.pickupAt))
     .limit(5000);
+}
+
+/** How many months before the target month the account suggestions look back. */
+export const ACCOUNT_SUGGESTION_LOOKBACK_MONTHS = 3;
+/** Cap on the number of distinct accounts returned to the autocomplete. */
+const ACCOUNT_SUGGESTION_LIMIT = 50;
+
+export interface AccountSuggestion {
+  /** The account-code string exactly as stored, so picking it reuses the spelling. */
+  account: string;
+  /** Short London month of the account's most recent use in the window, e.g. "Jun". */
+  monthLabel: string;
+  /** True if the account was already used in the target (pickup) month. */
+  inMonth: boolean;
+}
+
+/**
+ * Distinct customer-account strings to offer the create/edit booking form, so
+ * operators reuse an existing spelling instead of retyping (which fragments the
+ * monthly invoice — see {@link reconcile}, which groups on the exact string).
+ *
+ * Sourced from the target month plus {@link ACCOUNT_SUGGESTION_LOOKBACK_MONTHS}
+ * prior months (so a brand-new month still autocompletes from recent history),
+ * across every booking state. Target-month accounts come first, then the rest by
+ * most-recent use. Returns `[]` for an invalid month.
+ */
+export async function listAccountCodeSuggestions(
+  db: Database,
+  monthStr: string,
+): Promise<AccountSuggestion[]> {
+  const monthRange = londonMonthRangeUtc(monthStr);
+  if (!monthRange) return [];
+  const windowStart = londonMonthRangeUtc(
+    offsetMonth(monthStr, -ACCOUNT_SUGGESTION_LOOKBACK_MONTHS),
+  );
+  if (!windowStart) return [];
+
+  // Newest first so the first time we see an account is its most-recent use.
+  const rows = await db
+    .select({ account: bookings.accountCode, pickupAt: bookings.pickupAt })
+    .from(bookings)
+    .where(
+      and(gte(bookings.pickupAt, windowStart.startUtc), lt(bookings.pickupAt, monthRange.endUtc)),
+    )
+    .orderBy(desc(bookings.pickupAt))
+    .limit(5000);
+
+  const lastUsed = new Map<string, Date>();
+  for (const row of rows) {
+    const account = row.account.trim();
+    if (account.length === 0 || lastUsed.has(account)) continue;
+    lastUsed.set(account, row.pickupAt);
+  }
+
+  const suggestions: AccountSuggestion[] = [...lastUsed].map(([account, at]) => ({
+    account,
+    monthLabel: formatLondonMonthShort(at),
+    inMonth: at >= monthRange.startUtc,
+  }));
+
+  // Target-month accounts first, then by most-recent use, ties broken by name.
+  suggestions.sort((a, b) => {
+    if (a.inMonth !== b.inMonth) return a.inMonth ? -1 : 1;
+    const at = lastUsed.get(a.account);
+    const bt = lastUsed.get(b.account);
+    if (at && bt && at.getTime() !== bt.getTime()) return bt.getTime() - at.getTime();
+    return a.account.localeCompare(b.account);
+  });
+
+  return suggestions.slice(0, ACCOUNT_SUGGESTION_LIMIT);
 }
 
 export interface BookingSearchHit extends Booking {

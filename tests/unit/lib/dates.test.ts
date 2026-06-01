@@ -5,6 +5,7 @@ import {
   formatLondonDayLong,
   formatLondonMonth,
   formatLondonMonthLong,
+  formatLondonMonthShort,
   formatLondonTimeOfDay,
   londonDayRangeUtc,
   londonDayStartUtc,
@@ -179,6 +180,18 @@ describe('formatLondonDayLong', () => {
 describe('formatLondonMonthLong', () => {
   it('renders a friendly month string', () => {
     expect(formatLondonMonthLong('2026-05')).toBe('May 2026');
+  });
+});
+
+describe('formatLondonMonthShort', () => {
+  it('renders the short London month for an instant', () => {
+    expect(formatLondonMonthShort(new Date('2026-06-10T09:00:00.000Z'))).toBe('Jun');
+    expect(formatLondonMonthShort(new Date('2026-04-15T09:00:00.000Z'))).toBe('Apr');
+  });
+
+  it('honours the London timezone at a UTC day boundary', () => {
+    // 23:30 UTC on 30 Jun is 00:30 BST on 1 Jul in London.
+    expect(formatLondonMonthShort(new Date('2026-06-30T23:30:00.000Z'))).toBe('Jul');
   });
 });
 

@@ -137,6 +137,11 @@ export function formatLondonMonth(at: Date): string {
   return formatLondonDay(at).slice(0, 7);
 }
 
+/** Short London month name for an instant, e.g. "Jun". */
+export function formatLondonMonthShort(at: Date): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', month: 'short' }).format(at);
+}
+
 /** Validate a "YYYY-MM" month string and return its first day as a YYYY-MM-DD string. */
 export function parseMonthString(s: string): string | null {
   const m = /^(\d{4})-(\d{2})$/.exec(s);
