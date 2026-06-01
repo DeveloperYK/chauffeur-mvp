@@ -15,6 +15,7 @@
  *   in_progress ──(cancel)──► cancelled
  *
  *   awaiting_driver_form ──(driver_submit_form)──► awaiting_operator_review
+ *   awaiting_driver_form ──(operator_complete_form)──► completed   (operator enters the form on the driver's behalf; skips review)
  *
  *   awaiting_operator_review ──(operator_approve)──► completed
  *   awaiting_operator_review ──(operator_reject)──► awaiting_driver_form
@@ -31,6 +32,7 @@ export type BookingEvent =
   | { type: 'clock_pickup_minus_1h' }
   | { type: 'clock_expected_end' }
   | { type: 'driver_submit_form' }
+  | { type: 'operator_complete_form' }
   | { type: 'operator_approve' }
   | { type: 'operator_reject' };
 
@@ -113,6 +115,12 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
     case 'awaiting_driver_form':
       if (event.type === 'driver_submit_form') {
         return { ok: true, next: 'awaiting_operator_review', sideEffects: [] };
+      }
+      if (event.type === 'operator_complete_form') {
+        // The operator enters the completion data themselves (driver was slow /
+        // unreachable, info taken by phone). Skips awaiting_operator_review —
+        // there's nothing to review when the operator is the author.
+        return { ok: true, next: 'completed', sideEffects: [] };
       }
       return { ok: false, reason: 'illegal_transition' };
 

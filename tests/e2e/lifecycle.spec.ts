@@ -255,3 +255,52 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Completed');
 });
+
+test('operator completes the form on the driver behalf → completed, skipping review', async ({
+  page,
+}) => {
+  // Fresh data; bring LEGO onto today's board and into awaiting_driver_form.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+
+  // Force into awaiting_driver_form (assigns a driver), then onto today's board.
+  // gotoSimulator between each mutation resets the URL so clickAndSettle's
+  // wait-for-?ok= actually blocks on the new navigation (not a stale prior one).
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="state"]').selectOption('awaiting_driver_form');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Set' }).click());
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Awaiting driver form');
+
+  // ── Console: operator enters the completion details (driver was slow) ──
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: 'Enter completion details' })
+    .click();
+  const modal = page.locator('.modal.is-open');
+  await expect(modal).toBeVisible();
+  // Drop-off is pre-filled; set waiting + car park.
+  await modal.locator('input[type="number"]').first().fill('8');
+  await modal.locator('input[type="number"]').nth(1).fill('4.50');
+  await modal.getByRole('button', { name: 'Complete booking' }).click();
+  await expect(page.locator('.toast')).toContainText(/behalf/i);
+
+  // → Completed directly, never passing through Awaiting operator review.
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Completed');
+
+  // The completed booking is marked operator-entered on the board.
+  await page.goto('/dashboard?showDone=1', { waitUntil: 'networkidle' });
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
+    'OP-ENTERED',
+  );
+});

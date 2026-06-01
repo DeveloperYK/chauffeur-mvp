@@ -16,6 +16,7 @@ import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-que
 import { cancelBooking } from '@/server/services/cancel';
 import {
   approveBooking,
+  completeFormOnBehalf,
   generateCompletionLink,
   rejectBooking,
 } from '@/server/services/completion';
@@ -86,6 +87,47 @@ export async function generateCompletionLinkAction(
   if (!result.ok) return { ok: false, error: `Cannot generate link: ${result.reason}.` };
   revalidatePath('/dashboard');
   return { ok: true, url: result.url, whatsappUrl: result.whatsappUrl };
+}
+
+export async function completeFormOnBehalfAction(
+  bookingId: string,
+  input: { dropoffAt: string; waitingTimeMinutes: number; carParkPence: number },
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await completeFormOnBehalf(
+    bookingId,
+    {
+      dropoffAt: new Date(input.dropoffAt),
+      waitingTimeMinutes: input.waitingTimeMinutes,
+      carParkPence: input.carParkPence,
+    },
+    op.id,
+    {
+      db: db(),
+      secret: driverLinkSecret(),
+      appUrl: appUrl(),
+      mirror: spreadsheetMirror(),
+    },
+  );
+  if (!result.ok) {
+    if (result.reason === 'validation') {
+      const msg = result.issues
+        .map((i) => `${i.path.join('.') || 'field'}: ${i.message}`)
+        .slice(0, 3)
+        .join('; ');
+      return { ok: false, error: msg };
+    }
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : `Can only complete from awaiting-driver-form (it is ${result.state}).`;
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 export async function dispatchManyAction(

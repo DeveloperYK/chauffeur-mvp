@@ -287,3 +287,85 @@ async function reviewBooking(
 
   return { ok: true, booking: updated };
 }
+
+// Same fields as the driver completion form, minus the token — the operator is
+// authenticated, so no signed link is involved.
+export const completeOnBehalfSchema = completionFormSchema
+  .omit({ token: true })
+  .extend({ dropoffAt: z.coerce.date() })
+  .strict();
+
+export type CompleteOnBehalfInput = z.input<typeof completeOnBehalfSchema>;
+
+export type CompleteOnBehalfResult =
+  | { ok: true; booking: Booking }
+  | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
+  | { ok: false; reason: 'booking_not_found' | 'wrong_state'; state?: string };
+
+/**
+ * Operator enters the completion form on the driver's behalf (driver slow /
+ * unreachable, numbers taken by phone). The booking goes straight to `completed`
+ * — skipping `awaiting_operator_review`, since the operator is the author and
+ * has nothing to self-review — and is flagged `completionByOperator`. Same
+ * fields and waiting-fee/invoicing maths as the driver form. The driver's own
+ * link is harmlessly refused afterwards (state is no longer awaiting_driver_form).
+ */
+export async function completeFormOnBehalf(
+  bookingId: string,
+  rawInput: CompleteOnBehalfInput,
+  operatorId: string,
+  deps: CompletionDeps,
+): Promise<CompleteOnBehalfResult> {
+  const parsed = completeOnBehalfSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, reason: 'validation', issues: parsed.error.issues };
+  }
+
+  const clock = deps.clock ?? systemClock;
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+
+  const t = transition(booking.state, { type: 'operator_complete_form' });
+  if (!t.ok) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+  const now = clock.now();
+  const { dropoffAt, waitingTimeMinutes, carParkPence } = parsed.data;
+
+  // Atomic gate on awaiting_driver_form so a concurrent driver submit can't be
+  // clobbered. The operator implicitly approves their own entry, so approvedAt /
+  // approvedByOperatorId are set here too.
+  const [updated] = await deps.db
+    .update(bookings)
+    .set({
+      state: t.next,
+      dropoffAt,
+      waitingTimeMinutes,
+      carParkPence,
+      completionSubmittedAt: now,
+      completionByOperator: true,
+      approvedAt: now,
+      approvedByOperatorId: operatorId,
+      updatedAt: now,
+    })
+    .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'awaiting_driver_form')))
+    .returning();
+  if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+  await recordAuditEvent(deps.db, {
+    actorType: 'operator',
+    actorId: operatorId,
+    entityType: 'booking',
+    entityId: booking.id,
+    action: 'operator_completed_form',
+    before: { state: booking.state },
+    after: { state: updated.state, carParkPence, waitingTimeMinutes },
+  });
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+
+  return { ok: true, booking: updated };
+}

@@ -156,6 +156,10 @@ export const bookings = pgTable(
     waitingTimeMinutes: integer('waiting_time_minutes'),
     dropoffAt: timestamp('dropoff_at', { withTimezone: true }),
     completionSubmittedAt: timestamp('completion_submitted_at', { withTimezone: true }),
+    // True when the operator entered the completion form on the driver's behalf
+    // (driver slow/unreachable, info taken by phone) — this booking skipped the
+    // operator-review stage. See docs/shaping/operator-complete-form.
+    completionByOperator: boolean('completion_by_operator').notNull().default(false),
 
     // Approval
     approvedAt: timestamp('approved_at', { withTimezone: true }),
