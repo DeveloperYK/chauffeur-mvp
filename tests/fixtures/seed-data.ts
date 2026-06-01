@@ -162,6 +162,7 @@ export interface BookingOverrides {
   isBackfill?: boolean;
   backfillDriverName?: string | null;
   backfillDriverPhone?: string | null;
+  completionByOperator?: boolean;
 }
 
 const DEFAULT_PICKUP = new Date('2026-06-01T10:00:00.000Z');
@@ -384,6 +385,7 @@ export const BookingFactory = {
     isBackfill: overrides.isBackfill ?? false,
     backfillDriverName: overrides.backfillDriverName ?? null,
     backfillDriverPhone: overrides.backfillDriverPhone ?? null,
+    completionByOperator: overrides.completionByOperator ?? false,
   }),
 };
 

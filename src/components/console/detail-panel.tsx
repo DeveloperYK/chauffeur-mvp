@@ -27,6 +27,7 @@ interface DetailPanelProps {
   onClose: () => void;
   onDispatch: () => void;
   onBackfill: () => void;
+  onCompleteOnBehalf: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onMutated: (toast: string) => void;
@@ -41,6 +42,7 @@ export function DetailPanel({
   onClose,
   onDispatch,
   onBackfill,
+  onCompleteOnBehalf,
   onEdit,
   onCancel,
   onMutated,
@@ -269,6 +271,9 @@ export function DetailPanel({
                 <Icon.Whatsapp /> WhatsApp driver
               </a>
             ) : null}
+            <button type="button" className="btn" onClick={onCompleteOnBehalf}>
+              <Icon.Check /> Enter completion details
+            </button>
           </div>
         );
       case 'awaiting_operator_review':
@@ -532,9 +537,17 @@ export function DetailPanel({
           {hasCompletion ? (
             <section className="ic">
               <header className="ic__head">
-                <span>Driver completion form</span>
+                <span>
+                  {booking.completionByOperator ? 'Completion form' : 'Driver completion form'}
+                </span>
               </header>
               <div className="ic__body">
+                {booking.completionByOperator ? (
+                  <div className="ir">
+                    <div className="ir__k">Source</div>
+                    <div className="ir__v">Entered by the operator on the driver&apos;s behalf</div>
+                  </div>
+                ) : null}
                 <div className="ir">
                   <div className="ir__k">Car park</div>
                   <div className="ir__v">

@@ -35,6 +35,8 @@ function describe(action: string, passenger: string, after: unknown): string {
       return `generated a completion link for ${passenger}.`;
     case 'driver_submit_form':
       return `submitted the completion form for ${passenger}.`;
+    case 'operator_completed_form':
+      return `completed the trip for ${passenger} on the driver's behalf.`;
     case 'operator_approve':
       return `approved and completed the trip for ${passenger}.`;
     case 'operator_reject':
@@ -117,6 +119,8 @@ function describeBookingDetail(action: string, after: unknown): string | null {
       return `edited ${a.changedFields?.length ? a.changedFields.join(', ') : 'the booking'}.`;
     case 'hand_to_backfill':
       return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to the booking.`;
+    case 'operator_completed_form':
+      return 'completed the trip on the driver’s behalf.';
     case 'operator_approve':
       return 'approved & completed the trip.';
     case 'operator_reject':

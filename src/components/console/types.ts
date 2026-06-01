@@ -35,6 +35,8 @@ export interface ConsoleBooking {
   backfillDriverName: string | null;
   /** Operator-entered backfill driver phone (only when isBackfill). */
   backfillDriverPhone: string | null;
+  /** True when the operator entered the completion form on the driver's behalf (skipped review). */
+  completionByOperator: boolean;
   carParkPence: number | null;
   waitingTimeMinutes: number | null;
   /**

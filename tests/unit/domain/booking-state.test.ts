@@ -85,6 +85,26 @@ describe('booking state machine', () => {
     });
   });
 
+  describe('operator completes the form on the driver behalf', () => {
+    it('operator_complete_form moves awaiting_driver_form → completed directly (skips review)', () => {
+      const t = transition('awaiting_driver_form', { type: 'operator_complete_form' });
+      expect(t.ok && t.next).toBe('completed');
+      expect(t.ok && t.sideEffects).toEqual([]);
+    });
+
+    it.each([
+      'unassigned',
+      'assigned',
+      'in_progress',
+      'awaiting_operator_review',
+      'completed',
+      'cancelled',
+    ] as const)('operator_complete_form is illegal from %s', (state) => {
+      const t = transition(state, { type: 'operator_complete_form' });
+      expect(t.ok).toBe(false);
+    });
+  });
+
   describe('decline keeps ticket unassigned', () => {
     it('decline does not move state', () => {
       const t = transition('unassigned', { type: 'driver_decline' });

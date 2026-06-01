@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
 import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink } from '@/server/domain/link-tokens';
 import { fixedClock } from '@/server/ports/clock';
 import {
   approveBooking,
+  completeFormOnBehalf,
   generateCompletionLink,
   rejectBooking,
   submitCompletionForm,
@@ -293,6 +295,98 @@ describe('services/completion (integration)', () => {
       const approved = await approveBooking(id, operatorId, deps());
       expect(approved.ok).toBe(true);
       if (approved.ok) expect(approved.booking.state).toBe('completed');
+    });
+  });
+
+  describe('completeFormOnBehalf — operator enters the form', () => {
+    let mirror: FakeSpreadsheetMirror;
+    const onBehalfDeps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL, mirror });
+
+    beforeEach(() => {
+      mirror = new FakeSpreadsheetMirror();
+    });
+
+    const input = {
+      dropoffAt: new Date('2026-06-01T11:25:00.000Z'),
+      waitingTimeMinutes: 12,
+      carParkPence: 750,
+    };
+
+    it('completes the booking directly, skipping operator review, marked as operator-entered', async () => {
+      const r = await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.state).toBe('completed');
+      expect(r.booking.completionByOperator).toBe(true);
+      expect(r.booking.carParkPence).toBe(750);
+      expect(r.booking.waitingTimeMinutes).toBe(12);
+      expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-01T11:25:00.000Z');
+      expect(r.booking.completionSubmittedAt).not.toBeNull();
+      expect(r.booking.approvedAt).not.toBeNull();
+      expect(r.booking.approvedByOperatorId).toBe(operatorId);
+    });
+
+    it('records an operator_completed_form audit event (actor = operator) and mirrors', async () => {
+      await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
+      const event = (await db.select().from(auditEvents)).find(
+        (e) => e.action === 'operator_completed_form',
+      );
+      expect(event?.actorType).toBe('operator');
+      expect(event?.actorId).toBe(operatorId);
+      expect(mirror.rows.get(bookingId)?.[18]).toBe('Yes'); // column S — Raise an invoice?? when completed
+    });
+
+    it('refuses a stale driver link submit after the operator has completed (no double submit)', async () => {
+      const gen = await generateCompletionLink(bookingId, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+      await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
+      const late = await submitCompletionForm(
+        { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T12:00:00.000Z' },
+        deps(),
+      );
+      expect(late.ok).toBe(false);
+      if (!late.ok) expect(late.reason).toBe('wrong_state');
+    });
+
+    it('rejects a missing booking', async () => {
+      const r = await completeFormOnBehalf(
+        '00000000-0000-0000-0000-000000000000',
+        input,
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('booking_not_found');
+    });
+
+    it('rejects a booking that is not awaiting the driver form', async () => {
+      await db.update(bookings).set({ state: 'in_progress' }).where(eq(bookings.id, bookingId));
+      const r = await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('wrong_state');
+    });
+
+    it('rejects negative car park', async () => {
+      const r = await completeFormOnBehalf(
+        bookingId,
+        { ...input, carParkPence: -1 },
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('validation');
+    });
+
+    it('rejects out-of-range waiting minutes', async () => {
+      const r = await completeFormOnBehalf(
+        bookingId,
+        { ...input, waitingTimeMinutes: 9999 },
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('validation');
     });
   });
 });

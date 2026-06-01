@@ -49,6 +49,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       isBackfill: false,
       backfillDriverName: null,
       backfillDriverPhone: null,
+      completionByOperator: false,
       createdAt: new Date('2026-05-18T10:00:00.000Z'),
       updatedAt: new Date('2026-06-01T14:00:00.000Z'),
     },

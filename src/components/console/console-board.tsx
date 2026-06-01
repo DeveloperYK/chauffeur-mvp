@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { BackfillModal } from './backfill-modal';
 import { CancelModal } from './cancel-modal';
+import { CompleteFormModal } from './complete-form-modal';
 import { DetailPanel } from './detail-panel';
 import { DispatchModal } from './dispatch-modal';
 import { EditBookingModal } from './edit-booking-modal';
@@ -62,6 +63,7 @@ export function ConsoleBoard({
   const [panelOpen, setPanelOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
+  const [completeFormOpen, setCompleteFormOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
@@ -95,6 +97,7 @@ export function ConsoleBoard({
         else if (editOpen) setEditOpen(false);
         else if (dispatchOpen) setDispatchOpen(false);
         else if (backfillOpen) setBackfillOpen(false);
+        else if (completeFormOpen) setCompleteFormOpen(false);
         else if (newOpen) setNewOpen(false);
         else if (panelOpen) setPanelOpen(false);
       }
@@ -105,7 +108,7 @@ export function ConsoleBoard({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, newOpen, panelOpen]);
+  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, completeFormOpen, newOpen, panelOpen]);
 
   const onSelect = (id: string) => {
     setSelectedId(id);
@@ -296,6 +299,7 @@ export function ConsoleBoard({
         onClose={() => setPanelOpen(false)}
         onDispatch={() => setDispatchOpen(true)}
         onBackfill={() => setBackfillOpen(true)}
+        onCompleteOnBehalf={() => setCompleteFormOpen(true)}
         onEdit={() => setEditOpen(true)}
         onCancel={() => setCancelOpen(true)}
         onMutated={(toast) => handleMutated(toast, toast.startsWith('Trip approved'))}
@@ -320,6 +324,16 @@ export function ConsoleBoard({
         onHandedOff={(summary) => {
           setBackfillOpen(false);
           handleMutated(summary);
+        }}
+      />
+
+      <CompleteFormModal
+        booking={selected}
+        isOpen={completeFormOpen}
+        onClose={() => setCompleteFormOpen(false)}
+        onCompleted={(summary) => {
+          setCompleteFormOpen(false);
+          handleMutated(summary, true);
         }}
       />
 
@@ -419,6 +433,11 @@ function ListRow({
       </span>
       <span>
         <StateLozenge state={b.state} />
+        {b.completionByOperator ? (
+          <span title="Completed by the operator on the driver's behalf" style={{ marginLeft: 6 }}>
+            <Lozenge tone="blue">OP-ENTERED</Lozenge>
+          </span>
+        ) : null}
       </span>
       <span>
         {assignee ? (
@@ -487,6 +506,11 @@ function BoardCard({
         ) : (
           <span className="tag">No driver yet</span>
         )}
+        {booking.completionByOperator ? (
+          <span title="Completed by the operator on the driver's behalf" style={{ marginLeft: 6 }}>
+            <Lozenge tone="blue">OP-ENTERED</Lozenge>
+          </span>
+        ) : null}
         <span className="card__meta-right">
           {operator ? (
             <Avatar
