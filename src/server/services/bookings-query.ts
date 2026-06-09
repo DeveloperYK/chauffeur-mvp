@@ -159,28 +159,192 @@ export async function listAccountCodeSuggestions(
   return suggestions.slice(0, ACCOUNT_SUGGESTION_LIMIT);
 }
 
+/**
+ * Which kind of field a search hit matched on — drives the grouped headers in
+ * the command palette (People, Companies, Addresses…). `other` covers vehicle /
+ * account-code style matches that don't fit a headline group.
+ */
+export type BookingMatchType = 'ref' | 'person' | 'company' | 'address' | 'phone' | 'other';
+
 export interface BookingSearchHit extends Booking {
   /** Name of the assigned driver, if any — joined for both matching and display. */
   driverName: string | null;
+  /** The field category this row matched most strongly — used to group results. */
+  matchType: BookingMatchType;
 }
 
 const SEARCH_LIMIT = 20;
+
+/**
+ * Rows to pull before ranking in app code. We fetch the newest matching
+ * candidates, then re-rank by relevance below. Specific queries (a name, a
+ * phone, a ref) match far fewer than this, so they rank perfectly; only a very
+ * broad term (matching 60+ bookings) risks dropping an old weak match the user
+ * would refine away anyway.
+ */
+const CANDIDATE_LIMIT = 60;
 
 /** Escape LIKE wildcards so a literal % or _ in the query matches literally. */
 function likeContains(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/** Minimum digit count before a bare number is treated as a phone, not a booking ref. */
+const PHONE_MIN_DIGITS = 7;
+
+/**
+ * A query is "phone-like" when it is only phone characters (digits plus the
+ * usual `+ ( ) - ` separators) and carries at least {@link PHONE_MIN_DIGITS}
+ * digits. This keeps short refs like `42` / `00042` as exact booking-ID lookups
+ * while routing real phone numbers to the digit-normalised match below.
+ */
+function isPhoneLike(q: string): boolean {
+  if (!/^[\d\s+()-]+$/.test(q)) return false;
+  return q.replace(/\D/g, '').length >= PHONE_MIN_DIGITS;
+}
+
+/**
+ * Digit-normalised phone match for one token: compares the token's digits
+ * against `exec_mobile` stripped of all non-digits, so formatting differs
+ * freely. A single UK trunk `0` is dropped from the token so `07911…` matches a
+ * stored `+447911…`. Returns undefined for tokens too short to be a phone, so
+ * stray numbers in a name search don't drag in unrelated bookings.
+ */
+function phoneDigitsMatch(token: string): SQL | undefined {
+  const digits = token.replace(/\D/g, '');
+  if (digits.length < 4) return undefined;
+  const normalized = digits.replace(/^0/, '');
+  return sql`regexp_replace(${bookings.execMobile}, '[^0-9]', '', 'g') like ${`%${normalized}%`}`;
+}
+
+/** OR across every searchable field for a single whitespace-delimited token. */
+function tokenMatch(token: string): SQL | undefined {
+  const pattern = likeContains(token);
+  return or(
+    ilike(bookings.passengerFirstName, pattern),
+    ilike(bookings.passengerLastName, pattern),
+    ilike(drivers.name, pattern),
+    ilike(bookings.pickupAddress, pattern),
+    ilike(bookings.dropoffAddress, pattern),
+    ilike(bookings.accountCode, pattern),
+    ilike(bookings.caseCode, pattern),
+    ilike(bookings.carForThisJob, pattern),
+    ilike(bookings.clientName, pattern),
+    ilike(bookings.execMobile, pattern),
+    phoneDigitsMatch(token),
+  );
+}
+
+/**
+ * One searchable text field: how to read it off a hit, its category (for the
+ * grouped headers), and its weight (name beats company beats address beats
+ * vehicle). Phone is scored separately because it needs digit normalisation.
+ */
+interface SearchField {
+  category: Exclude<BookingMatchType, 'ref' | 'phone'>;
+  weight: number;
+  value: (hit: BookingSearchHit) => string | null | undefined;
+}
+
+// Higher-priority categories first so ties on contribution resolve to the more
+// meaningful label (a name over an address over an account code).
+const SEARCH_FIELDS: SearchField[] = [
+  { category: 'person', weight: 5, value: (h) => h.passengerFirstName },
+  { category: 'person', weight: 5, value: (h) => h.passengerLastName },
+  { category: 'person', weight: 4, value: (h) => h.driverName },
+  { category: 'company', weight: 4, value: (h) => h.clientName },
+  { category: 'company', weight: 3, value: (h) => h.accountCode },
+  { category: 'company', weight: 2, value: (h) => h.caseCode },
+  { category: 'address', weight: 3, value: (h) => h.pickupAddress },
+  { category: 'address', weight: 3, value: (h) => h.dropoffAddress },
+  { category: 'other', weight: 2, value: (h) => h.carForThisJob },
+];
+
+const PHONE_WEIGHT = 4;
+
+/**
+ * How well `token` sits inside `value`, ignoring field weight: exact field (3) >
+ * field prefix (2) > start of an inner word (1.5) > anywhere (1) > absent (0).
+ */
+function positionScore(value: string | null | undefined, token: string): number {
+  if (!value) return 0;
+  const v = value.toLowerCase();
+  const t = token.toLowerCase();
+  const idx = v.indexOf(t);
+  if (idx < 0) return 0;
+  if (v === t) return 3;
+  if (idx === 0) return 2;
+  if (v[idx - 1] === ' ') return 1.5;
+  return 1;
+}
+
+/** Digit-normalised phone relevance for one token (matches `phoneDigitsMatch`). */
+function phoneScore(token: string, execMobile: string): number {
+  const digits = token.replace(/\D/g, '');
+  if (digits.length < 4) return 0;
+  const normalized = digits.replace(/^0/, '');
+  const stored = execMobile.replace(/\D/g, '');
+  if (!stored.includes(normalized)) return 0;
+  if (stored === normalized) return PHONE_WEIGHT * 3;
+  if (stored.endsWith(normalized)) return PHONE_WEIGHT * 2;
+  return PHONE_WEIGHT;
+}
+
+/**
+ * Relevance of a hit for the given tokens: each token contributes its single
+ * best (weight × position) match across all fields, summed. The category of the
+ * single strongest contribution becomes the hit's `matchType`.
+ */
+function rankHit(
+  hit: BookingSearchHit,
+  tokens: string[],
+): { score: number; hit: BookingSearchHit } {
+  let score = 0;
+  let bestContribution = -1;
+  let matchType: BookingMatchType = 'other';
+
+  for (const token of tokens) {
+    let tokenBest = 0;
+    let tokenCategory: BookingMatchType = 'other';
+    for (const field of SEARCH_FIELDS) {
+      const contribution = field.weight * positionScore(field.value(hit), token);
+      if (contribution > tokenBest) {
+        tokenBest = contribution;
+        tokenCategory = field.category;
+      }
+    }
+    const phone = phoneScore(token, hit.execMobile);
+    if (phone > tokenBest) {
+      tokenBest = phone;
+      tokenCategory = 'phone';
+    }
+    score += tokenBest;
+    if (tokenBest > bestContribution) {
+      bestContribution = tokenBest;
+      matchType = tokenCategory;
+    }
+  }
+
+  return { score, hit: { ...hit, matchType } };
+}
+
 /**
  * Global booking search for the command palette. Matches:
- * - the exact booking reference (`seq`) when the query parses as an ID
+ * - the exact booking reference (`seq`) when the query is a short ID
  *   (`42` / `00042` / `BKNG-00042`), otherwise
- * - a case-insensitive substring across passenger name, assigned driver name,
- *   pickup/dropoff address, account code, case code, and vehicle.
+ * - every whitespace-delimited word as a case-insensitive substring (AND across
+ *   words, OR across fields) over passenger name, assigned driver name,
+ *   pickup/dropoff address, account code, case code, vehicle, client/company
+ *   name, and exec phone. Multi-word so a full name ("Eric French") matches
+ *   first+last; a 7+ digit number is treated as a phone (digit-normalised, UK
+ *   leading zero tolerated), not a booking ID.
  *
- * Optionally scopes to one driver (with or without a term). Bounded, newest
- * pickup first. Plain ILIKE only (no pg_trgm/tsvector) so it runs identically
- * on Supabase and the PGlite test DB; revisit with a trigram index past ~100k rows.
+ * Results are ranked by relevance (best field match first, recency only as a
+ * tiebreaker) and each carries a {@link BookingMatchType} for grouping. An empty
+ * term with a `driverId` lists that driver's jobs newest-first (no ranking).
+ *
+ * Plain ILIKE only (no pg_trgm/tsvector) so it runs identically on Supabase and
+ * the PGlite test DB; revisit with a trigram index past ~100k rows.
  */
 export async function searchBookings(
   db: Database,
@@ -189,30 +353,23 @@ export async function searchBookings(
 ): Promise<BookingSearchHit[]> {
   const q = query.trim();
   const { driverId } = opts;
+  const limit = opts.limit ?? SEARCH_LIMIT;
   if (!q && !driverId) return [];
 
-  const conditions: SQL[] = [];
+  const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+  const refSeq = tokens.length === 1 ? parseBookingQuery(q) : null;
+  const isRef = refSeq !== null && !isPhoneLike(q);
 
-  if (q) {
-    const seq = parseBookingQuery(q);
-    if (seq !== null) {
-      conditions.push(eq(bookings.seq, seq));
-    } else {
-      const pattern = likeContains(q);
-      const term = or(
-        ilike(bookings.passengerFirstName, pattern),
-        ilike(bookings.passengerLastName, pattern),
-        ilike(drivers.name, pattern),
-        ilike(bookings.pickupAddress, pattern),
-        ilike(bookings.dropoffAddress, pattern),
-        ilike(bookings.accountCode, pattern),
-        ilike(bookings.caseCode, pattern),
-        ilike(bookings.carForThisJob, pattern),
-      );
+  const conditions: SQL[] = [];
+  if (isRef && refSeq !== null) {
+    conditions.push(eq(bookings.seq, refSeq));
+  } else {
+    // Each word must match somewhere; AND the per-word OR-groups together.
+    for (const token of tokens) {
+      const term = tokenMatch(token);
       if (term) conditions.push(term);
     }
   }
-
   if (driverId) conditions.push(eq(bookings.assignedDriverId, driverId));
 
   const rows = await db
@@ -221,9 +378,22 @@ export async function searchBookings(
     .leftJoin(drivers, eq(bookings.assignedDriverId, drivers.id))
     .where(and(...conditions))
     .orderBy(desc(bookings.pickupAt))
-    .limit(opts.limit ?? SEARCH_LIMIT);
+    .limit(isRef ? limit : Math.max(limit, CANDIDATE_LIMIT));
 
-  return rows.map((r) => ({ ...r.booking, driverName: r.driverName ?? null }));
+  const hits: BookingSearchHit[] = rows.map((r) => ({
+    ...r.booking,
+    driverName: r.driverName ?? null,
+    matchType: isRef ? 'ref' : 'other',
+  }));
+
+  // A ref lookup or a bare driver listing is already ordered newest-first.
+  if (isRef || tokens.length === 0) return hits.slice(0, limit);
+
+  return hits
+    .map((hit) => rankHit(hit, tokens))
+    .sort((a, b) => b.score - a.score || b.hit.pickupAt.getTime() - a.hit.pickupAt.getTime())
+    .slice(0, limit)
+    .map((ranked) => ranked.hit);
 }
 
 export async function listRecentCompletedAndCancelled(
