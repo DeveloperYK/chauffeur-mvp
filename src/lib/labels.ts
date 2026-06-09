@@ -1,4 +1,4 @@
-import type { BookingState, DriverTier } from '@/server/db/schema';
+import type { BookingState, VehicleClass } from '@/server/db/schema';
 
 /**
  * Vehicle is free text. We display it as the operator typed it, with a few
@@ -18,10 +18,21 @@ export function carLabel(value: string | null | undefined): string {
   return LEGACY_CAR_ALIAS[v] ?? v;
 }
 
-export const TIER_LABEL: Record<DriverTier, string> = {
-  premium: 'Premium',
-  ordinary: 'Ordinary',
+export const VEHICLE_CLASS_LABEL: Record<VehicleClass, string> = {
+  executive: 'Executive',
+  luxury: 'Luxury',
+  mpv: 'MPV',
+  coach: 'Coach',
 };
+
+/** "Black Mercedes S-Class" — colour + car, for SMS and identification. Falls
+ * back gracefully when either part is missing. */
+export function carDescription(
+  car: string | null | undefined,
+  colour: string | null | undefined,
+): string {
+  return [colour?.trim(), carLabel(car)].filter(Boolean).join(' ');
+}
 
 export const STATE_LABEL: Record<BookingState, string> = {
   unassigned: 'Unassigned',
@@ -44,7 +55,9 @@ export const STATE_BADGE: Record<BookingState, string> = {
   cancelled: 'bg-neutral-100 text-neutral-600',
 };
 
-export const TIER_BADGE: Record<DriverTier, string> = {
-  premium: 'bg-brand-50 text-brand-700 border border-brand-100',
-  ordinary: 'bg-neutral-100 text-neutral-700 border border-neutral-200',
+export const VEHICLE_CLASS_BADGE: Record<VehicleClass, string> = {
+  executive: 'bg-brand-50 text-brand-700 border border-brand-100',
+  luxury: 'bg-violet-50 text-violet-700 border border-violet-100',
+  mpv: 'bg-info-100 text-info-700 border border-info-200',
+  coach: 'bg-warning-50 text-warning-700 border border-warning-100',
 };

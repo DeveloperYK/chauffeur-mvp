@@ -24,11 +24,11 @@ export const bookingStateEnum = pgEnum('booking_state', [
   'cancelled',
 ]);
 
-export const driverTierEnum = pgEnum('driver_tier', ['premium', 'ordinary']);
-
-// Vehicle is captured as free text — operators want to type real model names
-// (e.g. "Mercedes S-Class", "BMW X5", "Range Rover", "Mercedes V-Class MPV")
-// rather than be constrained to a closed enum.
+// A driver's vehicle class. Each class implies the actual car(s) the driver
+// runs, so the system no longer records a separate car/vehicle descriptor —
+// the class is the vehicle. Executive and Luxury are saloons; MPV is a people
+// carrier; Coach is a minibus/coach.
+export const vehicleClassEnum = pgEnum('vehicle_class', ['executive', 'luxury', 'mpv', 'coach']);
 
 export const actorTypeEnum = pgEnum('actor_type', ['operator', 'system', 'driver']);
 
@@ -76,15 +76,21 @@ export const drivers = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
-    tier: driverTierEnum('tier').notNull(),
-    defaultCarType: text('default_car_type').notNull(),
+    // The driver's vehicle class — one of the four fixed categories. Implies the
+    // kind of car; the exact car + colour below let the exec identify it kerbside.
+    vehicleClass: vehicleClassEnum('vehicle_class').notNull(),
+    // The driver's actual car (make/model, e.g. "Mercedes S-Class") and its
+    // colour (e.g. "Black"). Operator-entered on the driver screen; drivers can
+    // no longer change the car when accepting a job — it is fixed to the driver.
+    car: text('car').notNull(),
+    carColour: text('car_colour').notNull(),
     whatsappNumber: text('whatsapp_number').notNull(),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('drivers_tier_active_idx').on(t.tier, t.active),
+    index('drivers_vehicle_class_active_idx').on(t.vehicleClass, t.active),
     uniqueIndex('drivers_whatsapp_idx').on(t.whatsappNumber),
   ],
 );
@@ -144,18 +150,19 @@ export const bookings = pgTable(
     assignedDriverId: uuid('assigned_driver_id').references(() => drivers.id, {
       onDelete: 'restrict',
     }),
-    carForThisJob: text('car_for_this_job'),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
 
     // Backfill (subcontractor) driver — used when no internal driver is
     // available and the operator hands the job to someone from the WhatsApp
     // group. The booking moves through assigned → in_progress → completed with
     // `assignedDriverId` null and these free-text fields recording who covered
-    // it. The car they bring reuses `carForThisJob`; only the driver's identity
-    // (name + phone) needs its own fields. See docs/shaping/backfill-drivers.
+    // it: the driver's identity (name + phone) and the car they bring. Internal
+    // drivers carry their car on the driver profile instead, so this only
+    // applies to backfills. See docs/shaping/backfill-drivers.
     isBackfill: boolean('is_backfill').notNull().default(false),
     backfillDriverName: text('backfill_driver_name'),
     backfillDriverPhone: text('backfill_driver_phone'),
+    backfillCar: text('backfill_car'),
 
     // Completion form (filled by driver)
     carParkPence: integer('car_park_pence'),
@@ -261,13 +268,8 @@ export const shortLinks = pgTable('short_links', {
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
-export type DriverTier = (typeof driverTierEnum.enumValues)[number];
+export type VehicleClass = (typeof vehicleClassEnum.enumValues)[number];
 export type ServiceType = (typeof serviceTypeEnum.enumValues)[number];
-/**
- * Vehicle descriptor — free text. Common values include "Mercedes S-Class",
- * "Mercedes E-Class", "BMW X5", "Range Rover", "Mercedes V-Class MPV", etc.
- */
-export type CarType = string;
 export type ActorType = (typeof actorTypeEnum.enumValues)[number];
 
 export type Operator = typeof operators.$inferSelect;

@@ -3,6 +3,7 @@ import { PageContent, PageHeader } from '@/components/ui/page';
 import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
+import type { VehicleClass } from '@/server/db/schema';
 import { listActiveDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -24,8 +25,9 @@ export default async function NewBookingPage({
   let drivers: Array<{
     id: string;
     name: string;
-    tier: 'premium' | 'ordinary';
-    defaultCarType: string;
+    vehicleClass: VehicleClass;
+    car: string;
+    carColour: string;
   }> = [];
 
   if (url) {
@@ -34,8 +36,9 @@ export default async function NewBookingPage({
     drivers = driverList.map((d) => ({
       id: d.id,
       name: d.name,
-      tier: d.tier,
-      defaultCarType: d.defaultCarType,
+      vehicleClass: d.vehicleClass,
+      car: d.car,
+      carColour: d.carColour,
     }));
   }
 

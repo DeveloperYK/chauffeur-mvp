@@ -38,8 +38,9 @@ describe('services/drivers (integration)', () => {
 
   const valid = (overrides: Record<string, unknown> = {}) => ({
     name: 'Tom Smith',
-    tier: 'premium',
-    defaultCarType: 's_class',
+    vehicleClass: 'executive',
+    car: 'Mercedes S-Class',
+    carColour: 'Black',
     whatsappNumber: '+447911000001',
     ...overrides,
   });
@@ -48,7 +49,9 @@ describe('services/drivers (integration)', () => {
     const result = await createDriver(valid(), { db, operatorId });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.driver.tier).toBe('premium');
+    expect(result.driver.vehicleClass).toBe('executive');
+    expect(result.driver.car).toBe('Mercedes S-Class');
+    expect(result.driver.carColour).toBe('Black');
     expect(result.driver.active).toBe(true);
 
     const events = await db.select().from(auditEvents);
@@ -56,8 +59,8 @@ describe('services/drivers (integration)', () => {
     expect(events[0]?.action).toBe('create');
   });
 
-  it('rejects invalid tier', async () => {
-    const result = await createDriver(valid({ tier: 'platinum' }), { db, operatorId });
+  it('rejects invalid vehicle class', async () => {
+    const result = await createDriver(valid({ vehicleClass: 'platinum' }), { db, operatorId });
     expect(result.ok).toBe(false);
   });
 
@@ -88,13 +91,13 @@ describe('services/drivers (integration)', () => {
     if (!created.ok) throw new Error('setup');
     const updated = await updateDriver(
       created.driver.id,
-      { name: 'Renamed', tier: 'ordinary' },
+      { name: 'Renamed', vehicleClass: 'luxury' },
       { db, operatorId },
     );
     expect(updated.ok).toBe(true);
     if (updated.ok) {
       expect(updated.driver.name).toBe('Renamed');
-      expect(updated.driver.tier).toBe('ordinary');
+      expect(updated.driver.vehicleClass).toBe('luxury');
     }
     const events = await db.select().from(auditEvents);
     const updateEvents = events.filter((e) => e.action === 'update');
@@ -153,26 +156,26 @@ describe('services/drivers (integration)', () => {
     expect(await getDriver(db, '00000000-0000-0000-0000-000000000099')).toBeNull();
   });
 
-  it('listActiveDrivers orders premium before ordinary', async () => {
+  it('listActiveDrivers orders by vehicle class then name', async () => {
     await createDriver(
-      valid({ name: 'A Premium', tier: 'premium', whatsappNumber: '+447911000101' }),
+      valid({ name: 'A Exec', vehicleClass: 'executive', whatsappNumber: '+447911000101' }),
       { db, operatorId },
     );
     await createDriver(
-      valid({ name: 'B Ordinary', tier: 'ordinary', whatsappNumber: '+447911000102' }),
+      valid({ name: 'B MPV', vehicleClass: 'mpv', whatsappNumber: '+447911000102' }),
       { db, operatorId },
     );
     await createDriver(
-      valid({ name: 'C Premium', tier: 'premium', whatsappNumber: '+447911000103' }),
+      valid({ name: 'C Exec', vehicleClass: 'executive', whatsappNumber: '+447911000103' }),
       { db, operatorId },
     );
     const list = await listActiveDrivers(db);
-    // Postgres enum declaration order: premium, ordinary.
-    // listActiveDrivers orders by tier ASC = premium first (which is what we want).
-    expect(list.map((d) => `${d.tier}:${d.name}`)).toEqual([
-      'premium:A Premium',
-      'premium:C Premium',
-      'ordinary:B Ordinary',
+    // Postgres enum declaration order: executive, luxury, mpv, coach.
+    // listActiveDrivers orders by vehicle_class ASC, then name.
+    expect(list.map((d) => `${d.vehicleClass}:${d.name}`)).toEqual([
+      'executive:A Exec',
+      'executive:C Exec',
+      'mpv:B MPV',
     ]);
   });
 });

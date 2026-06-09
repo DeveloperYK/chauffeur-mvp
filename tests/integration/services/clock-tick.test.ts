@@ -32,8 +32,9 @@ describe('services/clock-tick (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 's_class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000001',
       })
       .returning();
@@ -60,7 +61,6 @@ describe('services/clock-tick (integration)', () => {
         accountCode: 'LEGO',
         contractPricePence: 30000,
         assignedDriverId: state === 'unassigned' ? null : driverId,
-        carForThisJob: state === 'unassigned' ? null : 's_class',
         ...(createdAtISO ? { createdAt: new Date(createdAtISO) } : {}),
       })
       .returning();
@@ -194,7 +194,6 @@ describe('services/clock-tick (integration)', () => {
           isBackfill: true,
           backfillDriverName: 'Dave Smith',
           backfillDriverPhone: '+447911123456',
-          carForThisJob: 'BMW 5 Series',
         })
         .returning();
       return b?.id ?? '';

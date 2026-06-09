@@ -49,8 +49,9 @@ describe('services/completion (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 's_class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000001',
       })
       .returning();
@@ -60,7 +61,6 @@ describe('services/completion (integration)', () => {
       .values({
         state: 'awaiting_driver_form',
         assignedDriverId: driverId,
-        carForThisJob: 's_class',
         assignedAt: new Date('2026-05-18T08:30:00.000Z'),
         pickupAt: new Date('2026-06-01T10:00:00.000Z'),
         expectedDurationMinutes: 90,
@@ -233,7 +233,6 @@ describe('services/completion (integration)', () => {
           isBackfill: true,
           backfillDriverName: 'Dave Smith',
           backfillDriverPhone: '+447911123456',
-          carForThisJob: 'BMW 5 Series',
           assignedAt: new Date('2026-05-18T08:30:00.000Z'),
           pickupAt: new Date('2026-06-01T10:00:00.000Z'),
           expectedDurationMinutes: 90,

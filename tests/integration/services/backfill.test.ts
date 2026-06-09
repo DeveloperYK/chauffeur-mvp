@@ -75,7 +75,7 @@ describe('services/backfill (integration)', () => {
       expect(b?.isBackfill).toBe(true);
       expect(b?.assignedDriverId).toBeNull();
       expect(b?.backfillDriverName).toBe('Dave Smith');
-      expect(b?.carForThisJob).toBe('BMW 5 Series');
+      expect(b?.backfillCar).toBe('BMW 5 Series');
       expect(b?.assignedAt).not.toBeNull();
     });
 
@@ -186,7 +186,7 @@ describe('services/backfill (integration)', () => {
       expect(b?.isBackfill).toBe(false);
       expect(b?.backfillDriverName).toBeNull();
       expect(b?.backfillDriverPhone).toBeNull();
-      expect(b?.carForThisJob).toBeNull();
+      expect(b?.backfillCar).toBeNull();
     });
   });
 });

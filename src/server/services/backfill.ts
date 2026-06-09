@@ -103,7 +103,7 @@ export async function handToBackfill(
       isBackfill: true,
       backfillDriverName: name,
       backfillDriverPhone: phone,
-      carForThisJob: car,
+      backfillCar: car,
       assignedAt: now,
       flaggedAt: null,
       updatedAt: now,

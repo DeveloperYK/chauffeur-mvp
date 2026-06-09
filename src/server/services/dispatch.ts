@@ -1,14 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { carDescription } from '@/lib/labels';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
-import {
-  type Booking,
-  type CarType,
-  type Driver,
-  bookings,
-  consumedTokens,
-  drivers,
-} from '@/server/db/schema';
+import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
 import { dispatchLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
@@ -202,7 +196,6 @@ export type AcceptResult =
       ok: true;
       booking: Booking;
       driver: Driver;
-      carForJob: CarType;
     }
   | { ok: false; reason: 'token_invalid' | 'token_expired' | 'token_consumed' }
   | { ok: false; reason: 'booking_not_found' }
@@ -211,7 +204,6 @@ export type AcceptResult =
 
 export interface AcceptInput {
   token: string;
-  carOverride?: CarType;
 }
 
 export async function acceptDispatchLink(
@@ -240,7 +232,6 @@ export async function acceptDispatchLink(
   const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
   if (!driver) return { ok: false, reason: 'driver_not_found' };
 
-  const carForJob: CarType = input.carOverride ?? driver.defaultCarType;
   const now = clock.now();
 
   // Accept always lands on the initial dispatch path: unassigned → assigned.
@@ -258,7 +249,6 @@ export async function acceptDispatchLink(
     .set({
       state: t.next,
       assignedDriverId: driver.id,
-      carForThisJob: carForJob,
       assignedAt: now,
       updatedAt: now,
     })
@@ -279,22 +269,23 @@ export async function acceptDispatchLink(
     entityId: booking.id,
     action: 'driver_accept',
     before: { state: booking.state },
-    after: { state: updated.state, driverId: driver.id, carForJob },
+    after: { state: updated.state, driverId: driver.id },
   });
 
   // Resolve the fan-out: this driver's offer is accepted, any other open offers
   // on the booking lapse (the operator's console clears its "awaiting" count).
   await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
 
-  // Side effect: SMS exec
+  // Side effect: SMS exec — name the driver and their car + colour so the exec
+  // can identify the vehicle kerbside.
   await deps.notifications.sendSms({
     to: booking.execMobile,
-    body: assignedSms(updated, driver, carForJob),
+    body: assignedSms(updated, driver, carDescription(driver.car, driver.carColour)),
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
-  return { ok: true, booking: updated, driver, carForJob };
+  return { ok: true, booking: updated, driver };
 }
 
 export type ReleaseDriverResult =
@@ -337,12 +328,12 @@ export async function releaseDriver(
     .set({
       state: t.next,
       assignedDriverId: null,
-      carForThisJob: null,
       assignedAt: null,
       flaggedAt: null,
       isBackfill: false,
       backfillDriverName: null,
       backfillDriverPhone: null,
+      backfillCar: null,
       updatedAt: now,
     })
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'assigned')))

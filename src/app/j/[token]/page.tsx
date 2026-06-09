@@ -2,6 +2,7 @@ import '@/app/console.css';
 import { Avatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
+import { carDescription } from '@/lib/labels';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
   bookings as bookingsTable,
@@ -192,20 +193,20 @@ export default async function DriverLinkPage({
         ) : null}
       </div>
 
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--ink-3)',
+          borderTop: '1px solid var(--hairline-soft)',
+          paddingTop: 10,
+          marginTop: 10,
+        }}
+      >
+        <strong style={{ color: 'var(--ink)' }}>Your car:</strong>{' '}
+        {carDescription(driver.car, driver.carColour)}
+      </div>
       <form action={acceptAction}>
         <input type="hidden" name="token" value={token} />
-        <div className="field">
-          <label htmlFor="carForJob">Vehicle for this job</label>
-          <input
-            id="carForJob"
-            className="input"
-            type="text"
-            name="carForJob"
-            maxLength={80}
-            defaultValue={driver.defaultCarType}
-          />
-          <div className="hint">Defaults to your usual. Change if you'll use a different car.</div>
-        </div>
         <button
           type="submit"
           className="btn btn--success btn--lg btn--block"

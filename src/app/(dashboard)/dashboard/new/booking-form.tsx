@@ -4,6 +4,8 @@ import { AddressAutocomplete } from '@/components/console/address-autocomplete';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import type { VehicleClass } from '@/server/db/schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { useRouter } from 'next/navigation';
@@ -57,8 +59,9 @@ type BookingFormData = z.infer<typeof bookingFormSchema>;
 interface Driver {
   id: string;
   name: string;
-  tier: 'premium' | 'ordinary';
-  defaultCarType: string;
+  vehicleClass: VehicleClass;
+  car: string;
+  carColour: string;
 }
 
 interface BookingFormProps {
@@ -259,8 +262,8 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
             <option value="">— Select a driver (optional) —</option>
             {drivers.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.tier === 'premium' ? '★ ' : ''}
-                {d.name} · {d.defaultCarType}
+                {d.name} · {VEHICLE_CLASS_LABEL[d.vehicleClass]} ·{' '}
+                {carDescription(d.car, d.carColour)}
               </option>
             ))}
           </Select>

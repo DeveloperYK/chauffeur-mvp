@@ -207,7 +207,8 @@ export async function searchBookings(
         ilike(bookings.dropoffAddress, pattern),
         ilike(bookings.accountCode, pattern),
         ilike(bookings.caseCode, pattern),
-        ilike(bookings.carForThisJob, pattern),
+        ilike(bookings.backfillCar, pattern),
+        ilike(drivers.car, pattern),
       );
       if (term) conditions.push(term);
     }

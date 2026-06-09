@@ -1,4 +1,4 @@
-import type { BookingState, DriverTier } from '@/server/db/schema';
+import type { BookingState, VehicleClass } from '@/server/db/schema';
 
 // Serializable shapes passed from the board server component into the client
 // console shell. Dates are ISO strings so the client formats them consistently.
@@ -31,13 +31,14 @@ export interface ConsoleBooking {
   createdByOperatorId: string | null;
   assignedOperatorId: string | null;
   assignedDriverId: string | null;
-  carForThisJob: string | null;
   /** True when the job is covered by a backfill (subcontractor) driver, not the internal roster. */
   isBackfill: boolean;
   /** Operator-entered backfill driver name (only when isBackfill). */
   backfillDriverName: string | null;
   /** Operator-entered backfill driver phone (only when isBackfill). */
   backfillDriverPhone: string | null;
+  /** Operator-entered backfill driver's car (only when isBackfill). */
+  backfillCar: string | null;
   /** True when the operator entered the completion form on the driver's behalf (skipped review). */
   completionByOperator: boolean;
   carParkPence: number | null;
@@ -67,8 +68,9 @@ export interface ConsoleBooking {
 export interface ConsoleDriver {
   id: string;
   name: string;
-  tier: DriverTier;
-  defaultCarType: string;
+  vehicleClass: VehicleClass;
+  car: string;
+  carColour: string;
   whatsappNumber: string;
   active: boolean;
   /** Derived: count of this driver's open bookings in the current week. */

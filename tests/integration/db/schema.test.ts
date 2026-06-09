@@ -51,8 +51,9 @@ describe('db schema — integration (pglite)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 's_class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000001',
       })
       .returning();
@@ -82,7 +83,6 @@ describe('db schema — integration (pglite)', () => {
       .set({
         state: 'assigned',
         assignedDriverId: driver?.id ?? null,
-        carForThisJob: 's_class',
         assignedAt: new Date(),
       })
       .where(eq(bookings.id, booking?.id ?? ''))
@@ -111,15 +111,17 @@ describe('db schema — integration (pglite)', () => {
   it('rejects unique whatsapp constraint on driver', async () => {
     await db.insert(drivers).values({
       name: 'X',
-      tier: 'ordinary',
-      defaultCarType: 'ex',
+      vehicleClass: 'executive',
+      car: 'Mercedes S-Class',
+      carColour: 'Black',
       whatsappNumber: '+447911000900',
     });
     await expect(
       db.insert(drivers).values({
         name: 'Y',
-        tier: 'ordinary',
-        defaultCarType: 'ex',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000900',
       }),
     ).rejects.toThrow();

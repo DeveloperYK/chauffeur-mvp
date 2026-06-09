@@ -1673,7 +1673,7 @@ a:hover {
   font-size: 13px;
 }
 
-.tier-tag {
+.vc-tag {
   font-size: 10px;
   font-weight: 700;
   padding: 1px 5px;
@@ -1681,17 +1681,37 @@ a:hover {
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.tier-tag.premium {
+.vc-tag.executive {
   background: #f5e6bd;
   color: #735200;
 }
-.tier-tag.ordinary {
-  background: var(--surface-3);
-  color: var(--ink-3);
+.vc-tag.luxury {
+  background: #ede9fe;
+  color: #5b21b6;
 }
-[data-theme="dark"] .tier-tag.premium {
+.vc-tag.mpv {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.vc-tag.coach {
+  background: #fef3c7;
+  color: #92400e;
+}
+[data-theme="dark"] .vc-tag.executive {
   background: #463814;
   color: #e5c77b;
+}
+[data-theme="dark"] .vc-tag.luxury {
+  background: #2e1065;
+  color: #c4b5fd;
+}
+[data-theme="dark"] .vc-tag.mpv {
+  background: #172554;
+  color: #93c5fd;
+}
+[data-theme="dark"] .vc-tag.coach {
+  background: #451a03;
+  color: #fcd34d;
 }
 
 /* ─────────────────────────────────────────────────────────────

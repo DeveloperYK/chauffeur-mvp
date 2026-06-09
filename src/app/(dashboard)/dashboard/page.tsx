@@ -68,10 +68,10 @@ function toConsoleBooking(
     createdByOperatorId: b.createdByOperatorId,
     assignedOperatorId: b.assignedOperatorId,
     assignedDriverId: b.assignedDriverId,
-    carForThisJob: b.carForThisJob,
     isBackfill: b.isBackfill,
     backfillDriverName: b.backfillDriverName,
     backfillDriverPhone: b.backfillDriverPhone,
+    backfillCar: b.backfillCar,
     completionByOperator: b.completionByOperator,
     carParkPence: b.carParkPence,
     waitingTimeMinutes: b.waitingTimeMinutes,
@@ -181,7 +181,7 @@ export default async function DashboardHome({
       b.dropoffAddress ?? '',
       b.accountCode,
       b.caseCode ?? '',
-      b.carForThisJob ?? '',
+      b.backfillCar ?? '',
     ].some((x) => x.toLowerCase().includes(needle));
   };
   const matchesAssignee = (b: Booking) => {
@@ -242,8 +242,9 @@ export default async function DashboardHome({
   const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
     id: d.id,
     name: d.name,
-    tier: d.tier,
-    defaultCarType: d.defaultCarType,
+    vehicleClass: d.vehicleClass,
+    car: d.car,
+    carColour: d.carColour,
     whatsappNumber: d.whatsappNumber,
     active: d.active,
     jobsThisWeek: dispatch.weekLoads[d.id] ?? 0,

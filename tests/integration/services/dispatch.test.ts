@@ -52,8 +52,9 @@ describe('services/dispatch (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 's_class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: driverWhatsapp,
       })
       .returning();
@@ -152,12 +153,13 @@ describe('services/dispatch (integration)', () => {
     if (!r.ok) return;
     expect(r.booking.state).toBe('assigned');
     expect(r.booking.assignedDriverId).toBe(driverId);
-    expect(r.carForJob).toBe('s_class');
 
     // SMS: only the exec confirmation on accept (dispatch link is not auto-texted).
+    // The confirmation names the driver and their car + colour for identification.
     expect(notifications.sent.length).toBe(1);
     expect(notifications.sent[0]?.to).toBe('+447911999999');
     expect(notifications.sent[0]?.body).toContain('Tom');
+    expect(notifications.sent[0]?.body).toContain('Black Mercedes S-Class');
 
     // jti consumed
     expect((await db.select().from(consumedTokens)).length).toBe(1);
@@ -165,14 +167,6 @@ describe('services/dispatch (integration)', () => {
     // Audit entries (generate + accept)
     const events = await db.select().from(auditEvents);
     expect(events.some((e) => e.action === 'driver_accept')).toBe(true);
-  });
-
-  it('accept honours car override', async () => {
-    const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
-    if (!gen.ok) throw new Error('setup');
-    const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    const r = await acceptDispatchLink({ token, carOverride: 'mpv' }, deps());
-    expect(r.ok && r.carForJob).toBe('mpv');
   });
 
   it('accept refuses replay (token_consumed)', async () => {
@@ -262,8 +256,9 @@ describe('services/dispatch (integration)', () => {
         .insert(drivers)
         .values({
           name: 'Marcus',
-          tier: 'premium',
-          defaultCarType: 'mpv',
+          vehicleClass: 'executive',
+          car: 'Mercedes S-Class',
+          carColour: 'Black',
           whatsappNumber: '+447911000002',
         })
         .returning();
@@ -277,7 +272,6 @@ describe('services/dispatch (integration)', () => {
           state: 'assigned',
           assignedDriverId: driverId,
           assignedAt: clock.now(),
-          carForThisJob: 's_class',
           flaggedAt: clock.now(),
         })
         .where(eq(bookings.id, bookingId));
@@ -292,7 +286,6 @@ describe('services/dispatch (integration)', () => {
       // Back in the queue with no driver, and the no-accept flag reset.
       expect(r.booking.state).toBe('unassigned');
       expect(r.booking.assignedDriverId).toBeNull();
-      expect(r.booking.carForThisJob).toBeNull();
       expect(r.booking.assignedAt).toBeNull();
       expect(r.booking.flaggedAt).toBeNull();
 
@@ -345,7 +338,6 @@ describe('services/dispatch (integration)', () => {
       if (!acc.ok) return;
       expect(acc.booking.state).toBe('assigned');
       expect(acc.booking.assignedDriverId).toBe(secondDriverId);
-      expect(acc.carForJob).toBe('mpv');
 
       // Exec gets the standard confirmation with the new driver on accept.
       const toExec = notifications.sent.find((m) => m.to === '+447911999999');
@@ -382,8 +374,9 @@ describe('services/dispatch (integration)', () => {
         .insert(drivers)
         .values({
           name: 'Marcus',
-          tier: 'premium',
-          defaultCarType: 'mpv',
+          vehicleClass: 'executive',
+          car: 'Mercedes S-Class',
+          carColour: 'Black',
           whatsappNumber: '+447911000002',
         })
         .returning();
@@ -392,8 +385,9 @@ describe('services/dispatch (integration)', () => {
         .insert(drivers)
         .values({
           name: 'Priya',
-          tier: 'ordinary',
-          defaultCarType: 'saloon',
+          vehicleClass: 'executive',
+          car: 'Mercedes S-Class',
+          carColour: 'Black',
           whatsappNumber: '+447911000003',
         })
         .returning();
