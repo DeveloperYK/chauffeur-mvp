@@ -96,7 +96,7 @@ export function SearchPalette({ open, onClose }: SearchPaletteProps) {
             className="cmdk__input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by ID, driver, passenger, address…"
+            placeholder="Search by ID, name, address, company, phone…"
           />
           {loading ? <span className="cmdk__spin">…</span> : null}
           <kbd>Esc</kbd>
@@ -105,7 +105,8 @@ export function SearchPalette({ open, onClose }: SearchPaletteProps) {
           {!term ? (
             <p className="cmdk__hint">
               Search a booking ref (<span className="mono">42</span> or{' '}
-              <span className="mono">BKNG-00042</span>), a driver, a passenger, or an address.
+              <span className="mono">BKNG-00042</span>), a passenger or driver name, an address, a
+              client company, or a phone number.
             </p>
           ) : null}
           {term && !loading && results.length === 0 ? (

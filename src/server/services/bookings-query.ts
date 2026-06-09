@@ -171,12 +171,62 @@ function likeContains(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/** Minimum digit count before a bare number is treated as a phone, not a booking ref. */
+const PHONE_MIN_DIGITS = 7;
+
+/**
+ * A query is "phone-like" when it is only phone characters (digits plus the
+ * usual `+ ( ) - ` separators) and carries at least {@link PHONE_MIN_DIGITS}
+ * digits. This keeps short refs like `42` / `00042` as exact booking-ID lookups
+ * while routing real phone numbers to the digit-normalised match below.
+ */
+function isPhoneLike(q: string): boolean {
+  if (!/^[\d\s+()-]+$/.test(q)) return false;
+  return q.replace(/\D/g, '').length >= PHONE_MIN_DIGITS;
+}
+
+/**
+ * Digit-normalised phone match for one token: compares the token's digits
+ * against `exec_mobile` stripped of all non-digits, so formatting differs
+ * freely. A single UK trunk `0` is dropped from the token so `07911…` matches a
+ * stored `+447911…`. Returns undefined for tokens too short to be a phone, so
+ * stray numbers in a name search don't drag in unrelated bookings.
+ */
+function phoneDigitsMatch(token: string): SQL | undefined {
+  const digits = token.replace(/\D/g, '');
+  if (digits.length < 4) return undefined;
+  const normalized = digits.replace(/^0/, '');
+  return sql`regexp_replace(${bookings.execMobile}, '[^0-9]', '', 'g') like ${`%${normalized}%`}`;
+}
+
+/** OR across every searchable field for a single whitespace-delimited token. */
+function tokenMatch(token: string): SQL | undefined {
+  const pattern = likeContains(token);
+  return or(
+    ilike(bookings.passengerFirstName, pattern),
+    ilike(bookings.passengerLastName, pattern),
+    ilike(drivers.name, pattern),
+    ilike(bookings.pickupAddress, pattern),
+    ilike(bookings.dropoffAddress, pattern),
+    ilike(bookings.accountCode, pattern),
+    ilike(bookings.caseCode, pattern),
+    ilike(bookings.carForThisJob, pattern),
+    ilike(bookings.clientName, pattern),
+    ilike(bookings.execMobile, pattern),
+    phoneDigitsMatch(token),
+  );
+}
+
 /**
  * Global booking search for the command palette. Matches:
- * - the exact booking reference (`seq`) when the query parses as an ID
+ * - the exact booking reference (`seq`) when the query is a short ID
  *   (`42` / `00042` / `BKNG-00042`), otherwise
- * - a case-insensitive substring across passenger name, assigned driver name,
- *   pickup/dropoff address, account code, case code, and vehicle.
+ * - every whitespace-delimited word as a case-insensitive substring (AND across
+ *   words, OR across fields) over passenger name, assigned driver name,
+ *   pickup/dropoff address, account code, case code, vehicle, client/company
+ *   name, and exec phone. Multi-word so a full name ("Eric French") matches
+ *   first+last; a 7+ digit number is treated as a phone (digit-normalised, UK
+ *   leading zero tolerated), not a booking ID.
  *
  * Optionally scopes to one driver (with or without a term). Bounded, newest
  * pickup first. Plain ILIKE only (no pg_trgm/tsvector) so it runs identically
@@ -194,22 +244,16 @@ export async function searchBookings(
   const conditions: SQL[] = [];
 
   if (q) {
-    const seq = parseBookingQuery(q);
-    if (seq !== null) {
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const seq = tokens.length === 1 ? parseBookingQuery(q) : null;
+    if (seq !== null && !isPhoneLike(q)) {
       conditions.push(eq(bookings.seq, seq));
     } else {
-      const pattern = likeContains(q);
-      const term = or(
-        ilike(bookings.passengerFirstName, pattern),
-        ilike(bookings.passengerLastName, pattern),
-        ilike(drivers.name, pattern),
-        ilike(bookings.pickupAddress, pattern),
-        ilike(bookings.dropoffAddress, pattern),
-        ilike(bookings.accountCode, pattern),
-        ilike(bookings.caseCode, pattern),
-        ilike(bookings.carForThisJob, pattern),
-      );
-      if (term) conditions.push(term);
+      // Each word must match somewhere; AND the per-word OR-groups together.
+      for (const token of tokens) {
+        const term = tokenMatch(token);
+        if (term) conditions.push(term);
+      }
     }
   }
 

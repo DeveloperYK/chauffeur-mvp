@@ -35,6 +35,7 @@ describe('searchBookings (integration)', () => {
     marcusId = marcus?.id ?? '';
 
     // b1: Eric / Tom — 1 Jun, LEGO, CASE-1, Belsize → Heathrow
+    // Distinct clientName + execMobile so company-name and phone search are testable.
     const [b1] = await db
       .insert(bookings)
       .values(
@@ -46,6 +47,8 @@ describe('searchBookings (integration)', () => {
           dropoffAddress: 'Heathrow Terminal 5',
           accountCode: 'LEGO',
           caseCode: 'CASE-1',
+          clientName: 'Northwood Media Holdings',
+          execMobile: '+447911123456',
         }),
       )
       .returning({ seq: bookings.seq });
@@ -120,6 +123,33 @@ describe('searchBookings (integration)', () => {
       '2026-06-05T10:00:00.000Z',
       '2026-06-01T10:00:00.000Z',
     ]);
+  });
+
+  it('matches a full passenger name across first and last (multi-word)', async () => {
+    const rows = await searchBookings(db, 'eric french');
+    // Both Eric French bookings (b1, b4), newest pickup first.
+    expect(rows.map((r) => r.pickupAt.toISOString())).toEqual([
+      '2026-06-05T10:00:00.000Z',
+      '2026-06-01T10:00:00.000Z',
+    ]);
+  });
+
+  it('matches the client company name (clientName), distinct from account code', async () => {
+    // "Northwood Media Holdings" lives only in b1's clientName — not in any
+    // account code — so a multi-word company search resolves to just b1.
+    const rows = await searchBookings(db, 'northwood media');
+    expect(rows.map((r) => r.seq)).toEqual([seqB1]);
+  });
+
+  it('matches the exec phone number typed in +44 form', async () => {
+    const rows = await searchBookings(db, '7911123456');
+    expect(rows.map((r) => r.seq)).toEqual([seqB1]);
+  });
+
+  it('matches the exec phone number typed with a UK leading zero', async () => {
+    // Operator types 07911123456; stored value is +447911123456.
+    const rows = await searchBookings(db, '07911123456');
+    expect(rows.map((r) => r.seq)).toEqual([seqB1]);
   });
 
   it('matches pickup/dropoff address', async () => {
