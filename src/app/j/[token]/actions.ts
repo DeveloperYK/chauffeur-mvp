@@ -16,23 +16,19 @@ import { z } from 'zod';
 const acceptSchema = z
   .object({
     token: z.string().min(20).max(4096),
-    carForJob: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 
 export async function acceptAction(formData: FormData): Promise<void> {
   const parsed = acceptSchema.safeParse({
     token: String(formData.get('token') ?? ''),
-    carForJob: (formData.get('carForJob') as string | null) ?? undefined,
   });
   if (!parsed.success) {
     redirect('/j/_/?error=invalid');
   }
 
   const result = await acceptDispatchLink(
-    parsed.data.carForJob
-      ? { token: parsed.data.token, carOverride: parsed.data.carForJob }
-      : { token: parsed.data.token },
+    { token: parsed.data.token },
     {
       db: db(),
       notifications: notifications(),

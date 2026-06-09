@@ -14,32 +14,37 @@ import { createBooking } from './bookings';
 const SAMPLE_DRIVERS = [
   {
     name: 'Tom Wright',
-    tier: 'premium',
-    defaultCarType: 'Mercedes S-Class',
+    vehicleClass: 'executive',
+    car: 'Mercedes S-Class',
+    carColour: 'Black',
     whatsappNumber: '+447911100001',
   },
   {
     name: 'Andy Patel',
-    tier: 'premium',
-    defaultCarType: 'BMW 7 Series',
+    vehicleClass: 'luxury',
+    car: 'BMW 7 Series',
+    carColour: 'Black',
     whatsappNumber: '+447911100002',
   },
   {
     name: 'Mario Rossi',
-    tier: 'ordinary',
-    defaultCarType: 'Mercedes E-Class',
+    vehicleClass: 'executive',
+    car: 'Mercedes E-Class',
+    carColour: 'Grey',
     whatsappNumber: '+447911100003',
   },
   {
     name: 'Alex Mercier',
-    tier: 'ordinary',
-    defaultCarType: 'Mercedes V-Class MPV',
+    vehicleClass: 'mpv',
+    car: 'Mercedes V-Class',
+    carColour: 'Silver',
     whatsappNumber: '+447911100004',
   },
   {
     name: 'Yuki Tanaka',
-    tier: 'ordinary',
-    defaultCarType: 'Range Rover',
+    vehicleClass: 'coach',
+    car: 'Mercedes Sprinter',
+    carColour: 'Black',
     whatsappNumber: '+447911100005',
   },
 ] as const;
@@ -225,7 +230,6 @@ export async function setBookingState(
     const [d] = await db.select().from(drivers).where(eq(drivers.active, true)).limit(1);
     if (d) {
       patch.assignedDriverId = d.id;
-      patch.carForThisJob = d.defaultCarType;
       patch.assignedAt = now;
     }
   }

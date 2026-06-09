@@ -23,8 +23,9 @@ describe('services/edit-booking (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom Premium',
-        tier: 'premium',
-        defaultCarType: 'Mercedes S-Class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447900000001',
       })
       .returning();

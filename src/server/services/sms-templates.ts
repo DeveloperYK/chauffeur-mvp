@@ -17,22 +17,6 @@ type NamedDriver = { name: string };
  */
 export const SMS_BRAND_NAME = 'Chauffeur MVP';
 
-function displayCar(value: string): string {
-  // Legacy enum-style fallback so old rows still read nicely.
-  switch (value) {
-    case 'ex':
-      return 'Executive';
-    case 's_class':
-      return 'Mercedes S-Class';
-    case 'mpv':
-      return 'MPV';
-    case 'mini_bus':
-      return 'Mini bus';
-    default:
-      return value;
-  }
-}
-
 /** Transfer fallback if a dropoff is somehow missing. */
 function destination(booking: Booking): string {
   return booking.dropoffAddress ?? 'As directed';
@@ -50,14 +34,18 @@ function formatHireDuration(minutes: number): string {
  *
  *   Chauffeur MVP - BKNG-00001
  *   Confirmed: Sat 23 May, 14:00
- *   Driver: Marcus Bell (Mercedes S-Class)
+ *   Driver: Marcus Bell (Black Mercedes S-Class)
  *   Pickup: 12 King St, London
+ *
+ * `car` is the colour + car description (e.g. "Black Mercedes S-Class") so the
+ * exec can identify the vehicle kerbside. Omitted from the line if blank.
  */
-export function assignedSms(booking: Booking, driver: NamedDriver, carForJob: string): string {
+export function assignedSms(booking: Booking, driver: NamedDriver, car: string): string {
+  const carPart = car.trim() ? ` (${car.trim()})` : '';
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
     `Confirmed: ${formatLondonDateTimeShort(booking.pickupAt)}`,
-    `Driver: ${driver.name} (${displayCar(carForJob)})`,
+    `Driver: ${driver.name}${carPart}`,
     `Pickup: ${booking.pickupAddress}`,
   ].join('\n');
 }

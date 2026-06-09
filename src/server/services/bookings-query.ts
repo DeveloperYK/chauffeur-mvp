@@ -170,6 +170,8 @@ export type BookingMatchType = 'ref' | 'person' | 'company' | 'address' | 'phone
 export interface BookingSearchHit extends Booking {
   /** Name of the assigned driver, if any — joined for both matching and display. */
   driverName: string | null;
+  /** Car of the assigned internal driver, if any — joined for matching/display. */
+  driverCar: string | null;
   /** The field category this row matched most strongly — used to group results. */
   matchType: BookingMatchType;
 }
@@ -229,7 +231,8 @@ function tokenMatch(token: string): SQL | undefined {
     ilike(bookings.dropoffAddress, pattern),
     ilike(bookings.accountCode, pattern),
     ilike(bookings.caseCode, pattern),
-    ilike(bookings.carForThisJob, pattern),
+    ilike(bookings.backfillCar, pattern),
+    ilike(drivers.car, pattern),
     ilike(bookings.clientName, pattern),
     ilike(bookings.execMobile, pattern),
     phoneDigitsMatch(token),
@@ -258,7 +261,7 @@ const SEARCH_FIELDS: SearchField[] = [
   { category: 'company', weight: 2, value: (h) => h.caseCode },
   { category: 'address', weight: 3, value: (h) => h.pickupAddress },
   { category: 'address', weight: 3, value: (h) => h.dropoffAddress },
-  { category: 'other', weight: 2, value: (h) => h.carForThisJob },
+  { category: 'other', weight: 2, value: (h) => h.driverCar ?? h.backfillCar },
 ];
 
 const PHONE_WEIGHT = 4;
@@ -374,7 +377,7 @@ export async function searchBookings(
   if (driverId) conditions.push(eq(bookings.assignedDriverId, driverId));
 
   const rows = await db
-    .select({ booking: bookings, driverName: drivers.name })
+    .select({ booking: bookings, driverName: drivers.name, driverCar: drivers.car })
     .from(bookings)
     .leftJoin(drivers, eq(bookings.assignedDriverId, drivers.id))
     .where(and(...conditions))
@@ -384,6 +387,7 @@ export async function searchBookings(
   const hits: BookingSearchHit[] = rows.map((r) => ({
     ...r.booking,
     driverName: r.driverName ?? null,
+    driverCar: r.driverCar ?? null,
     matchType: isRef ? 'ref' : 'other',
   }));
 

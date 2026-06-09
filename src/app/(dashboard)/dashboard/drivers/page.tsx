@@ -4,15 +4,18 @@ import { Lozenge } from '@/components/console/lozenge';
 import { formatLondonDay, londonDayRangeUtc, londonTodayString, parseDayString } from '@/lib/dates';
 import type { DriverStatus } from '@/lib/driver-status';
 import { env } from '@/lib/env';
-import { carLabel } from '@/lib/labels';
+import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import { getDb } from '@/server/db';
-import type { Booking, Driver } from '@/server/db/schema';
+import type { Booking, Driver, VehicleClass } from '@/server/db/schema';
 import { driverStatusData, listBookingsBetween } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
 import { deactivateDriverAction, reactivateDriverAction } from './actions';
 
 export const dynamic = 'force-dynamic';
+
+/** The four driver vehicle classes, in display order. */
+const VEHICLE_CLASSES: VehicleClass[] = ['executive', 'luxury', 'mpv', 'coach'];
 
 const SCHEDULE_START_HOUR = 6;
 const SCHEDULE_END_HOUR = 23;
@@ -53,7 +56,7 @@ export default async function DriversPage({
 }: {
   searchParams: Promise<{
     view?: string;
-    tier?: string;
+    vc?: string;
     q?: string;
     mode?: string;
     schedDate?: string;
@@ -65,7 +68,9 @@ export default async function DriversPage({
   const params = await searchParams;
 
   const view = params.view === 'schedule' ? 'schedule' : 'roster';
-  const tier = ['premium', 'ordinary'].includes(params.tier ?? '') ? params.tier : 'all';
+  const vc = (VEHICLE_CLASSES as string[]).includes(params.vc ?? '')
+    ? (params.vc as string)
+    : 'all';
   const q = (params.q ?? '').trim().toLowerCase();
   const mode = params.mode === 'week' ? 'week' : 'day';
   const today = londonTodayString();
@@ -78,11 +83,13 @@ export default async function DriversPage({
   // useful signal is their current/next assignment, not a workload fraction.
   const status = await driverStatusData(db);
 
+  const classOrder = (c: string) => (VEHICLE_CLASSES as string[]).indexOf(c);
   const visible = allDrivers
-    .filter((d) => (tier === 'all' ? true : d.tier === tier))
+    .filter((d) => (vc === 'all' ? true : d.vehicleClass === vc))
     .filter((d) => !q || d.name.toLowerCase().includes(q))
     .sort((a, b) => {
-      if (a.tier !== b.tier) return a.tier === 'premium' ? -1 : 1;
+      if (a.vehicleClass !== b.vehicleClass)
+        return classOrder(a.vehicleClass) - classOrder(b.vehicleClass);
       return a.name.localeCompare(b.name);
     });
 
@@ -90,7 +97,7 @@ export default async function DriversPage({
     const p = new URLSearchParams();
     const cur: Record<string, string | undefined> = {
       view: view === 'schedule' ? 'schedule' : undefined,
-      tier: tier === 'all' ? undefined : tier,
+      vc: vc === 'all' ? undefined : vc,
       q: q || undefined,
       mode: mode === 'week' ? 'week' : undefined,
       schedDate: schedDate !== today ? schedDate : undefined,
@@ -132,21 +139,15 @@ export default async function DriversPage({
           <>
             <div className="filterbar" style={{ padding: 0, marginBottom: 12 }}>
               <div className="viewswitch">
-                <Link className={tier === 'all' ? 'is-active' : ''} href={qs({ tier: null })}>
+                <Link className={vc === 'all' ? 'is-active' : ''} href={qs({ vc: null })}>
                   All ({allDrivers.length})
                 </Link>
-                <Link
-                  className={tier === 'premium' ? 'is-active' : ''}
-                  href={qs({ tier: 'premium' })}
-                >
-                  Premium ({allDrivers.filter((d) => d.tier === 'premium').length})
-                </Link>
-                <Link
-                  className={tier === 'ordinary' ? 'is-active' : ''}
-                  href={qs({ tier: 'ordinary' })}
-                >
-                  Ordinary ({allDrivers.filter((d) => d.tier === 'ordinary').length})
-                </Link>
+                {VEHICLE_CLASSES.map((c) => (
+                  <Link key={c} className={vc === c ? 'is-active' : ''} href={qs({ vc: c })}>
+                    {VEHICLE_CLASS_LABEL[c]} (
+                    {allDrivers.filter((d) => d.vehicleClass === c).length})
+                  </Link>
+                ))}
               </div>
             </div>
             <DriverRoster drivers={visible} status={status} />
@@ -215,8 +216,8 @@ function DriverRoster({
     <div className="driver-table">
       <div className="dt-row dt-row--load head">
         <span>Name</span>
-        <span>Tier</span>
-        <span>Default vehicle</span>
+        <span>Type</span>
+        <span>Car</span>
         <span>WhatsApp</span>
         <span>Now / next</span>
         <span style={{ textAlign: 'right' }}>Status</span>
@@ -229,9 +230,11 @@ function DriverRoster({
               <span>{d.name}</span>
             </span>
             <span>
-              <span className={`tier-tag ${d.tier}`}>{d.tier}</span>
+              <span className={`vc-tag ${d.vehicleClass}`}>
+                {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+              </span>
             </span>
-            <span>{carLabel(d.defaultCarType)}</span>
+            <span>{carDescription(d.car, d.carColour)}</span>
             <span className="ws">{d.whatsappNumber}</span>
             <span>
               <DriverStatusCell status={status[d.id]} />
@@ -421,7 +424,9 @@ function ScheduleDay({
                 <div>
                   <div className="sched-day__driver-name">{d.name}</div>
                   <div className="sched-day__driver-meta">
-                    <span className={`tier-tag ${d.tier}`}>{d.tier}</span>
+                    <span className={`vc-tag ${d.vehicleClass}`}>
+                      {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -502,7 +507,9 @@ function ScheduleWeek({
                 <div>
                   <div className="sched-day__driver-name">{d.name}</div>
                   <div className="sched-day__driver-meta">
-                    <span className={`tier-tag ${d.tier}`}>{d.tier}</span>
+                    <span className={`vc-tag ${d.vehicleClass}`}>
+                      {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                    </span>
                   </div>
                 </div>
               </div>

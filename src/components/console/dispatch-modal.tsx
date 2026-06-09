@@ -6,6 +6,8 @@ import {
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
+import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import type { VehicleClass } from '@/server/db/schema';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -22,7 +24,9 @@ interface DispatchModalProps {
   onSent: (summary: string) => void;
 }
 
-type Tier = 'all' | 'premium' | 'ordinary';
+type ClassFilter = 'all' | VehicleClass;
+
+const VEHICLE_CLASSES: VehicleClass[] = ['executive', 'luxury', 'mpv', 'coach'];
 
 /** HH:MM (London) for a busy-window epoch. */
 function hhmm(ms: number): string {
@@ -43,7 +47,7 @@ export function DispatchModal({
   onSent,
 }: DispatchModalProps) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<Tier>('all');
+  const [filter, setFilter] = useState<ClassFilter>('all');
   const [search, setSearch] = useState('');
   // Once minted, the fan-out list of per-driver links the operator sends.
   const [offers, setOffers] = useState<DispatchOfferResult[] | null>(null);
@@ -85,14 +89,15 @@ export function DispatchModal({
   const visible = useMemo(() => {
     return drivers
       .filter((d) => d.active)
-      .filter((d) => (filter === 'all' ? true : d.tier === filter))
+      .filter((d) => (filter === 'all' ? true : d.vehicleClass === filter))
       .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
       .map((d) => {
         const clash = clashOf(d.id);
         return { ...d, busy: clash !== null, clash };
       })
       .sort((a, b) => {
-        if (a.tier !== b.tier) return a.tier === 'premium' ? -1 : 1;
+        if (a.vehicleClass !== b.vehicleClass)
+          return VEHICLE_CLASSES.indexOf(a.vehicleClass) - VEHICLE_CLASSES.indexOf(b.vehicleClass);
         if (a.busy !== b.busy) return a.busy ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
@@ -191,20 +196,16 @@ export function DispatchModal({
                   >
                     All
                   </button>
-                  <button
-                    type="button"
-                    className={filter === 'premium' ? 'is-active' : ''}
-                    onClick={() => setFilter('premium')}
-                  >
-                    Premium
-                  </button>
-                  <button
-                    type="button"
-                    className={filter === 'ordinary' ? 'is-active' : ''}
-                    onClick={() => setFilter('ordinary')}
-                  >
-                    Ordinary
-                  </button>
+                  {VEHICLE_CLASSES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={filter === c ? 'is-active' : ''}
+                      onClick={() => setFilter(c)}
+                    >
+                      {VEHICLE_CLASS_LABEL[c]}
+                    </button>
+                  ))}
                 </div>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
@@ -275,9 +276,11 @@ export function DispatchModal({
                       <div>
                         <div className="driver-row__name">{d.name}</div>
                         <div className="driver-row__meta">
-                          <span className={`tier-tag ${d.tier}`}>{d.tier}</span>
+                          <span className={`vc-tag ${d.vehicleClass}`}>
+                            {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                          </span>
                           <span className="dotsep" />
-                          <span>{d.defaultCarType}</span>
+                          <span>{carDescription(d.car, d.carColour)}</span>
                         </div>
                       </div>
                       <div className="driver-row__avail">

@@ -35,8 +35,9 @@ describe('services/driverStatusData (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 's_class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000001',
       })
       .returning();

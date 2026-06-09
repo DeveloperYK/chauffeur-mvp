@@ -22,8 +22,9 @@ const phoneSchema = z
 export const createDriverSchema = z
   .object({
     name: z.string().min(2).max(120),
-    tier: z.enum(['premium', 'ordinary']),
-    defaultCarType: z.string().trim().min(1).max(80),
+    vehicleClass: z.enum(['executive', 'luxury', 'mpv', 'coach']),
+    car: z.string().trim().min(1).max(80),
+    carColour: z.string().trim().min(1).max(40),
     whatsappNumber: phoneSchema,
   })
   .strict();
@@ -65,8 +66,9 @@ export async function createDriver(
       before: null,
       after: {
         name: inserted.name,
-        tier: inserted.tier,
-        defaultCarType: inserted.defaultCarType,
+        vehicleClass: inserted.vehicleClass,
+        car: inserted.car,
+        carColour: inserted.carColour,
       },
     });
     return { ok: true, driver: inserted };
@@ -121,14 +123,16 @@ export async function updateDriver(
       action: 'update',
       before: {
         name: existing.name,
-        tier: existing.tier,
-        defaultCarType: existing.defaultCarType,
+        vehicleClass: existing.vehicleClass,
+        car: existing.car,
+        carColour: existing.carColour,
         active: existing.active,
       },
       after: {
         name: updated.name,
-        tier: updated.tier,
-        defaultCarType: updated.defaultCarType,
+        vehicleClass: updated.vehicleClass,
+        car: updated.car,
+        carColour: updated.carColour,
         active: updated.active,
       },
     });
@@ -154,14 +158,14 @@ export async function listActiveDrivers(db: Database): Promise<Driver[]> {
     .select()
     .from(drivers)
     .where(eq(drivers.active, true))
-    .orderBy(asc(drivers.tier), asc(drivers.name));
+    .orderBy(asc(drivers.vehicleClass), asc(drivers.name));
 }
 
 export async function listAllDrivers(db: Database): Promise<Driver[]> {
   return db
     .select()
     .from(drivers)
-    .orderBy(asc(drivers.active), asc(drivers.tier), asc(drivers.name));
+    .orderBy(asc(drivers.active), asc(drivers.vehicleClass), asc(drivers.name));
 }
 
 export async function getDriver(db: Database, id: string): Promise<Driver | null> {

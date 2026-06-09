@@ -33,8 +33,9 @@ describe('services/cancel (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Tom',
-        tier: 'premium',
-        defaultCarType: 'Mercedes S-Class',
+        vehicleClass: 'executive',
+        car: 'Mercedes S-Class',
+        carColour: 'Black',
         whatsappNumber: '+447911000001',
       })
       .returning();
@@ -57,7 +58,6 @@ describe('services/cancel (integration)', () => {
         accountCode: 'LEGO',
         contractPricePence: 30000,
         assignedDriverId: state === 'unassigned' ? null : driverId,
-        carForThisJob: state === 'unassigned' ? null : 'Mercedes S-Class',
       })
       .returning();
     return b?.id ?? '';
