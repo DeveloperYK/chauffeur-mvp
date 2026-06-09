@@ -72,6 +72,7 @@ function toConsoleBooking(
     backfillDriverName: b.backfillDriverName,
     backfillDriverPhone: b.backfillDriverPhone,
     backfillCar: b.backfillCar,
+    backfillDriverPayPence: b.backfillDriverPayPence,
     completionByOperator: b.completionByOperator,
     carParkPence: b.carParkPence,
     waitingTimeMinutes: b.waitingTimeMinutes,

@@ -4,7 +4,7 @@ import { bookingRef } from '@/lib/booking-ref';
 import { currentSession } from '@/server/auth/current';
 import { db } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
-import { searchBookings } from '@/server/services/bookings-query';
+import { type BookingMatchType, searchBookings } from '@/server/services/bookings-query';
 
 /** Serializable search result row for the command palette. */
 export interface SearchResult {
@@ -18,6 +18,8 @@ export interface SearchResult {
   driverName: string | null;
   pickupAddress: string;
   dropoffAddress: string | null;
+  /** Field category this row matched on — drives the grouped headers. */
+  matchType: BookingMatchType;
 }
 
 /**
@@ -43,5 +45,6 @@ export async function searchBookingsAction(query: string): Promise<SearchResult[
     driverName: b.driverName,
     pickupAddress: b.pickupAddress,
     dropoffAddress: b.dropoffAddress,
+    matchType: b.matchType,
   }));
 }

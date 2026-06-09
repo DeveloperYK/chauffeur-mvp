@@ -89,8 +89,15 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1780200000000,
-      "tag": "0012_driver_vehicle_class",
+      "when": 1781032200000,
+      "tag": "0012_add_backfill_driver_pay",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0013_driver_vehicle_class",
       "breakpoints": true
     }
   ]

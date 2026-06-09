@@ -39,6 +39,8 @@ export interface ConsoleBooking {
   backfillDriverPhone: string | null;
   /** Operator-entered backfill driver's car (only when isBackfill). */
   backfillCar: string | null;
+  /** What the backfill driver is paid for this job, in pence (only when isBackfill). */
+  backfillDriverPayPence: number | null;
   /** True when the operator entered the completion form on the driver's behalf (skipped review). */
   completionByOperator: boolean;
   carParkPence: number | null;

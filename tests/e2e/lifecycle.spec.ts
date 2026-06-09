@@ -198,6 +198,8 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await bfModal.getByPlaceholder('e.g. Dave Smith').fill('Dave Smith');
   await bfModal.getByPlaceholder('e.g. +44 7911 123456').fill('+44 7911 123456');
   await bfModal.getByPlaceholder('e.g. BMW 5 Series').fill('BMW 5 Series');
+  // Backfill drivers are paid per job (internal drivers are salaried) — pay is required.
+  await bfModal.getByPlaceholder('120').fill('120');
   await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
   await expect(page.locator('.toast')).toContainText(/backfill/i);
 
@@ -222,6 +224,9 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
+  // The operator-entered backfill driver pay is recorded and shown on the panel.
+  await expect(page.locator('.panel.is-open')).toContainText('Backfill pay');
+  await expect(page.locator('.panel.is-open')).toContainText('£120');
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: 'Generate completion link' })

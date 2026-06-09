@@ -334,6 +334,7 @@ export async function releaseDriver(
       backfillDriverName: null,
       backfillDriverPhone: null,
       backfillCar: null,
+      backfillDriverPayPence: null,
       updatedAt: now,
     })
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'assigned')))

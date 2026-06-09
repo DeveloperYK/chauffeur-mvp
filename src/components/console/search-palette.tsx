@@ -5,6 +5,7 @@ import {
   searchBookingsAction,
 } from '@/app/(dashboard)/dashboard/search-actions';
 import type { BookingState } from '@/server/db/schema';
+import type { BookingMatchType } from '@/server/services/bookings-query';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -19,6 +20,46 @@ const STATE_LABEL: Record<BookingState, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
+
+const MATCH_TYPE_LABEL: Record<BookingMatchType, string> = {
+  ref: 'Booking',
+  person: 'People',
+  company: 'Companies',
+  address: 'Addresses',
+  phone: 'Phone',
+  other: 'Other',
+};
+
+interface ResultGroup {
+  type: BookingMatchType;
+  label: string;
+  items: SearchResult[];
+}
+
+/**
+ * Bucket the already relevance-ranked results by match type, preserving the
+ * order each group's first (highest-ranked) hit appeared — so the most relevant
+ * group leads.
+ */
+function groupResults(results: SearchResult[]): ResultGroup[] {
+  const groups: ResultGroup[] = [];
+  const byType = new Map<BookingMatchType, ResultGroup>();
+  for (const r of results) {
+    const existing = byType.get(r.matchType);
+    if (existing) {
+      existing.items.push(r);
+    } else {
+      const group: ResultGroup = {
+        type: r.matchType,
+        label: MATCH_TYPE_LABEL[r.matchType],
+        items: [r],
+      };
+      byType.set(r.matchType, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+}
 
 const DEBOUNCE_MS = 200;
 
@@ -96,7 +137,7 @@ export function SearchPalette({ open, onClose }: SearchPaletteProps) {
             className="cmdk__input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by ID, driver, passenger, address…"
+            placeholder="Search by ID, name, address, company, phone…"
           />
           {loading ? <span className="cmdk__spin">…</span> : null}
           <kbd>Esc</kbd>
@@ -105,25 +146,31 @@ export function SearchPalette({ open, onClose }: SearchPaletteProps) {
           {!term ? (
             <p className="cmdk__hint">
               Search a booking ref (<span className="mono">42</span> or{' '}
-              <span className="mono">BKNG-00042</span>), a driver, a passenger, or an address.
+              <span className="mono">BKNG-00042</span>), a passenger or driver name, an address, a
+              client company, or a phone number.
             </p>
           ) : null}
           {term && !loading && results.length === 0 ? (
             <p className="cmdk__hint">No bookings match “{term}”.</p>
           ) : null}
-          {results.map((r) => (
-            <Link
-              key={r.id}
-              href={`/dashboard/bookings/${r.id}`}
-              className="cmdk__row"
-              onClick={onClose}
-            >
-              <span className="cmdk__ref mono">{r.ref}</span>
-              <span className="cmdk__when">{fmtTimeWithDay(r.pickupAt)}</span>
-              <span className="cmdk__who">{passengerName(r)}</span>
-              <span className="cmdk__driver">{r.driverName ?? '—'}</span>
-              <span className="cmdk__state">{STATE_LABEL[r.state]}</span>
-            </Link>
+          {groupResults(results).map((group) => (
+            <div key={group.type} className="cmdk__group">
+              <div className="cmdk__group-head">{group.label}</div>
+              {group.items.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/dashboard/bookings/${r.id}`}
+                  className="cmdk__row"
+                  onClick={onClose}
+                >
+                  <span className="cmdk__ref mono">{r.ref}</span>
+                  <span className="cmdk__when">{fmtTimeWithDay(r.pickupAt)}</span>
+                  <span className="cmdk__who">{passengerName(r)}</span>
+                  <span className="cmdk__driver">{r.driverName ?? '—'}</span>
+                  <span className="cmdk__state">{STATE_LABEL[r.state]}</span>
+                </Link>
+              ))}
+            </div>
           ))}
         </div>
       </div>
