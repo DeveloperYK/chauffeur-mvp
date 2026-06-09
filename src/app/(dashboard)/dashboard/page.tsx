@@ -247,7 +247,6 @@ export default async function DashboardHome({
     defaultCarType: d.defaultCarType,
     whatsappNumber: d.whatsappNumber,
     active: d.active,
-    jobsThisWeek: dispatch.weekLoads[d.id] ?? 0,
   }));
   const consoleOperators: ConsoleOperator[] = operatorList.map((o) => ({ id: o.id, name: o.name }));
 

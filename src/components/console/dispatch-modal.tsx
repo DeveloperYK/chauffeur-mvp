@@ -5,6 +5,7 @@ import {
   dispatchManyAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -23,7 +24,15 @@ interface DispatchModalProps {
 
 type Tier = 'all' | 'premium' | 'ordinary';
 
-const WEEK_TARGET = 15;
+/** HH:MM (London) for a busy-window epoch. */
+function hhmm(ms: number): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(ms));
+}
 
 export function DispatchModal({
   booking,
@@ -58,13 +67,19 @@ export function DispatchModal({
     }
   }, [isOpen, booking?.id]);
 
-  // A driver is busy if any of their assignments overlaps this booking's window.
-  const isBusy = useMemo(() => {
-    if (!booking) return () => false;
+  // A driver is "busy" if one of their active jobs overlaps — or is within
+  // 30 min of — this booking's window. Returns the clashing window so the row
+  // can show *when* they're busy. Flags only; the operator can still send.
+  const clashOf = useMemo(() => {
+    if (!booking) return (_driverId: string): BusyWindow | null => null;
     const start = new Date(booking.pickupAt).getTime();
     const end = start + (booking.expectedDurationMinutes || 60) * 60_000;
     return (driverId: string) =>
-      assignments.some((a) => a.driverId === driverId && a.startMs < end && a.endMs > start);
+      firstClashingWindow(
+        assignments.filter((a) => a.driverId === driverId),
+        start,
+        end,
+      );
   }, [booking, assignments]);
 
   const visible = useMemo(() => {
@@ -72,13 +87,16 @@ export function DispatchModal({
       .filter((d) => d.active)
       .filter((d) => (filter === 'all' ? true : d.tier === filter))
       .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
-      .map((d) => ({ ...d, busy: isBusy(d.id) }))
+      .map((d) => {
+        const clash = clashOf(d.id);
+        return { ...d, busy: clash !== null, clash };
+      })
       .sort((a, b) => {
         if (a.tier !== b.tier) return a.tier === 'premium' ? -1 : 1;
         if (a.busy !== b.busy) return a.busy ? 1 : -1;
-        return a.jobsThisWeek - b.jobsThisWeek;
+        return a.name.localeCompare(b.name);
       });
-  }, [drivers, filter, search, isBusy]);
+  }, [drivers, filter, search, clashOf]);
 
   if (!booking) return null;
 
@@ -220,17 +238,19 @@ export function DispatchModal({
                   </div>
                 ) : null}
                 {visible.map((d) => {
-                  const loadPct = Math.min(100, Math.round((d.jobsThisWeek / WEEK_TARGET) * 100));
                   const isPicked = picked.has(d.id);
                   return (
                     <button
                       type="button"
                       key={d.id}
                       className={`driver-row ${isPicked ? 'is-selected' : ''} ${d.busy ? 'is-busy' : ''}`}
-                      disabled={d.busy}
                       aria-pressed={isPicked}
                       onClick={() => toggle(d.id)}
-                      title={d.busy ? 'Already on a job at this time' : ''}
+                      title={
+                        d.clash
+                          ? `Busy ${hhmm(d.clash.startMs)}–${hhmm(d.clash.endMs)} — you can still send`
+                          : ''
+                      }
                     >
                       <span
                         aria-hidden
@@ -260,25 +280,15 @@ export function DispatchModal({
                           <span>{d.defaultCarType}</span>
                         </div>
                       </div>
-                      <div className="driver-row__bw" title={`${d.jobsThisWeek} jobs this week`}>
-                        <div className="driver-row__bw-bar">
-                          <i
-                            style={{ width: `${loadPct}%` }}
-                            className={loadPct > 80 ? 'high' : loadPct > 50 ? 'med' : ''}
-                          />
-                        </div>
-                        <span className="driver-row__bw-lbl">
-                          <strong>{d.jobsThisWeek}</strong>
-                          <span>/{WEEK_TARGET} wk</span>
-                        </span>
-                      </div>
                       <div className="driver-row__avail">
                         {offeredIds.has(d.id) ? (
                           <Lozenge tone="blue">OFFERED</Lozenge>
-                        ) : d.busy ? (
-                          <Lozenge tone="red">BUSY</Lozenge>
+                        ) : d.clash ? (
+                          <Lozenge tone="orange">
+                            Busy {hhmm(d.clash.startMs)}–{hhmm(d.clash.endMs)}
+                          </Lozenge>
                         ) : (
-                          <Lozenge tone="green">FREE</Lozenge>
+                          <Lozenge tone="green">Free</Lozenge>
                         )}
                       </div>
                     </button>

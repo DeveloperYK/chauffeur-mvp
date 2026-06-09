@@ -2,11 +2,12 @@ import { Avatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
 import { formatLondonDay, londonDayRangeUtc, londonTodayString, parseDayString } from '@/lib/dates';
+import type { DriverStatus } from '@/lib/driver-status';
 import { env } from '@/lib/env';
 import { carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import type { Booking, Driver } from '@/server/db/schema';
-import { listBookingsBetween } from '@/server/services/bookings-query';
+import { driverStatusData, listBookingsBetween } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
 import { deactivateDriverAction, reactivateDriverAction } from './actions';
@@ -72,17 +73,10 @@ export default async function DriversPage({
 
   const allDrivers = await listAllDrivers(db);
 
-  // This week's bookings (for roster load bars + active-job counts).
-  const weekStartDay = weekMonday(today);
-  const weekStartUtc = londonDayRangeUtc(weekStartDay)?.startUtc ?? new Date();
-  const weekEndUtc = londonDayRangeUtc(addDays(weekStartDay, 6))?.endUtc ?? new Date();
-  const weekBookings = await listBookingsBetween(db, weekStartUtc, weekEndUtc);
-  const jobsThisWeek = (drvId: string) =>
-    weekBookings.filter((b) => b.assignedDriverId === drvId && b.state !== 'cancelled').length;
-  const activeJobs = (drvId: string) =>
-    weekBookings.filter(
-      (b) => b.assignedDriverId === drvId && !['completed', 'cancelled'].includes(b.state),
-    ).length;
+  // Live per-driver status (on a job now / free + next) for the roster — replaces
+  // the old weekly-load bar. Drivers are salaried staff who are told jobs, so the
+  // useful signal is their current/next assignment, not a workload fraction.
+  const status = await driverStatusData(db);
 
   const visible = allDrivers
     .filter((d) => (tier === 'all' ? true : d.tier === tier))
@@ -155,7 +149,7 @@ export default async function DriversPage({
                 </Link>
               </div>
             </div>
-            <DriverRoster drivers={visible} jobsThisWeek={jobsThisWeek} activeJobs={activeJobs} />
+            <DriverRoster drivers={visible} status={status} />
           </>
         ) : (
           <Schedule
@@ -172,14 +166,43 @@ export default async function DriversPage({
   );
 }
 
+function DriverStatusCell({ status }: { status: DriverStatus | undefined }) {
+  if (status?.onJob) {
+    const dest = status.onJob.dropoff ?? 'as directed';
+    return (
+      <span
+        className="drv-now"
+        title={`On a job → ${dest}, until ${fmtTime(new Date(status.onJob.untilMs))}`}
+      >
+        <span className="drv-dot drv-dot--on" />
+        On a job
+        <span className="muted"> · until {fmtTime(new Date(status.onJob.untilMs))}</span>
+      </span>
+    );
+  }
+  const next = status?.next ?? null;
+  return (
+    <span
+      className="drv-now"
+      title={
+        next
+          ? `Next ${fmtTime(new Date(next.atMs))}: ${next.pickup}${next.dropoff ? ` → ${next.dropoff}` : ''}`
+          : 'No upcoming jobs'
+      }
+    >
+      <span className="drv-dot" />
+      Free
+      {next ? <span className="muted"> · next {fmtTime(new Date(next.atMs))}</span> : null}
+    </span>
+  );
+}
+
 function DriverRoster({
   drivers,
-  jobsThisWeek,
-  activeJobs,
+  status,
 }: {
   drivers: Driver[];
-  jobsThisWeek: (id: string) => number;
-  activeJobs: (id: string) => number;
+  status: Record<string, DriverStatus>;
 }) {
   if (drivers.length === 0) {
     return (
@@ -195,40 +218,23 @@ function DriverRoster({
         <span>Tier</span>
         <span>Default vehicle</span>
         <span>WhatsApp</span>
-        <span>This week</span>
+        <span>Now / next</span>
         <span style={{ textAlign: 'right' }}>Status</span>
       </div>
       {drivers.map((d) => {
-        const week = jobsThisWeek(d.id);
-        const loadPct = Math.min(100, Math.round((week / 15) * 100));
-        const loadClass = loadPct > 80 ? 'high' : loadPct > 50 ? 'med' : '';
-        const active = activeJobs(d.id);
         return (
           <div className="dt-row dt-row--load" key={d.id}>
             <span className="name">
               <Avatar name={d.name} id={d.id} size={26} />
-              <span>
-                {d.name}
-                {active > 0 ? (
-                  <span style={{ marginLeft: 8 }}>
-                    <Lozenge tone="blue">{active} ACTIVE</Lozenge>
-                  </span>
-                ) : null}
-              </span>
+              <span>{d.name}</span>
             </span>
             <span>
               <span className={`tier-tag ${d.tier}`}>{d.tier}</span>
             </span>
             <span>{carLabel(d.defaultCarType)}</span>
             <span className="ws">{d.whatsappNumber}</span>
-            <span className="load-cell">
-              <span className="load-bar">
-                <i style={{ width: `${loadPct}%` }} className={loadClass} />
-              </span>
-              <span className="tabnum">
-                <strong>{week}</strong>
-                <span className="muted">/15</span>
-              </span>
+            <span>
+              <DriverStatusCell status={status[d.id]} />
             </span>
             <span
               style={{

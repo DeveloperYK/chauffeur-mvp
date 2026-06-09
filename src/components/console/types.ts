@@ -73,8 +73,6 @@ export interface ConsoleDriver {
   defaultCarType: string;
   whatsappNumber: string;
   active: boolean;
-  /** Derived: count of this driver's open bookings in the current week. */
-  jobsThisWeek: number;
 }
 
 export interface ConsoleOperator {
