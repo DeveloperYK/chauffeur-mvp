@@ -2,8 +2,8 @@
 
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { getRouteEstimate } from '@/lib/routes';
-import { PLACEHOLDER_PRICING_RULES, type ServiceType, quoteBooking } from '@/server/domain/pricing';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import type { ServiceType } from '@/server/db/schema';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { toLocalDateTimeInput } from './format';
@@ -43,10 +43,6 @@ const HOURS = [2, 3, 4, 6, 8, 12];
 const DEFAULT_HOURLY_MINUTES = 240;
 const DEFAULT_TRANSFER_MINUTES = 60;
 const ROUTE_DEBOUNCE_MS = 600;
-
-function poundsFromPence(pence: number): string {
-  return (pence / 100).toFixed(2);
-}
 
 export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBookingModalProps) {
   const [form, setForm] = useState<EditForm | null>(null);
@@ -117,23 +113,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     };
   }, [serviceType, pickupAddress, dropoffAddress]);
 
-  const quote = useMemo(() => {
-    if (!form) return null;
-    if (form.serviceType === 'hourly') {
-      return quoteBooking(
-        { serviceType: 'hourly', hours: form.expectedDurationMinutes / 60 },
-        PLACEHOLDER_PRICING_RULES,
-      );
-    }
-    if (form.distanceMeters != null) {
-      return quoteBooking(
-        { serviceType: 'transfer', distanceMeters: form.distanceMeters },
-        PLACEHOLDER_PRICING_RULES,
-      );
-    }
-    return null;
-  }, [form]);
-
   if (!booking || !form) return null;
   const set = <K extends keyof EditForm>(k: K, v: EditForm[K]) =>
     setForm((p) => (p ? { ...p, [k]: v } : p));
@@ -155,6 +134,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
   };
 
   const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
+  const priceValid = Number.parseFloat(form.contractPricePounds) > 0;
 
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -403,7 +383,9 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
             <div className="form-section__head">Contract price</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Price</label>
+              <label>
+                Price<span className="req">*</span>
+              </label>
               <div className="ctrl">
                 <div className="money">
                   <div className="pfx">£</div>
@@ -414,19 +396,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     onChange={(e) => set('contractPricePounds', e.target.value)}
                   />
                 </div>
-                {quote ? (
-                  <div className="hint">
-                    Suggested <strong>£{poundsFromPence(quote.amountPence)}</strong> —{' '}
-                    {quote.breakdown.join(' + ')} (estimate).{' '}
-                    <button
-                      type="button"
-                      className="linklike"
-                      onClick={() => set('contractPricePounds', poundsFromPence(quote.amountPence))}
-                    >
-                      Use
-                    </button>
-                  </div>
-                ) : null}
+                <div className="hint">Contract price, excluding car park &amp; waiting time.</div>
               </div>
             </div>
           </div>
@@ -471,7 +441,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn--primary" disabled={isPending}>
+          <button type="submit" className="btn btn--primary" disabled={isPending || !priceValid}>
             <Icon.Check /> {isPending ? 'Saving…' : 'Save changes'}
           </button>
         </footer>

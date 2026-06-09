@@ -24,6 +24,7 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [car, setCar] = useState('');
+  const [pay, setPay] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -33,13 +34,17 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
       setName('');
       setPhone('');
       setCar('');
+      setPay('');
       setError(null);
     }
   }, [isOpen, booking?.id]);
 
   if (!booking) return null;
 
-  const valid = name.trim().length >= 2 && phone.trim().length >= 7 && car.trim().length >= 1;
+  const payPounds = Number.parseFloat(pay);
+  const payValid = Number.isFinite(payPounds) && payPounds > 0;
+  const valid =
+    name.trim().length >= 2 && phone.trim().length >= 7 && car.trim().length >= 1 && payValid;
 
   const submit = () => {
     if (!valid) return;
@@ -49,6 +54,7 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
         name: name.trim(),
         phone: phone.trim(),
         car: car.trim(),
+        payPence: Math.round(payPounds * 100),
       });
       if (!result.ok) {
         setError(result.error ?? 'Could not hand the booking to a backfill driver.');
@@ -128,6 +134,27 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
                 onChange={(e) => setCar(e.target.value)}
                 placeholder="e.g. BMW 5 Series"
               />
+            </div>
+          </div>
+
+          <div className="field">
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
+            <label>
+              Driver pay<span className="req">*</span>
+            </label>
+            <div className="ctrl">
+              <div className="money">
+                <div className="pfx">£</div>
+                <input
+                  type="number"
+                  step="1"
+                  min={0}
+                  value={pay}
+                  onChange={(e) => setPay(e.target.value)}
+                  placeholder="120"
+                />
+              </div>
+              <div className="hint">What this backfill driver is paid for the job.</div>
             </div>
           </div>
         </div>

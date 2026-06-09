@@ -221,7 +221,7 @@ describe('services/bookings (integration)', () => {
   describe('service types', () => {
     it('defaults to a transfer and stores the route distance', async () => {
       const result = await createBooking(
-        validInput({ distanceMeters: 28000, contractPricePence: 0 }),
+        validInput({ distanceMeters: 28000, contractPricePence: 5000 }),
         { db, clock, operatorId },
       );
       expect(result.ok).toBe(true);
@@ -258,33 +258,17 @@ describe('services/bookings (integration)', () => {
       expect(result.booking.distanceMeters).toBeNull();
     });
 
-    it('defaults the price from the route when left blank (transfer)', async () => {
-      // 10 miles → £10 base + 10 × £2.20 = £32.00
+    it('rejects a booking with no price (price is required, not auto-computed)', async () => {
       const result = await createBooking(
         validInput({ contractPricePence: 0, distanceMeters: Math.round(10 * 1609.344) }),
         { db, clock, operatorId },
       );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.booking.contractPricePence).toBe(3200);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
     });
 
-    it('defaults the price from booked hours when left blank (hourly)', async () => {
-      const result = await createBooking(
-        validInput({
-          serviceType: 'hourly',
-          dropoffAddress: '',
-          contractPricePence: 0,
-          expectedDurationMinutes: 240,
-        }),
-        { db, clock, operatorId },
-      );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.booking.contractPricePence).toBe(20000); // 4 hr × £50
-    });
-
-    it('keeps the operator-entered price over the computed quote', async () => {
+    it('stores the operator-entered price verbatim', async () => {
       const result = await createBooking(
         validInput({ contractPricePence: 9999, distanceMeters: 28000 }),
         { db, clock, operatorId },

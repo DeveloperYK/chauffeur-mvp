@@ -3,7 +3,7 @@ import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake
 import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
 import { listBookingHistory } from '@/server/services/activity';
-import { handToBackfill } from '@/server/services/backfill';
+import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
 import { releaseDriver } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -62,6 +62,7 @@ describe('services/backfill (integration)', () => {
     name: 'Dave Smith',
     phone: '+44 7911 123456',
     car: 'BMW 5 Series',
+    payPence: 12000,
   };
 
   describe('handToBackfill — happy paths', () => {
@@ -76,6 +77,7 @@ describe('services/backfill (integration)', () => {
       expect(b?.assignedDriverId).toBeNull();
       expect(b?.backfillDriverName).toBe('Dave Smith');
       expect(b?.carForThisJob).toBe('BMW 5 Series');
+      expect(b?.backfillDriverPayPence).toBe(12000);
       expect(b?.assignedAt).not.toBeNull();
     });
 
@@ -161,6 +163,21 @@ describe('services/backfill (integration)', () => {
       if (!result.ok) expect(result.reason).toBe('validation');
     });
 
+    it('rejects a missing driver pay', async () => {
+      const id = await seedUnassigned();
+      const { payPence, ...noPay } = validInput;
+      const result = await handToBackfill(id, noPay as typeof validInput, operatorId, deps());
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('validation');
+    });
+
+    it('rejects a zero or negative driver pay', async () => {
+      const id = await seedUnassigned();
+      const result = await handToBackfill(id, { ...validInput, payPence: 0 }, operatorId, deps());
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('validation');
+    });
+
     it('does not send an SMS or mirror when validation fails', async () => {
       const id = await seedUnassigned();
       await handToBackfill(id, { ...validInput, name: '' }, operatorId, deps());
@@ -187,6 +204,55 @@ describe('services/backfill (integration)', () => {
       expect(b?.backfillDriverName).toBeNull();
       expect(b?.backfillDriverPhone).toBeNull();
       expect(b?.carForThisJob).toBeNull();
+      expect(b?.backfillDriverPayPence).toBeNull();
+    });
+  });
+
+  describe('updateBackfillPay', () => {
+    async function seedBackfill() {
+      const id = await seedUnassigned();
+      await handToBackfill(id, validInput, operatorId, deps());
+      return id;
+    }
+
+    it('updates the backfill driver pay', async () => {
+      const id = await seedBackfill();
+      const result = await updateBackfillPay(id, 15500, operatorId, deps());
+      expect(result.ok).toBe(true);
+      const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
+      expect(b?.backfillDriverPayPence).toBe(15500);
+    });
+
+    it('records an audit event for the pay change', async () => {
+      const id = await seedBackfill();
+      await updateBackfillPay(id, 15500, operatorId, deps());
+      const events = await db.select().from(auditEvents).where(eq(auditEvents.entityId, id));
+      expect(events.some((e) => e.action === 'update_backfill_pay')).toBe(true);
+    });
+
+    it('rejects a missing booking', async () => {
+      const result = await updateBackfillPay(
+        '00000000-0000-0000-0000-000000000000',
+        15500,
+        operatorId,
+        deps(),
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('booking_not_found');
+    });
+
+    it('rejects a booking that is not a backfill job', async () => {
+      const id = await seedUnassigned();
+      const result = await updateBackfillPay(id, 15500, operatorId, deps());
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('not_backfill');
+    });
+
+    it('rejects a zero or negative pay', async () => {
+      const id = await seedBackfill();
+      const result = await updateBackfillPay(id, 0, operatorId, deps());
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('validation');
     });
   });
 });

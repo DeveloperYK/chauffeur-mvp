@@ -8,6 +8,7 @@ import {
   generateCompletionLinkAction,
   rejectBookingAction,
   releaseDriverAction,
+  updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
@@ -52,6 +53,8 @@ export function DetailPanel({
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
+  const [editingPay, setEditingPay] = useState(false);
+  const [payDraft, setPayDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -61,6 +64,8 @@ export function DetailPanel({
       setShowHistory(false);
       setHistory(null);
       setCompletionLink(null);
+      setEditingPay(false);
+      setPayDraft('');
       setError(null);
     }
   }, [isOpen, booking?.id]);
@@ -131,6 +136,30 @@ export function DetailPanel({
       () => assignBookingOperatorAction(booking.id, me.id),
       `Assigned to ${me.name.split(' ')[0]}.`,
     );
+  const startEditPay = () => {
+    setPayDraft(
+      booking.backfillDriverPayPence != null ? String(booking.backfillDriverPayPence / 100) : '',
+    );
+    setError(null);
+    setEditingPay(true);
+  };
+  const savePay = () => {
+    const pounds = Number.parseFloat(payDraft);
+    if (!Number.isFinite(pounds) || pounds <= 0) {
+      setError('Enter a valid driver pay (more than £0).');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await updateBackfillPayAction(booking.id, Math.round(pounds * 100));
+      if (!result.ok) {
+        setError(result.error ?? 'Could not update the driver pay.');
+        return;
+      }
+      setEditingPay(false);
+      onMutated('Backfill driver pay updated.');
+    });
+  };
   const approve = () => run(() => approveBookingAction(booking.id), 'Trip approved & completed.');
   const reject = () =>
     run(() => rejectBookingAction(booking.id), 'Form rejected — driver to resubmit.');
@@ -487,6 +516,56 @@ export function DetailPanel({
                   )}
                 </div>
               </div>
+              {booking.isBackfill ? (
+                <div className="ir">
+                  <div className="ir__k">Backfill pay</div>
+                  <div className="ir__v">
+                    {editingPay ? (
+                      <div className="ir__row">
+                        <div className="money" style={{ maxWidth: 140 }}>
+                          <div className="pfx">£</div>
+                          <input
+                            type="number"
+                            step="1"
+                            min={0}
+                            value={payDraft}
+                            onChange={(e) => setPayDraft(e.target.value)}
+                            // biome-ignore lint/a11y/noAutofocus: focus the field when the inline editor opens
+                            autoFocus
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={savePay}
+                          disabled={isPending}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => setEditingPay(false)}
+                          disabled={isPending}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="ir__row">
+                        <span>
+                          {booking.backfillDriverPayPence != null
+                            ? fmtPrice(booking.backfillDriverPayPence)
+                            : '—'}
+                        </span>
+                        <button type="button" className="link-btn" onClick={startEditPay}>
+                          Edit
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </section>
 
