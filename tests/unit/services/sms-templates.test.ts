@@ -35,12 +35,18 @@ describe('SMS templates — brand, reference, structured format', () => {
     expect(SMS_BRAND_NAME).toBe('Chauffeur MVP');
   });
 
-  it('formats the assigned-confirmation SMS for the exec', () => {
-    const body = assignedSms(booking, driver, 'Mercedes S-Class');
+  it('formats the assigned-confirmation SMS for the exec with the car + colour', () => {
+    const body = assignedSms(booking, driver, 'Black Mercedes S-Class');
     expect(body).toBe(
-      `${SMS_BRAND_NAME} - BKNG-00001\nConfirmed: ${when}\nDriver: Marcus Bell (Mercedes S-Class)\nPickup: 12 King St, London`,
+      `${SMS_BRAND_NAME} - BKNG-00001\nConfirmed: ${when}\nDriver: Marcus Bell (Black Mercedes S-Class)\nPickup: 12 King St, London`,
     );
     expect(body).not.toContain('UTC');
+  });
+
+  it('omits the car bracket when no car description is available', () => {
+    const body = assignedSms(booking, driver, '');
+    expect(body).toContain('Driver: Marcus Bell\n');
+    expect(body).not.toContain('Marcus Bell (');
   });
 
   it('formats the en-route SMS for the exec', () => {

@@ -54,7 +54,13 @@ describe('services/offers (dispatch offer tracking)', () => {
     const seedDriver = async (name: string, phone: string) => {
       const [d] = await db
         .insert(drivers)
-        .values({ name, tier: 'ordinary', defaultCarType: 's_class', whatsappNumber: phone })
+        .values({
+          name,
+          vehicleClass: 'executive',
+          car: 'Mercedes S-Class',
+          carColour: 'Black',
+          whatsappNumber: phone,
+        })
         .returning();
       return d?.id ?? '';
     };

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select } from '@/components/ui/field';
-import { TIER_LABEL } from '@/lib/labels';
+import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
 import type { Driver } from '@/server/db/schema';
 
 interface DriverFormProps {
@@ -26,23 +26,38 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
         />
       </Field>
 
-      <Field label="Tier" required>
-        <Select name="tier" required defaultValue={driver?.tier ?? 'ordinary'}>
-          <option value="premium">{TIER_LABEL.premium}</option>
-          <option value="ordinary">{TIER_LABEL.ordinary}</option>
+      <Field label="Type" required>
+        <Select name="vehicleClass" required defaultValue={driver?.vehicleClass ?? 'executive'}>
+          <option value="executive">{VEHICLE_CLASS_LABEL.executive}</option>
+          <option value="luxury">{VEHICLE_CLASS_LABEL.luxury}</option>
+          <option value="mpv">{VEHICLE_CLASS_LABEL.mpv}</option>
+          <option value="coach">{VEHICLE_CLASS_LABEL.coach}</option>
         </Select>
       </Field>
 
-      <Field label="Default vehicle" required>
-        <Input
-          type="text"
-          name="defaultCarType"
-          required
-          maxLength={80}
-          placeholder="e.g. Mercedes S-Class, BMW X5"
-          defaultValue={driver?.defaultCarType ?? ''}
-        />
-      </Field>
+      <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="Car" required helper="The make and model the exec will look for.">
+          <Input
+            type="text"
+            name="car"
+            required
+            maxLength={80}
+            placeholder="e.g. Mercedes S-Class, BMW X5"
+            defaultValue={driver?.car ?? ''}
+          />
+        </Field>
+
+        <Field label="Car colour" required>
+          <Input
+            type="text"
+            name="carColour"
+            required
+            maxLength={40}
+            placeholder="e.g. Black"
+            defaultValue={driver?.carColour ?? ''}
+          />
+        </Field>
+      </div>
 
       <Field
         label="WhatsApp number"

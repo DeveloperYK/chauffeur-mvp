@@ -25,7 +25,6 @@ const baseBooking: Booking = {
   createdByOperatorId: 'op-1',
   assignedOperatorId: 'op-1',
   assignedDriverId: 'driver-id-1',
-  carForThisJob: 'Mercedes S-Class',
   assignedAt: new Date('2026-06-01T07:00:00.000Z'),
   carParkPence: 750,
   waitingTimeMinutes: 12,
@@ -40,6 +39,7 @@ const baseBooking: Booking = {
   isBackfill: false,
   backfillDriverName: null,
   backfillDriverPhone: null,
+  backfillCar: null,
   backfillDriverPayPence: null,
   completionByOperator: false,
   createdAt: new Date('2026-05-30T10:00:00.000Z'),
@@ -49,8 +49,9 @@ const baseBooking: Booking = {
 const driver: Driver = {
   id: 'driver-id-1',
   name: 'Tom',
-  tier: 'premium',
-  defaultCarType: 'Mercedes S-Class',
+  vehicleClass: 'executive',
+  car: 'Mercedes S-Class',
+  carColour: 'Black',
   whatsappNumber: '+447911000001',
   active: true,
   createdAt: new Date(),
@@ -143,13 +144,21 @@ describe('rowFromBooking', () => {
     expect(assigned[18]).toBe('No');
   });
 
-  it('renders the vehicle the driver brought (carForThisJob)', () => {
+  it("renders the assigned driver's car + colour in the Car Type column", () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[10]).toBe('Mercedes S-Class');
+    expect(row[10]).toBe('Black Mercedes S-Class');
   });
 
-  it('leaves the vehicle column blank when carForThisJob is null', () => {
-    const row = rowFromBooking({ booking: { ...baseBooking, carForThisJob: null }, driver });
+  it('renders the backfill car when the job ran on a subcontractor', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, isBackfill: true, backfillCar: 'Black Range Rover' },
+      driver: null,
+    });
+    expect(row[10]).toBe('Black Range Rover');
+  });
+
+  it('leaves the Car Type column blank when no driver is assigned', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver: null });
     expect(row[10]).toBe('');
   });
 

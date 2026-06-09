@@ -24,8 +24,9 @@ export async function editDriverAction(formData: FormData): Promise<void> {
     id,
     {
       name: String(formData.get('name') ?? ''),
-      tier: String(formData.get('tier') ?? ''),
-      defaultCarType: String(formData.get('defaultCarType') ?? ''),
+      vehicleClass: String(formData.get('vehicleClass') ?? ''),
+      car: String(formData.get('car') ?? ''),
+      carColour: String(formData.get('carColour') ?? ''),
       whatsappNumber: String(formData.get('whatsappNumber') ?? ''),
     },
     { db, operatorId: session.operator.id },

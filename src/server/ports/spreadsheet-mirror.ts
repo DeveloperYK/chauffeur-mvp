@@ -81,16 +81,21 @@ function waitingPounds(waitingTimeMinutes: number | null): string {
   return fee > 0 ? (fee / 100).toFixed(2) : '';
 }
 
-function tierLabel(t: string | null): string {
-  if (t === 'premium') return 'Employee';
-  if (t === 'ordinary') return 'Employee';
-  return '';
+// "Driver Type" (column N) marks whether the job ran on an internal driver
+// ("Employee") or an external backfill subcontractor (blank). It is not the
+// vehicle class.
+function employmentLabel(driver: Driver | null | undefined): string {
+  return driver ? 'Employee' : '';
 }
 
 export function rowFromBooking(input: MirrorRowInput): string[] {
   const { booking, driver, operator } = input;
-  // Vehicle is whatever the driver brings (set at accept); empty until then.
-  const car = booking.carForThisJob ?? '';
+  // Car (column K): an internal driver brings the car + colour on their profile;
+  // a backfill subcontractor's car is recorded on the booking. Empty until a
+  // driver is assigned.
+  const car = booking.isBackfill
+    ? carLabel(booking.backfillCar)
+    : [driver?.carColour?.trim(), carLabel(driver?.car ?? null)].filter(Boolean).join(' ');
   const pickup = booking.pickupAt;
   const dropoff = booking.dropoffAt;
   const totalMinutes = booking.dropoffAt
@@ -111,10 +116,10 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     // Hourly as-directed jobs have no destination — the sheet shows "As directed".
     booking.dropoffAddress ?? 'As directed',
     booking.accountCode,
-    carLabel(car),
+    car,
     (booking.contractPricePence / 100).toFixed(2),
     driver?.name ?? '',
-    tierLabel(driver?.tier ?? null),
+    employmentLabel(driver),
     '', // hourly rate
     booking.carParkPence != null ? (booking.carParkPence / 100).toFixed(2) : '',
     booking.waitingTimeMinutes != null

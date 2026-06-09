@@ -3,7 +3,7 @@ import { Icon } from '@/components/console/icons';
 import { Lozenge, StateLozenge, Tag } from '@/components/console/lozenge';
 import { bookingRef } from '@/lib/booking-ref';
 import { env } from '@/lib/env';
-import { TIER_LABEL, carLabel } from '@/lib/labels';
+import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import { type BookingState, bookings } from '@/server/db/schema';
@@ -74,7 +74,11 @@ export default async function BookingPage({
     ? (opLookup.get(booking.assignedOperatorId)?.name ?? null)
     : null;
   const isAssignedToMe = booking.assignedOperatorId === session.operator.id;
-  const vehicle = booking.carForThisJob;
+  const vehicle = booking.isBackfill
+    ? booking.backfillCar
+    : driver
+      ? carDescription(driver.car, driver.carColour)
+      : null;
 
   return (
     <div className="content" style={{ maxWidth: 760 }}>
@@ -170,7 +174,7 @@ export default async function BookingPage({
           </div>
           {vehicle ? (
             <div className="trip-meta">
-              <Tag>{carLabel(vehicle)}</Tag>
+              <Tag>{vehicle}</Tag>
             </div>
           ) : null}
         </div>
@@ -264,7 +268,9 @@ export default async function BookingPage({
                 <div className="ir__row">
                   <Avatar name={driver.name} id={driver.id} size={22} />
                   <span>{driver.name}</span>
-                  <span className={`tier-tag ${driver.tier}`}>{driver.tier}</span>
+                  <span className={`vc-tag ${driver.vehicleClass}`}>
+                    {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                  </span>
                   <span className="ir__sub mono" style={{ marginLeft: 4 }}>
                     {driver.whatsappNumber}
                   </span>
@@ -348,8 +354,8 @@ export default async function BookingPage({
                   </option>
                   {driverList.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.tier === 'premium' ? '★ ' : ''}
-                      {d.name} · {TIER_LABEL[d.tier]} · {carLabel(d.defaultCarType)}
+                      {d.name} · {VEHICLE_CLASS_LABEL[d.vehicleClass]} ·{' '}
+                      {carDescription(d.car, d.carColour)}
                     </option>
                   ))}
                 </select>

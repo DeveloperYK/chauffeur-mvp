@@ -11,6 +11,7 @@ import {
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
@@ -95,7 +96,11 @@ export function DetailPanel({
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
   const isAssignedToMe = booking.assignedOperatorId === me.id;
-  const vehicle = booking.carForThisJob;
+  const vehicle = booking.isBackfill
+    ? booking.backfillCar
+    : driver
+      ? carDescription(driver.car, driver.carColour)
+      : null;
   const hasNotes = !!booking.notes && booking.notes.trim().length > 0;
   const hasOperatorNotes = !!booking.operatorNotes && booking.operatorNotes.trim().length > 0;
   const hasCompletion =
@@ -506,7 +511,9 @@ export function DetailPanel({
                     <div className="ir__row">
                       <Avatar name={driver.name} id={driver.id} size={22} />
                       <span>{driver.name}</span>
-                      <span className={`tier-tag ${driver.tier}`}>{driver.tier}</span>
+                      <span className={`vc-tag ${driver.vehicleClass}`}>
+                        {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                      </span>
                       <span className="ir__sub mono" style={{ marginLeft: 4 }}>
                         {driver.whatsappNumber}
                       </span>

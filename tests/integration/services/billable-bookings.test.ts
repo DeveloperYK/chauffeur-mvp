@@ -80,7 +80,6 @@ describe('services/bookings-query listBillableBookings (integration)', () => {
       isBackfill: true,
       backfillDriverName: 'Dave Smith',
       backfillDriverPhone: '+447911123456',
-      carForThisJob: 'BMW 5 Series',
       carParkPence: 500,
       waitingTimeMinutes: 20,
     });

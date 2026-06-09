@@ -96,16 +96,16 @@ export async function createBooking(
   }
 
   // If assigning driver at creation, validate the driver exists and is active
-  let driver: { id: string; defaultCarType: string } | null = null;
+  let driver: { id: string } | null = null;
   if (parsed.data.assignedDriverId) {
     const [found] = await deps.db
-      .select({ id: drivers.id, defaultCarType: drivers.defaultCarType, active: drivers.active })
+      .select({ id: drivers.id, active: drivers.active })
       .from(drivers)
       .where(eq(drivers.id, parsed.data.assignedDriverId))
       .limit(1);
     if (!found) return { ok: false, reason: 'driver_not_found' };
     if (!found.active) return { ok: false, reason: 'driver_inactive' };
-    driver = found;
+    driver = { id: found.id };
   }
 
   const shouldMarkAssigned = driver !== null && parsed.data.markAsAccepted;
@@ -143,7 +143,6 @@ export async function createBooking(
       assignedOperatorId: deps.operatorId,
       // Driver assignment at creation (if markAsAccepted)
       assignedDriverId: shouldMarkAssigned && driver ? driver.id : null,
-      carForThisJob: shouldMarkAssigned && driver ? driver.defaultCarType : null,
       assignedAt: shouldMarkAssigned ? now : null,
     })
     .returning();

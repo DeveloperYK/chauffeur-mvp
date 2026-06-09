@@ -7,10 +7,10 @@
 
 import type {
   BookingState,
-  DriverTier,
   NewBooking,
   NewDriver,
   NewOperator,
+  VehicleClass,
 } from '@/server/db/schema';
 
 // ─── Operator Factories ─────────────────────────────────────────────────────
@@ -67,8 +67,9 @@ export const OperatorFactory = {
 
 export interface DriverOverrides {
   name?: string;
-  tier?: DriverTier;
-  defaultCarType?: string;
+  vehicleClass?: VehicleClass;
+  car?: string;
+  carColour?: string;
   whatsappNumber?: string;
   active?: boolean;
 }
@@ -76,8 +77,9 @@ export interface DriverOverrides {
 export const DriverFactory = {
   premiumTom: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Tom Wright',
-    tier: 'premium',
-    defaultCarType: 'Mercedes S-Class',
+    vehicleClass: 'executive',
+    car: 'Mercedes S-Class',
+    carColour: 'Black',
     whatsappNumber: '+447911000001',
     active: true,
     ...overrides,
@@ -85,8 +87,9 @@ export const DriverFactory = {
 
   premiumSarah: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Sarah Chen',
-    tier: 'premium',
-    defaultCarType: 'BMW 7 Series',
+    vehicleClass: 'luxury',
+    car: 'BMW 7 Series',
+    carColour: 'Black',
     whatsappNumber: '+447911000002',
     active: true,
     ...overrides,
@@ -94,8 +97,9 @@ export const DriverFactory = {
 
   ordinaryMario: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Mario Rossi',
-    tier: 'ordinary',
-    defaultCarType: 'Mercedes E-Class',
+    vehicleClass: 'mpv',
+    car: 'Mercedes V-Class',
+    carColour: 'Silver',
     whatsappNumber: '+447911000003',
     active: true,
     ...overrides,
@@ -103,8 +107,9 @@ export const DriverFactory = {
 
   ordinaryLisa: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Lisa Thompson',
-    tier: 'ordinary',
-    defaultCarType: 'Audi A6',
+    vehicleClass: 'executive',
+    car: 'Audi A6',
+    carColour: 'Grey',
     whatsappNumber: '+447911000004',
     active: true,
     ...overrides,
@@ -112,8 +117,9 @@ export const DriverFactory = {
 
   inactive: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Inactive Driver',
-    tier: 'ordinary',
-    defaultCarType: 'Toyota Camry',
+    vehicleClass: 'executive',
+    car: 'Toyota Camry',
+    carColour: 'White',
     whatsappNumber: '+447911000099',
     active: false,
     ...overrides,
@@ -121,8 +127,9 @@ export const DriverFactory = {
 
   custom: (overrides: DriverOverrides & { name: string; whatsappNumber: string }): NewDriver => ({
     name: overrides.name,
-    tier: overrides.tier ?? 'ordinary',
-    defaultCarType: overrides.defaultCarType ?? 'Generic Car',
+    vehicleClass: overrides.vehicleClass ?? 'executive',
+    car: overrides.car ?? 'Standard Saloon',
+    carColour: overrides.carColour ?? 'Black',
     whatsappNumber: overrides.whatsappNumber,
     active: overrides.active ?? true,
   }),
@@ -148,7 +155,7 @@ export interface BookingOverrides {
   createdByOperatorId?: string | null;
   assignedOperatorId?: string | null;
   assignedDriverId?: string | null;
-  carForThisJob?: string | null;
+  backfillCar?: string | null;
   assignedAt?: Date | null;
   carParkPence?: number | null;
   waitingTimeMinutes?: number | null;
@@ -209,7 +216,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: operatorId,
     assignedDriverId: driverId,
-    carForThisJob: 'Mercedes S-Class',
     assignedAt: new Date('2026-05-20T10:00:00.000Z'),
     ...overrides,
   }),
@@ -233,7 +239,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: operatorId,
     assignedDriverId: driverId,
-    carForThisJob: 'Mercedes S-Class',
     assignedAt: new Date('2026-05-20T10:00:00.000Z'),
     ...overrides,
   }),
@@ -261,7 +266,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: operatorId,
     assignedDriverId: driverId,
-    carForThisJob: 'Mercedes S-Class',
     assignedAt: new Date('2026-05-20T10:00:00.000Z'),
     ...overrides,
   }),
@@ -289,7 +293,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: operatorId,
     assignedDriverId: driverId,
-    carForThisJob: 'Mercedes S-Class',
     assignedAt: new Date('2026-05-20T10:00:00.000Z'),
     carParkPence: 500,
     waitingTimeMinutes: 15,
@@ -317,7 +320,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: operatorId,
     assignedDriverId: driverId,
-    carForThisJob: 'Mercedes S-Class',
     assignedAt: new Date('2026-05-20T10:00:00.000Z'),
     carParkPence: 500,
     waitingTimeMinutes: 15,
@@ -372,7 +374,7 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: overrides.assignedOperatorId ?? operatorId,
     assignedDriverId: overrides.assignedDriverId ?? null,
-    carForThisJob: overrides.carForThisJob ?? null,
+    backfillCar: overrides.backfillCar ?? null,
     assignedAt: overrides.assignedAt ?? null,
     carParkPence: overrides.carParkPence ?? null,
     waitingTimeMinutes: overrides.waitingTimeMinutes ?? null,
