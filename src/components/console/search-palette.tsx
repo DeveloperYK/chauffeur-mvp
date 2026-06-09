@@ -5,6 +5,7 @@ import {
   searchBookingsAction,
 } from '@/app/(dashboard)/dashboard/search-actions';
 import type { BookingState } from '@/server/db/schema';
+import type { BookingMatchType } from '@/server/services/bookings-query';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { fmtTimeWithDay, passengerName } from './format';
@@ -19,6 +20,46 @@ const STATE_LABEL: Record<BookingState, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
+
+const MATCH_TYPE_LABEL: Record<BookingMatchType, string> = {
+  ref: 'Booking',
+  person: 'People',
+  company: 'Companies',
+  address: 'Addresses',
+  phone: 'Phone',
+  other: 'Other',
+};
+
+interface ResultGroup {
+  type: BookingMatchType;
+  label: string;
+  items: SearchResult[];
+}
+
+/**
+ * Bucket the already relevance-ranked results by match type, preserving the
+ * order each group's first (highest-ranked) hit appeared — so the most relevant
+ * group leads.
+ */
+function groupResults(results: SearchResult[]): ResultGroup[] {
+  const groups: ResultGroup[] = [];
+  const byType = new Map<BookingMatchType, ResultGroup>();
+  for (const r of results) {
+    const existing = byType.get(r.matchType);
+    if (existing) {
+      existing.items.push(r);
+    } else {
+      const group: ResultGroup = {
+        type: r.matchType,
+        label: MATCH_TYPE_LABEL[r.matchType],
+        items: [r],
+      };
+      byType.set(r.matchType, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+}
 
 const DEBOUNCE_MS = 200;
 
@@ -112,19 +153,24 @@ export function SearchPalette({ open, onClose }: SearchPaletteProps) {
           {term && !loading && results.length === 0 ? (
             <p className="cmdk__hint">No bookings match “{term}”.</p>
           ) : null}
-          {results.map((r) => (
-            <Link
-              key={r.id}
-              href={`/dashboard/bookings/${r.id}`}
-              className="cmdk__row"
-              onClick={onClose}
-            >
-              <span className="cmdk__ref mono">{r.ref}</span>
-              <span className="cmdk__when">{fmtTimeWithDay(r.pickupAt)}</span>
-              <span className="cmdk__who">{passengerName(r)}</span>
-              <span className="cmdk__driver">{r.driverName ?? '—'}</span>
-              <span className="cmdk__state">{STATE_LABEL[r.state]}</span>
-            </Link>
+          {groupResults(results).map((group) => (
+            <div key={group.type} className="cmdk__group">
+              <div className="cmdk__group-head">{group.label}</div>
+              {group.items.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/dashboard/bookings/${r.id}`}
+                  className="cmdk__row"
+                  onClick={onClose}
+                >
+                  <span className="cmdk__ref mono">{r.ref}</span>
+                  <span className="cmdk__when">{fmtTimeWithDay(r.pickupAt)}</span>
+                  <span className="cmdk__who">{passengerName(r)}</span>
+                  <span className="cmdk__driver">{r.driverName ?? '—'}</span>
+                  <span className="cmdk__state">{STATE_LABEL[r.state]}</span>
+                </Link>
+              ))}
+            </div>
           ))}
         </div>
       </div>

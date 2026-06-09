@@ -11,6 +11,8 @@ describe('searchBookings (integration)', () => {
   let tomId: string;
   let marcusId: string;
   let seqB1: number;
+  let seqB2: number;
+  let seqB5: number;
 
   beforeAll(async () => {
     const t = await createTestDb();
@@ -54,17 +56,21 @@ describe('searchBookings (integration)', () => {
       .returning({ seq: bookings.seq });
     seqB1 = b1?.seq ?? 0;
 
-    // b2: Jane / Marcus — 3 Jun
-    await db.insert(bookings).values(
-      SeedData.bookings.assigned(operatorId, marcusId, {
-        pickupAt: new Date('2026-06-03T10:00:00Z'),
-        passengerFirstName: 'Jane',
-        passengerLastName: 'Doe',
-        pickupAddress: 'The Savoy, Strand, London',
-        dropoffAddress: 'London City Airport',
-        accountCode: 'LEGO',
-      }),
-    );
+    // b2: Jane / Marcus — 3 Jun — "Savoy" appears here only as an address.
+    const [b2] = await db
+      .insert(bookings)
+      .values(
+        SeedData.bookings.assigned(operatorId, marcusId, {
+          pickupAt: new Date('2026-06-03T10:00:00Z'),
+          passengerFirstName: 'Jane',
+          passengerLastName: 'Doe',
+          pickupAddress: 'The Savoy, Strand, London',
+          dropoffAddress: 'London City Airport',
+          accountCode: 'LEGO',
+        }),
+      )
+      .returning({ seq: bookings.seq });
+    seqB2 = b2?.seq ?? 0;
 
     // b3: Sophia / unassigned — 2 Jun, ACME, Claridge's
     await db.insert(bookings).values(
@@ -90,6 +96,25 @@ describe('searchBookings (integration)', () => {
         accountCode: 'LEGO',
       }),
     );
+
+    // b5: Pat Savoy / unassigned — 31 May (OLDEST). "Savoy" is the surname here,
+    // so a "savoy" search must rank this person match above b2's address match
+    // even though b2 is newer. Account ZED keeps it out of the LEGO/ACME tests.
+    const [b5] = await db
+      .insert(bookings)
+      .values(
+        SeedData.bookings.unassigned(operatorId, {
+          pickupAt: new Date('2026-05-31T10:00:00Z'),
+          passengerFirstName: 'Pat',
+          passengerLastName: 'Savoy',
+          pickupAddress: '5 Cornhill, City of London',
+          dropoffAddress: 'Stansted',
+          accountCode: 'ZED',
+          caseCode: null,
+        }),
+      )
+      .returning({ seq: bookings.seq });
+    seqB5 = b5?.seq ?? 0;
   });
 
   afterAll(async () => {
@@ -164,6 +189,22 @@ describe('searchBookings (integration)', () => {
     expect(byAccount.map((r) => r.passengerFirstName)).toEqual(['Sophia']);
     const byCase = await searchBookings(db, 'case-1');
     expect(byCase.map((r) => r.seq)).toEqual([seqB1]);
+  });
+
+  it('ranks a stronger field match above a newer weaker one (relevance beats recency)', async () => {
+    // "savoy" is Pat's surname on b5 (31 May) but only a street name on b2 (3 Jun).
+    // The person match must come first despite being the older booking.
+    const rows = await searchBookings(db, 'savoy');
+    expect(rows.map((r) => r.seq)).toEqual([seqB5, seqB2]);
+  });
+
+  it('labels each hit with the field category it matched (matchType)', async () => {
+    expect((await searchBookings(db, 'eric'))[0]?.matchType).toBe('person');
+    expect((await searchBookings(db, 'marcus'))[0]?.matchType).toBe('person');
+    expect((await searchBookings(db, 'heathrow'))[0]?.matchType).toBe('address');
+    expect((await searchBookings(db, 'northwood'))[0]?.matchType).toBe('company');
+    expect((await searchBookings(db, '07911123456'))[0]?.matchType).toBe('phone');
+    expect((await searchBookings(db, String(seqB1)))[0]?.matchType).toBe('ref');
   });
 
   it('returns empty for no match and for an empty query', async () => {
