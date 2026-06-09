@@ -124,7 +124,13 @@ export const bookings = pgTable(
     // before this field exist without one.
     caseCode: text('case_code'),
     contractPricePence: integer('contract_price_pence').notNull(),
+    // Driver-facing notes. Shown to the driver on the dispatch link page and
+    // labelled "Notes for the driver" in the operator UI.
     notes: text('notes'),
+    // Operator-only notes. NEVER shown to drivers — kept off the public driver
+    // link page entirely. For information the operators want to record but not
+    // surface to whoever picks up the job (e.g. difficult client, billing quirk).
+    operatorNotes: text('operator_notes'),
 
     // Operator ownership (Jira-style)
     createdByOperatorId: uuid('created_by_operator_id').references(() => operators.id, {

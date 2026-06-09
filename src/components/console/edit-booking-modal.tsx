@@ -36,6 +36,7 @@ interface EditForm {
   caseCode: string;
   contractPricePounds: string;
   notes: string;
+  operatorNotes: string;
 }
 
 const HOURS = [2, 3, 4, 6, 8, 12];
@@ -71,6 +72,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         caseCode: booking.caseCode ?? '',
         contractPricePounds: String((booking.contractPricePence ?? 0) / 100),
         notes: booking.notes ?? '',
+        operatorNotes: booking.operatorNotes ?? '',
       });
       setError(null);
       setRouteStatus('idle');
@@ -174,6 +176,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
     fd.set('notes', form.notes);
+    fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
       const result = await editBookingAction(fd);
       if (!result.ok) {
@@ -429,11 +432,13 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Notes for the driver</div>
+            <div className="form-section__head">Notes</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
-                {form.serviceType === 'hourly' ? 'Area / instructions' : 'Special instructions'}
+                {form.serviceType === 'hourly'
+                  ? 'Area / instructions for the driver'
+                  : 'Notes for the driver'}
               </label>
               <div className="ctrl">
                 <textarea
@@ -442,6 +447,20 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   onChange={(e) => set('notes', e.target.value)}
                 />
               </div>
+              <div className="hint">The driver sees this on their job link.</div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Private notes — operators only</label>
+              <div className="ctrl">
+                <textarea
+                  rows={3}
+                  value={form.operatorNotes}
+                  onChange={(e) => set('operatorNotes', e.target.value)}
+                  placeholder="e.g. difficult client, account on stop, billing quirk…"
+                />
+              </div>
+              <div className="hint">🔒 Never shown to the driver.</div>
             </div>
           </div>
         </div>

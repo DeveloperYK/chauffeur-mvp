@@ -43,7 +43,10 @@ export const createBookingSchema = z
     // "Case code" — the expense code the customer's company bills against.
     caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
+    // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
+    // Operator-only notes — never shown to the driver.
+    operatorNotes: z.string().max(2000).optional().nullable(),
     // Optional: assign driver at booking creation
     assignedDriverId: z.string().uuid().optional().nullable(),
     markAsAccepted: z.boolean().optional().default(false),
@@ -143,6 +146,7 @@ export async function createBooking(
       caseCode: parsed.data.caseCode,
       contractPricePence,
       notes: parsed.data.notes ?? null,
+      operatorNotes: parsed.data.operatorNotes ?? null,
       createdByOperatorId: deps.operatorId,
       assignedOperatorId: deps.operatorId,
       // Driver assignment at creation (if markAsAccepted)

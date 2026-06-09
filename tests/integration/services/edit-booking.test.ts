@@ -79,6 +79,7 @@ describe('services/edit-booking (integration)', () => {
     caseCode: 'LEGO-2026-001',
     contractPricePence: 30000,
     notes: null,
+    operatorNotes: null,
     ...overrides,
   });
 
@@ -111,6 +112,38 @@ describe('services/edit-booking (integration)', () => {
     expect(result.booking.pickupAddress).toBe('The Connaught, Mayfair');
     expect(result.booking.notes).toBe('Two large suitcases');
     expect(result.changedFields).toEqual(expect.arrayContaining(['pickup address', 'notes']));
+  });
+
+  it('amends the private operator notes independently of the driver-facing notes', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, {
+        notes: 'Meet at Costa, Terminal 5',
+        operatorNotes: 'Client disputes every invoice — confirm price up front',
+      }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.notes).toBe('Meet at Costa, Terminal 5');
+    expect(result.booking.operatorNotes).toBe(
+      'Client disputes every invoice — confirm price up front',
+    );
+    expect(result.changedFields).toEqual(expect.arrayContaining(['notes', 'private notes']));
+  });
+
+  it('reports private notes alone as the only changed field', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { operatorNotes: 'Cash job — no card on file' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.operatorNotes).toBe('Cash job — no card on file');
+    expect(result.changedFields).toEqual(['private notes']);
   });
 
   it('amends the customer account (account_code + client_name) and case code', async () => {
