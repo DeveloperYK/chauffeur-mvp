@@ -78,6 +78,13 @@
       "when": 1780000000000,
       "tag": "0010_add_completion_by_operator",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781032200000,
+      "tag": "0011_add_backfill_driver_pay",
+      "breakpoints": true
     }
   ]
 }

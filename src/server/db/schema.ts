@@ -150,6 +150,10 @@ export const bookings = pgTable(
     isBackfill: boolean('is_backfill').notNull().default(false),
     backfillDriverName: text('backfill_driver_name'),
     backfillDriverPhone: text('backfill_driver_phone'),
+    // What the backfill (subcontractor) driver is paid for this job, in pence.
+    // Internal drivers are salaried — only backfill drivers are paid per booking,
+    // so this is null for internal jobs and operator-entered at handoff.
+    backfillDriverPayPence: integer('backfill_driver_pay_pence'),
 
     // Completion form (filled by driver)
     carParkPence: integer('car_park_pence'),

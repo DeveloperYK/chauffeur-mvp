@@ -36,7 +36,7 @@ export const editBookingSchema = z
     execMobile: phoneSchema,
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
-    contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
+    contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
   })
   .strict()

@@ -1,6 +1,5 @@
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
-import { PLACEHOLDER_PRICING_RULES, quoteBooking } from '@/server/domain/pricing';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
@@ -42,7 +41,9 @@ export const createBookingSchema = z
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     // "Case code" — the expense code the customer's company bills against.
     caseCode: z.string().min(1, 'Case code is required').max(60),
-    contractPricePence: z.coerce.number().int().min(0).max(10_000_00),
+    // Operator-set contract price. Required — operators determine every price
+    // manually; there is no auto-suggested figure to fall back on.
+    contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
     notes: z.string().max(2000).optional().nullable(),
     // Optional: assign driver at booking creation
     assignedDriverId: z.string().uuid().optional().nullable(),
@@ -111,17 +112,8 @@ export async function createBooking(
   const dropoffAddress = isHourly ? null : (parsed.data.dropoffAddress ?? null);
   const distanceMeters = isHourly ? null : (parsed.data.distanceMeters ?? null);
 
-  // Price defaults to the computed quote when the operator leaves it blank (0),
-  // otherwise their entered/overridden figure wins.
-  const contractPricePence =
-    parsed.data.contractPricePence > 0
-      ? parsed.data.contractPricePence
-      : quoteBooking(
-          isHourly
-            ? { serviceType: 'hourly', hours: parsed.data.expectedDurationMinutes / 60 }
-            : { serviceType: 'transfer', distanceMeters: distanceMeters ?? 0 },
-          PLACEHOLDER_PRICING_RULES,
-        ).amountPence;
+  // The operator sets the price manually; use it verbatim.
+  const contractPricePence = parsed.data.contractPricePence;
 
   const [inserted] = await deps.db
     .insert(bookings)

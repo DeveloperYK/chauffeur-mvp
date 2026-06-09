@@ -39,6 +39,7 @@ const baseBooking: Booking = {
   isBackfill: false,
   backfillDriverName: null,
   backfillDriverPhone: null,
+  backfillDriverPayPence: null,
   completionByOperator: false,
   createdAt: new Date('2026-05-30T10:00:00.000Z'),
   updatedAt: new Date('2026-06-01T10:15:00.000Z'),

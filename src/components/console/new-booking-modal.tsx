@@ -2,8 +2,8 @@
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
 import { getRouteEstimate } from '@/lib/routes';
-import { PLACEHOLDER_PRICING_RULES, type ServiceType, quoteBooking } from '@/server/domain/pricing';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import type { ServiceType } from '@/server/db/schema';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { Icon } from './icons';
@@ -108,10 +108,6 @@ function defaultDateTime(offsetH = 26): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function poundsFromPence(pence: number): string {
-  return (pence / 100).toFixed(2);
-}
-
 export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBookingModalProps) {
   const [form, setForm] = useState<NewForm>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -162,22 +158,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     };
   }, [form.serviceType, form.pickupAddress, form.dropoffAddress]);
 
-  const quote = useMemo(() => {
-    if (form.serviceType === 'hourly') {
-      return quoteBooking(
-        { serviceType: 'hourly', hours: form.expectedDurationMinutes / 60 },
-        PLACEHOLDER_PRICING_RULES,
-      );
-    }
-    if (form.distanceMeters != null) {
-      return quoteBooking(
-        { serviceType: 'transfer', distanceMeters: form.distanceMeters },
-        PLACEHOLDER_PRICING_RULES,
-      );
-    }
-    return null;
-  }, [form.serviceType, form.expectedDurationMinutes, form.distanceMeters]);
-
   const switchService = (next: ServiceType) => {
     setForm((p) => ({
       ...p,
@@ -192,6 +172,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
   };
 
   const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
+  const priceValid = Number.parseFloat(form.contractPricePounds) > 0;
 
   const generateSample = () => {
     const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
@@ -486,7 +467,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
             <div className="form-section__head">Contract price</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Price</label>
+              <label>
+                Price<span className="req">*</span>
+              </label>
               <div className="ctrl">
                 <div className="money">
                   <div className="pfx">£</div>
@@ -498,24 +481,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     placeholder="145"
                   />
                 </div>
-                {quote ? (
-                  <div className="hint">
-                    Suggested <strong>£{poundsFromPence(quote.amountPence)}</strong> —{' '}
-                    {quote.breakdown.join(' + ')} (estimate).{' '}
-                    <button
-                      type="button"
-                      className="linklike"
-                      onClick={() => set('contractPricePounds', poundsFromPence(quote.amountPence))}
-                    >
-                      Use
-                    </button>
-                  </div>
-                ) : (
-                  <div className="hint">
-                    Contract price, excluding car park &amp; waiting time (the driver fills those
-                    after the trip).
-                  </div>
-                )}
+                <div className="hint">
+                  Contract price, excluding car park &amp; waiting time (the driver fills those
+                  after the trip).
+                </div>
               </div>
             </div>
           </div>
@@ -554,7 +523,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn--primary" disabled={isPending}>
+          <button type="submit" className="btn btn--primary" disabled={isPending || !priceValid}>
             <Icon.Plus /> {isPending ? 'Creating…' : 'Create booking'}
           </button>
         </footer>

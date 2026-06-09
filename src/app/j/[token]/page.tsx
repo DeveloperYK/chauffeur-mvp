@@ -28,10 +28,6 @@ function fmtTimeWithDay(at: Date): string {
   }).format(at);
 }
 
-function fmtPrice(pence: number): string {
-  return `£${(pence / 100).toFixed(2)}`;
-}
-
 export default async function DriverLinkPage({
   params,
   searchParams,
@@ -172,10 +168,6 @@ export default async function DriverLinkPage({
           <div className="m">
             <div className="k">Duration</div>
             <div className="v">{booking.expectedDurationMinutes} min</div>
-          </div>
-          <div className="m">
-            <div className="k">Price</div>
-            <div className="v">{fmtPrice(booking.contractPricePence)}</div>
           </div>
         </div>
         {booking.notes ? (
