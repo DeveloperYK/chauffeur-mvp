@@ -111,13 +111,13 @@ export function unassignedSms(booking: Booking): string {
  * Driver — completion-form request after the trip.
  *
  *   Chauffeur MVP - BKNG-00001
- *   Please submit your trip form (car park, waiting, drop-off):
+ *   Please submit your trip form (arrival, on-board, completion times + parking):
  *   <url>
  */
 export function completionRequestSms(booking: Booking, url: string): string {
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
-    'Please submit your trip form (car park, waiting, drop-off):',
+    'Please submit your trip form (arrival, on-board, completion times + parking):',
     url,
   ].join('\n');
 }

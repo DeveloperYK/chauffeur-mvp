@@ -3,6 +3,7 @@ import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
 import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
+import { resolveCompletionTimes } from '@/server/domain/completion-times';
 import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
@@ -113,12 +114,19 @@ export async function generateCompletionLink(
   return { ok: true, url, shortUrl, whatsappUrl, booking, driver };
 }
 
+/** "HH:MM" 24h wall-clock time (Europe/London), e.g. "23:05". */
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a time as HH:MM (24-hour)');
+
+// The driver reports a parking fee plus three wall-clock times. The calendar
+// date is inferred from the booking's pickup day in the service (with
+// day-rollover), so a job running past midnight resolves correctly.
 export const completionFormSchema = z
   .object({
     token: z.string().min(20).max(4096),
     carParkPence: z.coerce.number().int().min(0).max(1_000_00),
-    waitingTimeMinutes: z.coerce.number().int().min(0).max(720),
-    dropoffAt: z.coerce.date(),
+    arrivalTime: timeOfDay,
+    passengerOnBoardTime: timeOfDay,
+    completionTime: timeOfDay,
   })
   .strict();
 
@@ -128,6 +136,7 @@ export type SubmitCompletionResult =
       ok: false;
       reason:
         | 'validation'
+        | 'times_invalid'
         | 'token_invalid'
         | 'token_expired'
         | 'token_consumed'
@@ -178,14 +187,21 @@ export async function submitCompletionForm(
   const t = transition(booking.state, { type: 'driver_submit_form' });
   if (!t.ok) return { ok: false, reason: 'wrong_state' };
 
+  // Resolve the three wall-clock times against the booking's pickup day (with
+  // day-rollover) and derive the waiting minutes that still drive the charge.
+  const times = resolveCompletionTimes(booking.pickupAt, parsed.data);
+  if (!times.ok) return { ok: false, reason: 'times_invalid' };
+
   const now = clock.now();
   const [updated] = await deps.db
     .update(bookings)
     .set({
       state: t.next,
       carParkPence: parsed.data.carParkPence,
-      waitingTimeMinutes: parsed.data.waitingTimeMinutes,
-      dropoffAt: parsed.data.dropoffAt,
+      arrivalAt: times.arrivalAt,
+      passengerOnBoardAt: times.passengerOnBoardAt,
+      waitingTimeMinutes: times.waitingTimeMinutes,
+      dropoffAt: times.dropoffAt,
       completionSubmittedAt: now,
       updatedAt: now,
     })
@@ -210,7 +226,10 @@ export async function submitCompletionForm(
     after: {
       state: updated.state,
       carParkPence: parsed.data.carParkPence,
-      waitingTimeMinutes: parsed.data.waitingTimeMinutes,
+      arrivalAt: times.arrivalAt.toISOString(),
+      passengerOnBoardAt: times.passengerOnBoardAt.toISOString(),
+      dropoffAt: times.dropoffAt.toISOString(),
+      waitingTimeMinutes: times.waitingTimeMinutes,
     },
   });
 
@@ -290,16 +309,14 @@ async function reviewBooking(
 
 // Same fields as the driver completion form, minus the token — the operator is
 // authenticated, so no signed link is involved.
-export const completeOnBehalfSchema = completionFormSchema
-  .omit({ token: true })
-  .extend({ dropoffAt: z.coerce.date() })
-  .strict();
+export const completeOnBehalfSchema = completionFormSchema.omit({ token: true }).strict();
 
 export type CompleteOnBehalfInput = z.input<typeof completeOnBehalfSchema>;
 
 export type CompleteOnBehalfResult =
   | { ok: true; booking: Booking }
   | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
+  | { ok: false; reason: 'times_invalid' }
   | { ok: false; reason: 'booking_not_found' | 'wrong_state'; state?: string };
 
 /**
@@ -332,8 +349,12 @@ export async function completeFormOnBehalf(
   const t = transition(booking.state, { type: 'operator_complete_form' });
   if (!t.ok) return { ok: false, reason: 'wrong_state', state: booking.state };
 
+  // Same time resolution and waiting-fee maths as the driver form.
+  const times = resolveCompletionTimes(booking.pickupAt, parsed.data);
+  if (!times.ok) return { ok: false, reason: 'times_invalid' };
+  const { carParkPence } = parsed.data;
+
   const now = clock.now();
-  const { dropoffAt, waitingTimeMinutes, carParkPence } = parsed.data;
 
   // Atomic gate on awaiting_driver_form so a concurrent driver submit can't be
   // clobbered. The operator implicitly approves their own entry, so approvedAt /
@@ -342,9 +363,11 @@ export async function completeFormOnBehalf(
     .update(bookings)
     .set({
       state: t.next,
-      dropoffAt,
-      waitingTimeMinutes,
       carParkPence,
+      arrivalAt: times.arrivalAt,
+      passengerOnBoardAt: times.passengerOnBoardAt,
+      waitingTimeMinutes: times.waitingTimeMinutes,
+      dropoffAt: times.dropoffAt,
       completionSubmittedAt: now,
       completionByOperator: true,
       approvedAt: now,
@@ -362,7 +385,14 @@ export async function completeFormOnBehalf(
     entityId: booking.id,
     action: 'operator_completed_form',
     before: { state: booking.state },
-    after: { state: updated.state, carParkPence, waitingTimeMinutes },
+    after: {
+      state: updated.state,
+      carParkPence,
+      arrivalAt: times.arrivalAt.toISOString(),
+      passengerOnBoardAt: times.passengerOnBoardAt.toISOString(),
+      dropoffAt: times.dropoffAt.toISOString(),
+      waitingTimeMinutes: times.waitingTimeMinutes,
+    },
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);

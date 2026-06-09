@@ -3,7 +3,7 @@
 import { completeFormOnBehalfAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useState, useTransition } from 'react';
-import { passengerName, toLocalDateTimeInput } from './format';
+import { passengerName, toLocalTimeInput } from './format';
 import { Icon } from './icons';
 import type { ConsoleBooking } from './types';
 
@@ -14,10 +14,16 @@ interface CompleteFormModalProps {
   onCompleted: (summary: string) => void;
 }
 
-/** A sensible default drop-off: the booking's pickup plus its expected duration. */
-function defaultDropoff(booking: ConsoleBooking): string {
-  const end = new Date(booking.pickupAt).getTime() + booking.expectedDurationMinutes * 60_000;
-  return toLocalDateTimeInput(new Date(end).toISOString());
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Sensible default times: arrival/on-board at pickup, completion at pickup + duration. */
+function defaultTimes(booking: ConsoleBooking): { atPickup: string; atCompletion: string } {
+  const pickupMs = new Date(booking.pickupAt).getTime();
+  const completionMs = pickupMs + booking.expectedDurationMinutes * 60_000;
+  return {
+    atPickup: toLocalTimeInput(new Date(pickupMs).toISOString()),
+    atCompletion: toLocalTimeInput(new Date(completionMs).toISOString()),
+  };
 }
 
 /**
@@ -32,8 +38,9 @@ export function CompleteFormModal({
   onClose,
   onCompleted,
 }: CompleteFormModalProps) {
-  const [dropoffAt, setDropoffAt] = useState('');
-  const [waiting, setWaiting] = useState('0');
+  const [arrivalTime, setArrivalTime] = useState('');
+  const [passengerOnBoardTime, setPassengerOnBoardTime] = useState('');
+  const [completionTime, setCompletionTime] = useState('');
   const [carParkPounds, setCarParkPounds] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -41,8 +48,10 @@ export function CompleteFormModal({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset the form only when the modal opens or the target booking changes
   useEffect(() => {
     if (isOpen && booking) {
-      setDropoffAt(defaultDropoff(booking));
-      setWaiting('0');
+      const { atPickup, atCompletion } = defaultTimes(booking);
+      setArrivalTime(atPickup);
+      setPassengerOnBoardTime(atPickup);
+      setCompletionTime(atCompletion);
       setCarParkPounds('0');
       setError(null);
     }
@@ -50,12 +59,11 @@ export function CompleteFormModal({
 
   if (!booking) return null;
 
-  const waitingMinutes = Number.parseInt(waiting, 10);
   const carParkPence = Math.round(Number.parseFloat(carParkPounds || '0') * 100);
   const valid =
-    dropoffAt.length > 0 &&
-    Number.isFinite(waitingMinutes) &&
-    waitingMinutes >= 0 &&
+    HHMM.test(arrivalTime) &&
+    HHMM.test(passengerOnBoardTime) &&
+    HHMM.test(completionTime) &&
     Number.isFinite(carParkPence) &&
     carParkPence >= 0;
 
@@ -64,8 +72,9 @@ export function CompleteFormModal({
     setError(null);
     startTransition(async () => {
       const result = await completeFormOnBehalfAction(booking.id, {
-        dropoffAt: new Date(dropoffAt).toISOString(),
-        waitingTimeMinutes: waitingMinutes,
+        arrivalTime,
+        passengerOnBoardTime,
+        completionTime,
         carParkPence,
       });
       if (!result.ok) {
@@ -106,34 +115,48 @@ export function CompleteFormModal({
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
             <label>
-              Drop-off time<span className="req">*</span>
+              Arrival time<span className="req">*</span>
             </label>
             <div className="ctrl">
               <input
-                type="datetime-local"
-                value={dropoffAt}
-                onChange={(e) => setDropoffAt(e.target.value)}
+                type="time"
+                value={arrivalTime}
+                onChange={(e) => setArrivalTime(e.target.value)}
               />
             </div>
           </div>
 
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
-            <label>Waiting time (minutes)</label>
+            <label>
+              Passenger on board time<span className="req">*</span>
+            </label>
             <div className="ctrl">
               <input
-                type="number"
-                min={0}
-                max={720}
-                value={waiting}
-                onChange={(e) => setWaiting(e.target.value)}
+                type="time"
+                value={passengerOnBoardTime}
+                onChange={(e) => setPassengerOnBoardTime(e.target.value)}
               />
             </div>
           </div>
 
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
-            <label>Car park (£)</label>
+            <label>
+              Completion time<span className="req">*</span>
+            </label>
+            <div className="ctrl">
+              <input
+                type="time"
+                value={completionTime}
+                onChange={(e) => setCompletionTime(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
+            <label>Parking fee (£)</label>
             <div className="ctrl">
               <input
                 type="number"

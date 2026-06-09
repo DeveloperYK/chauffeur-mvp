@@ -32,6 +32,33 @@ export function londonOffsetMs(at: Date): number {
   return sign * (hours * 60 + minutes) * 60_000;
 }
 
+/**
+ * UTC instant for a Europe/London wall-clock time on a given day.
+ *
+ * `dayStr` is "YYYY-MM-DD" (London calendar day); `hours`/`minutes` are the
+ * 24h wall-clock time. BST-aware: in summer "10:00" resolves to 09:00 UTC, in
+ * winter to 10:00 UTC. Same midnight-guess approach as {@link londonDayStartUtc}.
+ * Returns null for an invalid day or out-of-range time.
+ */
+export function londonWallClockToUtc(dayStr: string, hours: number, minutes: number): Date | null {
+  const parsed = parseDayString(dayStr);
+  if (!parsed) return null;
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  const { y, m, d } = parsed;
+  const guess = new Date(Date.UTC(y, m - 1, d, hours, minutes, 0));
+  return new Date(guess.getTime() - londonOffsetMs(guess));
+}
+
+/** Shift a "YYYY-MM-DD" day string by ±n calendar days. Pure UTC arithmetic. */
+export function addDaysToDayString(dayStr: string, n: number): string | null {
+  const parsed = parseDayString(dayStr);
+  if (!parsed) return null;
+  const dt = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d + n));
+  const pad = (v: number) => String(v).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
 /** Parse "YYYY-MM-DD". Returns null for invalid input. */
 export function parseDayString(s: string): { y: number; m: number; d: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);

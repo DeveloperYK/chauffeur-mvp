@@ -75,6 +75,8 @@ function toConsoleBooking(
     backfillDriverPayPence: b.backfillDriverPayPence,
     completionByOperator: b.completionByOperator,
     carParkPence: b.carParkPence,
+    arrivalAt: b.arrivalAt ? b.arrivalAt.toISOString() : null,
+    passengerOnBoardAt: b.passengerOnBoardAt ? b.passengerOnBoardAt.toISOString() : null,
     waitingTimeMinutes: b.waitingTimeMinutes,
     waitingFee: (() => {
       const f = waitingFee(b.waitingTimeMinutes);
