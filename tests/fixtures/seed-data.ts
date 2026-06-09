@@ -144,6 +144,7 @@ export interface BookingOverrides {
   caseCode?: string | null;
   contractPricePence?: number;
   notes?: string | null;
+  operatorNotes?: string | null;
   createdByOperatorId?: string | null;
   assignedOperatorId?: string | null;
   assignedDriverId?: string | null;
@@ -367,6 +368,7 @@ export const BookingFactory = {
     accountCode: overrides.accountCode ?? 'TEST',
     contractPricePence: overrides.contractPricePence ?? 10000,
     notes: overrides.notes ?? null,
+    operatorNotes: overrides.operatorNotes ?? null,
     createdByOperatorId: operatorId,
     assignedOperatorId: overrides.assignedOperatorId ?? operatorId,
     assignedDriverId: overrides.assignedDriverId ?? null,

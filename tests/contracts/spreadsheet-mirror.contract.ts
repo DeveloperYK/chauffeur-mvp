@@ -31,6 +31,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       caseCode: 'LEGO-2026-001',
       contractPricePence: 30000,
       notes: 'VIP client',
+      operatorNotes: null,
       createdByOperatorId: '00000000-0000-0000-0000-000000000010',
       assignedOperatorId: '00000000-0000-0000-0000-000000000010',
       assignedDriverId: '00000000-0000-0000-0000-000000000020',

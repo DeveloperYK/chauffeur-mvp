@@ -320,6 +320,7 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     caseCode: String(formData.get('caseCode') ?? ''),
     contractPricePence: pence,
     notes: (formData.get('notes') as string | null) || null,
+    operatorNotes: (formData.get('operatorNotes') as string | null) || null,
   };
 
   const result = await editBooking(raw, op.id, { db: db(), mirror: spreadsheetMirror() });

@@ -21,6 +21,7 @@ const baseBooking: Booking = {
   caseCode: 'LEGO-CASE-9',
   contractPricePence: 30000,
   notes: null,
+  operatorNotes: null,
   createdByOperatorId: 'op-1',
   assignedOperatorId: 'op-1',
   assignedDriverId: 'driver-id-1',

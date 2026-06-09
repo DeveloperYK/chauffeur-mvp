@@ -24,7 +24,10 @@ export interface ConsoleBooking {
   /** Case code — expense code the customer's company bills against. */
   caseCode: string | null;
   contractPricePence: number;
+  /** Driver-facing notes — shown to the driver on the dispatch link page. */
   notes: string | null;
+  /** Operator-only notes — never shown to the driver. */
+  operatorNotes: string | null;
   createdByOperatorId: string | null;
   assignedOperatorId: string | null;
   assignedDriverId: string | null;
