@@ -64,6 +64,7 @@ function toConsoleBooking(
     caseCode: b.caseCode,
     contractPricePence: b.contractPricePence,
     notes: b.notes,
+    operatorNotes: b.operatorNotes,
     createdByOperatorId: b.createdByOperatorId,
     assignedOperatorId: b.assignedOperatorId,
     assignedDriverId: b.assignedDriverId,

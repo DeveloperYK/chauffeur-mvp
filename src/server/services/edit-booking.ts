@@ -37,7 +37,10 @@ export const editBookingSchema = z
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
+    // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
+    // Operator-only notes — never shown to the driver.
+    operatorNotes: z.string().max(2000).optional().nullable(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -98,6 +101,7 @@ export async function editBooking(
 
   const lastName = data.passengerLastName ?? null;
   const notes = data.notes ?? null;
+  const operatorNotes = data.operatorNotes ?? null;
   // Hourly hire has no destination or route distance; a transfer keeps both.
   const isHourly = data.serviceType === 'hourly';
   const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
@@ -109,6 +113,7 @@ export async function editBooking(
     distanceMeters,
     passengerLastName: lastName,
     notes,
+    operatorNotes,
   });
 
   // Nothing changed — return the booking untouched, no audit, no mirror.
@@ -134,6 +139,7 @@ export async function editBooking(
       caseCode: data.caseCode,
       contractPricePence: data.contractPricePence,
       notes,
+      operatorNotes,
       updatedAt: now,
     })
     .where(and(eq(bookings.id, data.bookingId), eq(bookings.state, existing.state)))
@@ -162,6 +168,7 @@ type EditableFields = Omit<EditBookingInput, 'bookingId' | 'dropoffAddress' | 'd
   distanceMeters: number | null;
   passengerLastName: string | null;
   notes: string | null;
+  operatorNotes: string | null;
 };
 
 function diffFields(existing: Booking, next: EditableFields): string[] {
@@ -183,5 +190,6 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');
   if (existing.contractPricePence !== next.contractPricePence) out.push('price');
   if ((existing.notes ?? null) !== next.notes) out.push('notes');
+  if ((existing.operatorNotes ?? null) !== next.operatorNotes) out.push('private notes');
   return out;
 }

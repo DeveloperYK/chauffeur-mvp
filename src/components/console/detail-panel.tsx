@@ -97,6 +97,7 @@ export function DetailPanel({
   const isAssignedToMe = booking.assignedOperatorId === me.id;
   const vehicle = booking.carForThisJob;
   const hasNotes = !!booking.notes && booking.notes.trim().length > 0;
+  const hasOperatorNotes = !!booking.operatorNotes && booking.operatorNotes.trim().length > 0;
   const hasCompletion =
     booking.dropoffAt != null || booking.carParkPence != null || booking.waitingTimeMinutes != null;
 
@@ -568,13 +569,23 @@ export function DetailPanel({
             </div>
           </section>
 
-          {/* NOTES */}
+          {/* NOTES — driver-facing */}
           {hasNotes ? (
             <section className="ic">
               <header className="ic__head">
                 <span>Notes for the driver</span>
               </header>
               <div className="ic__body ic__body--prose">{booking.notes}</div>
+            </section>
+          ) : null}
+
+          {/* PRIVATE NOTES — operators only, never shown to the driver */}
+          {hasOperatorNotes ? (
+            <section className="ic">
+              <header className="ic__head">
+                <span>🔒 Private notes — operators only</span>
+              </header>
+              <div className="ic__body ic__body--prose">{booking.operatorNotes}</div>
             </section>
           ) : null}
 

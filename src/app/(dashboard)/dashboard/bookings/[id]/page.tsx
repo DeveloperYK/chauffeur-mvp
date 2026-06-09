@@ -277,13 +277,23 @@ export default async function BookingPage({
         </div>
       </section>
 
-      {/* Notes */}
+      {/* Notes — driver-facing */}
       {booking.notes ? (
         <section className="ic">
           <header className="ic__head">
             <span>Notes for the driver</span>
           </header>
           <div className="ic__body ic__body--prose">{booking.notes}</div>
+        </section>
+      ) : null}
+
+      {/* Private notes — operators only, never shown to the driver */}
+      {booking.operatorNotes ? (
+        <section className="ic">
+          <header className="ic__head">
+            <span>🔒 Private notes — operators only</span>
+          </header>
+          <div className="ic__body ic__body--prose">{booking.operatorNotes}</div>
         </section>
       ) : null}
 

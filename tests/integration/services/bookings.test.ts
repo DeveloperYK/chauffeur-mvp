@@ -69,6 +69,27 @@ describe('services/bookings (integration)', () => {
     expect(events[0]?.actorId).toBe(operatorId);
   });
 
+  it('persists driver-facing and operator-only notes separately', async () => {
+    const result = await createBooking(
+      validInput({
+        notes: 'Flight BA268, two suitcases',
+        operatorNotes: 'Awkward client — never tips, keep it professional',
+      }),
+      { db, clock, operatorId },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.notes).toBe('Flight BA268, two suitcases');
+    expect(result.booking.operatorNotes).toBe('Awkward client — never tips, keep it professional');
+  });
+
+  it('defaults operator notes to null when omitted', async () => {
+    const result = await createBooking(validInput(), { db, clock, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.operatorNotes).toBeNull();
+  });
+
   it('requires customer account (validation error when missing)', async () => {
     const { customerAccount, ...withoutCustomerAccount } = validInput();
     void customerAccount;

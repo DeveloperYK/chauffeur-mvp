@@ -44,7 +44,10 @@ export const createBookingSchema = z
     // Operator-set contract price. Required — operators determine every price
     // manually; there is no auto-suggested figure to fall back on.
     contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
+    // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
+    // Operator-only notes — never shown to the driver.
+    operatorNotes: z.string().max(2000).optional().nullable(),
     // Optional: assign driver at booking creation
     assignedDriverId: z.string().uuid().optional().nullable(),
     markAsAccepted: z.boolean().optional().default(false),
@@ -135,6 +138,7 @@ export async function createBooking(
       caseCode: parsed.data.caseCode,
       contractPricePence,
       notes: parsed.data.notes ?? null,
+      operatorNotes: parsed.data.operatorNotes ?? null,
       createdByOperatorId: deps.operatorId,
       assignedOperatorId: deps.operatorId,
       // Driver assignment at creation (if markAsAccepted)

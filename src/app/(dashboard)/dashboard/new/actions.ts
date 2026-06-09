@@ -58,6 +58,7 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     caseCode: String(formData.get('caseCode') ?? ''),
     contractPricePence: pence,
     notes: (formData.get('notes') as string | null) ?? null,
+    operatorNotes: (formData.get('operatorNotes') as string | null) ?? null,
     assignedDriverId: assignedDriverId ? String(assignedDriverId) : null,
     markAsAccepted,
   };

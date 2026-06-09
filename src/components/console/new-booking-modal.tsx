@@ -34,6 +34,7 @@ interface NewForm {
   caseCode: string;
   contractPricePounds: string;
   notes: string;
+  operatorNotes: string;
 }
 
 /** Hourly as-directed hire is booked in whole-hour blocks. */
@@ -56,6 +57,7 @@ const EMPTY: NewForm = {
   caseCode: '',
   contractPricePounds: '',
   notes: '',
+  operatorNotes: '',
 };
 
 const SAMPLES: Array<
@@ -73,6 +75,7 @@ const SAMPLES: Array<
     dropoffAddress: 'Heathrow Terminal 5, Departures',
     contractPricePounds: '165',
     notes: 'Flight BA268 to LAX. Two large suitcases.',
+    operatorNotes: 'Account on stop — confirm PO before dispatch.',
     durationMin: 75,
   },
   {
@@ -85,6 +88,7 @@ const SAMPLES: Array<
     dropoffAddress: 'Gatwick North Terminal',
     contractPricePounds: '135',
     notes: 'Prefers a quiet driver.',
+    operatorNotes: '',
     durationMin: 90,
   },
   {
@@ -97,6 +101,7 @@ const SAMPLES: Array<
     dropoffAddress: 'Battersea Power Station — Office',
     contractPricePounds: '85',
     notes: '',
+    operatorNotes: '',
     durationMin: 60,
   },
 ];
@@ -195,6 +200,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
       caseCode: s.caseCode,
       contractPricePounds: s.contractPricePounds,
       notes: s.notes,
+      operatorNotes: s.operatorNotes,
     });
     setError(null);
   };
@@ -219,6 +225,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds || '0');
     fd.set('notes', form.notes);
+    fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
       const result = await createBookingAction(fd);
       if (result.error) {
@@ -490,11 +497,13 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Notes for the driver</div>
+            <div className="form-section__head">Notes</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
               <label>
-                {form.serviceType === 'hourly' ? 'Area / instructions' : 'Special instructions'}
+                {form.serviceType === 'hourly'
+                  ? 'Area / instructions for the driver'
+                  : 'Notes for the driver'}
               </label>
               <div className="ctrl">
                 <textarea
@@ -508,6 +517,20 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   }
                 />
               </div>
+              <div className="hint">The driver sees this on their job link.</div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Private notes — operators only</label>
+              <div className="ctrl">
+                <textarea
+                  rows={3}
+                  value={form.operatorNotes}
+                  onChange={(e) => set('operatorNotes', e.target.value)}
+                  placeholder="e.g. difficult client, account on stop, billing quirk…"
+                />
+              </div>
+              <div className="hint">🔒 Never shown to the driver.</div>
             </div>
           </div>
         </div>
