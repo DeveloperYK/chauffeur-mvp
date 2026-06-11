@@ -137,8 +137,9 @@ describe('spreadsheet mirror integration', () => {
       {
         token: completionToken,
         carParkPence: 750,
-        waitingTimeMinutes: 12,
-        dropoffAt: '2026-06-01T11:25:00.000Z',
+        arrivalTime: '10:50',
+        passengerOnBoardTime: '11:02',
+        completionTime: '12:25',
       },
       { db, secret: SECRET, appUrl: APP_URL, clock, mirror },
     );

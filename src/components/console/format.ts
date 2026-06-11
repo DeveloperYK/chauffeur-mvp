@@ -69,6 +69,13 @@ export function toLocalDateTimeInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Format an ISO instant as "HH:MM" in the operator's local (UK) time. */
+export function toLocalTimeInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export const VEHICLE_SUGGESTIONS = [
   'Mercedes S-Class',
   'Mercedes E-Class',

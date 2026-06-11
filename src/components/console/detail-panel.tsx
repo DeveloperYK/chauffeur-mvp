@@ -384,7 +384,7 @@ export function DetailPanel({
                 {priceExtrasPence > 0 ? (
                   <div className="dp-stat__sub">
                     Fare {fmtPrice(booking.contractPricePence)}
-                    {carParkPence > 0 ? ` + car park ${fmtPrice(carParkPence)}` : ''}
+                    {carParkPence > 0 ? ` + parking ${fmtPrice(carParkPence)}` : ''}
                     {waitingChargePence > 0 ? ` + waiting ${fmtPrice(waitingChargePence)}` : ''}
                   </div>
                 ) : null}
@@ -612,12 +612,24 @@ export function DetailPanel({
                   </div>
                 ) : null}
                 <div className="ir">
-                  <div className="ir__k">Car park</div>
+                  <div className="ir__k">Arrival</div>
+                  <div className="ir__v">
+                    {booking.arrivalAt ? fmtTimeWithDay(booking.arrivalAt) : '—'}
+                  </div>
+                </div>
+                <div className="ir">
+                  <div className="ir__k">Passenger on board</div>
+                  <div className="ir__v">
+                    {booking.passengerOnBoardAt ? fmtTimeWithDay(booking.passengerOnBoardAt) : '—'}
+                  </div>
+                </div>
+                <div className="ir">
+                  <div className="ir__k">Parking fee</div>
                   <div className="ir__v">
                     {booking.carParkPence && booking.carParkPence > 0 ? (
                       fmtPrice(booking.carParkPence)
                     ) : (
-                      <span className="muted">No car park fee</span>
+                      <span className="muted">No parking fee</span>
                     )}
                   </div>
                 </div>
@@ -642,7 +654,7 @@ export function DetailPanel({
                   </div>
                 </div>
                 <div className="ir">
-                  <div className="ir__k">Drop-off</div>
+                  <div className="ir__k">Completion time</div>
                   <div className="ir__v">
                     {booking.dropoffAt ? fmtTimeWithDay(booking.dropoffAt) : '—'}
                   </div>
