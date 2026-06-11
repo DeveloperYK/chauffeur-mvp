@@ -27,6 +27,8 @@ const baseBooking: Booking = {
   assignedDriverId: 'driver-id-1',
   assignedAt: new Date('2026-06-01T07:00:00.000Z'),
   carParkPence: 750,
+  arrivalAt: new Date('2026-06-01T09:50:00.000Z'),
+  passengerOnBoardAt: new Date('2026-06-01T10:02:00.000Z'),
   waitingTimeMinutes: 12,
   dropoffAt: new Date('2026-06-01T10:05:00.000Z'),
   completionSubmittedAt: new Date('2026-06-01T10:10:00.000Z'),

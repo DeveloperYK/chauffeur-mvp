@@ -91,7 +91,12 @@ export async function generateCompletionLinkAction(
 
 export async function completeFormOnBehalfAction(
   bookingId: string,
-  input: { dropoffAt: string; waitingTimeMinutes: number; carParkPence: number },
+  input: {
+    arrivalTime: string;
+    passengerOnBoardTime: string;
+    completionTime: string;
+    carParkPence: number;
+  },
 ): Promise<ActionResult> {
   const op = await requireOperator();
   if (!op) return { ok: false, error: 'Not authenticated.' };
@@ -100,8 +105,9 @@ export async function completeFormOnBehalfAction(
   const result = await completeFormOnBehalf(
     bookingId,
     {
-      dropoffAt: new Date(input.dropoffAt),
-      waitingTimeMinutes: input.waitingTimeMinutes,
+      arrivalTime: input.arrivalTime,
+      passengerOnBoardTime: input.passengerOnBoardTime,
+      completionTime: input.completionTime,
       carParkPence: input.carParkPence,
     },
     op.id,
@@ -121,9 +127,11 @@ export async function completeFormOnBehalfAction(
       return { ok: false, error: msg };
     }
     const error =
-      result.reason === 'booking_not_found'
-        ? 'Booking not found.'
-        : `Can only complete from awaiting-driver-form (it is ${result.state}).`;
+      result.reason === 'times_invalid'
+        ? 'Please check the times — they don’t add up.'
+        : result.reason === 'booking_not_found'
+          ? 'Booking not found.'
+          : `Can only complete from awaiting-driver-form (it is ${result.state}).`;
     return { ok: false, error };
   }
   revalidatePath('/dashboard');

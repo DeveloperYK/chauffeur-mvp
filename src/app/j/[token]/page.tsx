@@ -285,48 +285,54 @@ async function CompletionPage({
     <Stage>
       <h1>Trip completion</h1>
       <p className="you">
-        For driver <strong>{driver?.name ?? booking.backfillDriverName ?? 'unknown'}</strong>. Three
+        For driver <strong>{driver?.name ?? booking.backfillDriverName ?? 'unknown'}</strong>. A few
         quick fields and you're done.
       </p>
       {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
       <form action={submitCompletionAction} style={{ marginTop: 14 }}>
         <input type="hidden" name="token" value={token} />
         <div className="field">
-          <label htmlFor="carParkPounds">
-            Car park (£) <span className="req">*</span>
+          <label htmlFor="arrivalTime">
+            Arrival time <span className="req">*</span>
+          </label>
+          <input id="arrivalTime" className="input" type="time" name="arrivalTime" required />
+          <div className="hint">When you arrived at the pickup.</div>
+        </div>
+        <div className="field">
+          <label htmlFor="passengerOnBoardTime">
+            Passenger on board time <span className="req">*</span>
           </label>
           <input
-            id="carParkPounds"
+            id="passengerOnBoardTime"
+            className="input"
+            type="time"
+            name="passengerOnBoardTime"
+            required
+          />
+          <div className="hint">When the passenger got in.</div>
+        </div>
+        <div className="field">
+          <label htmlFor="completionTime">
+            Completion time <span className="req">*</span>
+          </label>
+          <input id="completionTime" className="input" type="time" name="completionTime" required />
+          <div className="hint">When you dropped them off.</div>
+        </div>
+        <div className="field">
+          <label htmlFor="parkingFeePounds">
+            Parking fee (£) <span className="req">*</span>
+          </label>
+          <input
+            id="parkingFeePounds"
             className="input"
             type="number"
-            name="carParkPounds"
+            name="parkingFeePounds"
             step="0.01"
             min={0}
             max={1000}
             defaultValue={0}
             required
           />
-        </div>
-        <div className="field">
-          <label htmlFor="waitingTimeMinutes">
-            Waiting time (minutes) <span className="req">*</span>
-          </label>
-          <input
-            id="waitingTimeMinutes"
-            className="input"
-            type="number"
-            name="waitingTimeMinutes"
-            min={0}
-            max={720}
-            defaultValue={0}
-            required
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="dropoffAt">
-            Drop-off time <span className="req">*</span>
-          </label>
-          <input id="dropoffAt" className="input" type="datetime-local" name="dropoffAt" required />
         </div>
         <button
           type="submit"

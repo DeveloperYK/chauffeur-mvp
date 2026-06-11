@@ -44,6 +44,9 @@ export interface ConsoleBooking {
   /** True when the operator entered the completion form on the driver's behalf (skipped review). */
   completionByOperator: boolean;
   carParkPence: number | null;
+  /** Completion times reported by the driver (ISO), null until the form is in. */
+  arrivalAt: string | null;
+  passengerOnBoardAt: string | null;
   waitingTimeMinutes: number | null;
   /**
    * Waiting charge computed live (server-side) from `waitingTimeMinutes`.

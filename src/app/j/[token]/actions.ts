@@ -71,15 +71,16 @@ export async function declineAction(formData: FormData): Promise<void> {
 
 export async function submitCompletionAction(formData: FormData): Promise<void> {
   const token = String(formData.get('token') ?? '');
-  const carParkPounds = Number.parseFloat(String(formData.get('carParkPounds') ?? '0'));
-  const carParkPence = Number.isFinite(carParkPounds) ? Math.round(carParkPounds * 100) : 0;
+  const parkingFeePounds = Number.parseFloat(String(formData.get('parkingFeePounds') ?? '0'));
+  const carParkPence = Number.isFinite(parkingFeePounds) ? Math.round(parkingFeePounds * 100) : 0;
 
   const result = await submitCompletionForm(
     {
       token,
       carParkPence,
-      waitingTimeMinutes: String(formData.get('waitingTimeMinutes') ?? '0'),
-      dropoffAt: String(formData.get('dropoffAt') ?? ''),
+      arrivalTime: String(formData.get('arrivalTime') ?? ''),
+      passengerOnBoardTime: String(formData.get('passengerOnBoardTime') ?? ''),
+      completionTime: String(formData.get('completionTime') ?? ''),
     },
     {
       db: db(),
@@ -93,13 +94,15 @@ export async function submitCompletionAction(formData: FormData): Promise<void> 
     const msg =
       result.reason === 'validation'
         ? 'Please check your inputs.'
-        : result.reason === 'token_expired'
-          ? 'This link has expired.'
-          : result.reason === 'token_consumed'
-            ? 'Already submitted.'
-            : result.reason === 'wrong_state'
-              ? 'This form is no longer open.'
-              : 'Sorry, this link is not valid.';
+        : result.reason === 'times_invalid'
+          ? 'Please check the times — they don’t add up.'
+          : result.reason === 'token_expired'
+            ? 'This link has expired.'
+            : result.reason === 'token_consumed'
+              ? 'Already submitted.'
+              : result.reason === 'wrong_state'
+                ? 'This form is no longer open.'
+                : 'Sorry, this link is not valid.';
     redirect(`/j/${token}?error=${encodeURIComponent(msg)}`);
   }
 

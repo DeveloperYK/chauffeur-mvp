@@ -80,6 +80,14 @@ describe('services/completion (integration)', () => {
   const clock = fixedClock('2026-06-01T11:30:00.000Z');
   const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL });
 
+  // Pickup is 10:00Z = 11:00 London (BST). These London times resolve to
+  // arrival 09:50Z, on-board 10:02Z (→ 12 min wait), completion 11:25Z.
+  const FORM_TIMES = {
+    arrivalTime: '10:50',
+    passengerOnBoardTime: '11:02',
+    completionTime: '12:25',
+  } as const;
+
   it('generateCompletionLink returns URL + WhatsApp Web link for booking in awaiting_driver_form', async () => {
     const r = await generateCompletionLink(bookingId, operatorId, deps());
     expect(r.ok).toBe(true);
@@ -100,19 +108,13 @@ describe('services/completion (integration)', () => {
     if (!gen.ok) throw new Error('setup');
     const token = new URL(gen.url).pathname.split('/').pop() ?? '';
 
-    const r = await submitCompletionForm(
-      {
-        token,
-        carParkPence: 750,
-        waitingTimeMinutes: 12,
-        dropoffAt: '2026-06-01T11:25:00.000Z',
-      },
-      deps(),
-    );
+    const r = await submitCompletionForm({ token, carParkPence: 750, ...FORM_TIMES }, deps());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.booking.state).toBe('awaiting_operator_review');
     expect(r.booking.carParkPence).toBe(750);
+    expect(r.booking.arrivalAt?.toISOString()).toBe('2026-06-01T09:50:00.000Z');
+    expect(r.booking.passengerOnBoardAt?.toISOString()).toBe('2026-06-01T10:02:00.000Z');
     expect(r.booking.waitingTimeMinutes).toBe(12);
     expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-01T11:25:00.000Z');
 
@@ -125,18 +127,53 @@ describe('services/completion (integration)', () => {
     expect(event?.actorId).toBe(driverId);
   });
 
+  it('submitCompletionForm rolls a past-midnight completion to the next day', async () => {
+    // A late booking: pickup 23:00 London (BST → 22:00Z) on 1 Jun.
+    const [late] = await db
+      .insert(bookings)
+      .values({
+        state: 'awaiting_driver_form',
+        assignedDriverId: driverId,
+        assignedAt: new Date('2026-05-18T08:30:00.000Z'),
+        pickupAt: new Date('2026-06-01T22:00:00.000Z'),
+        expectedDurationMinutes: 90,
+        pickupAddress: 'A',
+        dropoffAddress: 'B',
+        passengerFirstName: 'Nora',
+        execMobile: '+447911999998',
+        clientName: 'LEGO Group',
+        accountCode: 'LEGO',
+        contractPricePence: 30000,
+      })
+      .returning();
+    const lateId = late?.id ?? '';
+    const gen = await generateCompletionLink(lateId, operatorId, deps());
+    if (!gen.ok) throw new Error('setup');
+    const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+
+    const r = await submitCompletionForm(
+      {
+        token,
+        carParkPence: 0,
+        arrivalTime: '23:05',
+        passengerOnBoardTime: '23:20',
+        completionTime: '01:30', // before on-board → next London day
+      },
+      deps(),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.booking.arrivalAt?.toISOString()).toBe('2026-06-01T22:05:00.000Z');
+    expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-02T00:30:00.000Z');
+    expect(r.booking.waitingTimeMinutes).toBe(15);
+  });
+
   it('submitCompletionForm refuses replay', async () => {
     const gen = await generateCompletionLink(bookingId, operatorId, deps());
     if (!gen.ok) throw new Error('setup');
     const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    await submitCompletionForm(
-      { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T11:25:00.000Z' },
-      deps(),
-    );
-    const r = await submitCompletionForm(
-      { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T11:25:00.000Z' },
-      deps(),
-    );
+    await submitCompletionForm({ token, carParkPence: 0, ...FORM_TIMES }, deps());
+    const r = await submitCompletionForm({ token, carParkPence: 0, ...FORM_TIMES }, deps());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('token_consumed');
   });
@@ -145,10 +182,7 @@ describe('services/completion (integration)', () => {
     const gen = await generateCompletionLink(bookingId, operatorId, deps());
     if (!gen.ok) throw new Error('setup');
     const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    const r = await submitCompletionForm(
-      { token, carParkPence: -1, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T11:25:00.000Z' },
-      deps(),
-    );
+    const r = await submitCompletionForm({ token, carParkPence: -1, ...FORM_TIMES }, deps());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('validation');
   });
@@ -163,12 +197,7 @@ describe('services/completion (integration)', () => {
       expiresAt: completionLinkExpiry(new Date('2026-06-01T10:00:00.000Z')),
     });
     const r = await submitCompletionForm(
-      {
-        token: dispatchToken,
-        carParkPence: 0,
-        waitingTimeMinutes: 0,
-        dropoffAt: '2026-06-01T11:25:00.000Z',
-      },
+      { token: dispatchToken, carParkPence: 0, ...FORM_TIMES },
       deps(),
     );
     expect(r.ok).toBe(false);
@@ -209,10 +238,7 @@ describe('services/completion (integration)', () => {
     const gen = await generateCompletionLink(bookingId, operatorId, deps());
     if (!gen.ok) throw new Error('setup');
     const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    await submitCompletionForm(
-      { token, carParkPence: 500, waitingTimeMinutes: 5, dropoffAt: '2026-06-01T11:25:00.000Z' },
-      deps(),
-    );
+    await submitCompletionForm({ token, carParkPence: 500, ...FORM_TIMES }, deps());
     await approveBooking(bookingId, operatorId, deps());
     const events = await db.select().from(auditEvents);
     const actions = events.map((e) => e.action);
@@ -266,10 +292,7 @@ describe('services/completion (integration)', () => {
       if (!gen.ok) throw new Error('setup');
       const token = new URL(gen.url).pathname.split('/').pop() ?? '';
 
-      const r = await submitCompletionForm(
-        { token, carParkPence: 600, waitingTimeMinutes: 15, dropoffAt: '2026-06-01T11:25:00.000Z' },
-        deps(),
-      );
+      const r = await submitCompletionForm({ token, carParkPence: 600, ...FORM_TIMES }, deps());
       expect(r.ok).toBe(true);
       if (!r.ok) return;
       expect(r.booking.state).toBe('awaiting_operator_review');
@@ -287,10 +310,7 @@ describe('services/completion (integration)', () => {
       const gen = await generateCompletionLink(id, operatorId, deps());
       if (!gen.ok) throw new Error('setup');
       const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-      await submitCompletionForm(
-        { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T11:25:00.000Z' },
-        deps(),
-      );
+      await submitCompletionForm({ token, carParkPence: 0, ...FORM_TIMES }, deps());
       const approved = await approveBooking(id, operatorId, deps());
       expect(approved.ok).toBe(true);
       if (approved.ok) expect(approved.booking.state).toBe('completed');
@@ -305,11 +325,7 @@ describe('services/completion (integration)', () => {
       mirror = new FakeSpreadsheetMirror();
     });
 
-    const input = {
-      dropoffAt: new Date('2026-06-01T11:25:00.000Z'),
-      waitingTimeMinutes: 12,
-      carParkPence: 750,
-    };
+    const input = { carParkPence: 750, ...FORM_TIMES };
 
     it('completes the booking directly, skipping operator review, marked as operator-entered', async () => {
       const r = await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
@@ -340,10 +356,7 @@ describe('services/completion (integration)', () => {
       if (!gen.ok) throw new Error('setup');
       const token = new URL(gen.url).pathname.split('/').pop() ?? '';
       await completeFormOnBehalf(bookingId, input, operatorId, onBehalfDeps());
-      const late = await submitCompletionForm(
-        { token, carParkPence: 0, waitingTimeMinutes: 0, dropoffAt: '2026-06-01T12:00:00.000Z' },
-        deps(),
-      );
+      const late = await submitCompletionForm({ token, carParkPence: 0, ...FORM_TIMES }, deps());
       expect(late.ok).toBe(false);
       if (!late.ok) expect(late.reason).toBe('wrong_state');
     });
@@ -377,15 +390,27 @@ describe('services/completion (integration)', () => {
       if (!r.ok) expect(r.reason).toBe('validation');
     });
 
-    it('rejects out-of-range waiting minutes', async () => {
+    it('rejects a malformed time', async () => {
       const r = await completeFormOnBehalf(
         bookingId,
-        { ...input, waitingTimeMinutes: 9999 },
+        { ...input, arrivalTime: '7:5' },
         operatorId,
         onBehalfDeps(),
       );
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe('validation');
+    });
+
+    it('rejects an implausibly long derived wait (times_invalid)', async () => {
+      const r = await completeFormOnBehalf(
+        bookingId,
+        // 08:00 → 21:00 is a 13h wait, past the 12h cap.
+        { ...input, arrivalTime: '08:00', passengerOnBoardTime: '21:00', completionTime: '21:30' },
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('times_invalid');
     });
   });
 });
