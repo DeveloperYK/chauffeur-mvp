@@ -1566,7 +1566,7 @@ a:hover {
 
 .driver-row {
   display: grid;
-  grid-template-columns: 32px 1fr 130px 80px;
+  grid-template-columns: 32px 32px 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
@@ -1586,13 +1586,11 @@ a:hover {
   background: var(--primary-soft);
   box-shadow: 0 0 0 2px var(--primary-ring);
 }
+/* Busy = flagged, not blocked: the row stays fully selectable (the operator can
+   still send to a busy driver). A subtle amber left edge plus the "Busy …"
+   lozenge carry the warning without dimming/disabling the row. */
 .driver-row.is-busy {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.driver-row.is-busy:hover {
-  border-color: var(--hairline);
-  background: var(--surface);
+  border-left: 3px solid var(--lz-orange-fg, #b86e00);
 }
 .driver-row .avatar {
   width: 32px;
@@ -1617,46 +1615,9 @@ a:hover {
   color: var(--ink-5);
 }
 
-.driver-row__bw {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-.driver-row__bw-bar {
-  width: 56px;
-  height: 5px;
-  background: var(--surface-3);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.driver-row__bw-bar > i {
-  display: block;
-  height: 100%;
-  background: #2da162;
-  border-radius: 999px;
-}
-.driver-row__bw-bar > i.med {
-  background: #e2b203;
-}
-.driver-row__bw-bar > i.high {
-  background: #c9372c;
-}
-.driver-row__bw-lbl {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.driver-row__bw-lbl strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-.driver-row__bw-lbl span {
-  color: var(--ink-4);
-}
-
 .driver-row__avail {
   text-align: right;
+  white-space: nowrap;
 }
 
 /* Legacy stat columns (kept for any other usage) */
@@ -2156,39 +2117,30 @@ a:hover {
 
 .dt-row--load {
   /* Wider final column so the status lozenge + Edit/Deactivate actions don't crowd. */
-  grid-template-columns: 1.5fr 90px 130px 140px 120px 190px;
+  grid-template-columns: 1.5fr 90px 130px 140px 170px 190px;
 }
-.load-cell {
-  display: flex;
+/* Live "now / next" status cell — replaces the old weekly-load bar. */
+.drv-now {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-}
-.load-bar {
-  height: 5px;
-  width: 72px;
-  background: var(--surface-3);
-  border-radius: 999px;
-  overflow: hidden;
-  display: inline-block;
-}
-.load-bar > i {
-  display: block;
-  height: 100%;
-  background: #2da162;
-  border-radius: 999px;
-}
-.load-bar > i.med {
-  background: #e2b203;
-}
-.load-bar > i.high {
-  background: #c9372c;
-}
-.load-cell .tabnum strong {
+  gap: 6px;
+  font-size: 12px;
   color: var(--ink);
-  font-weight: 600;
+  white-space: nowrap;
 }
-.load-cell .muted {
-  font-size: 11.5px;
+.drv-now .muted {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.drv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink-5);
+  flex-shrink: 0;
+}
+.drv-dot--on {
+  background: #2da162;
 }
 
 /* ─────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import {
   londonMonthRangeUtc,
   offsetMonth,
 } from '@/lib/dates';
+import { type DriverStatus, type DriverStatusRow, deriveDriverStatus } from '@/lib/driver-status';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
 import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-orm';
@@ -482,22 +483,17 @@ void sql;
 
 /**
  * Per-driver dispatch context used by the dispatch picker:
- * - `weekLoads`: how many open jobs each driver holds in the current week
- *   (drives the bandwidth bar), keyed by driver id.
  * - `windows`: busy windows (start/end ms) for every open assignment, so the
- *   picker can flag drivers whose existing job overlaps the new pickup.
+ *   picker can flag drivers whose existing job overlaps (or is within 30 min
+ *   of) the new pickup. See {@link firstClashingWindow}.
  *
  * "Open" excludes completed and cancelled bookings.
  */
 export interface DriverDispatchData {
-  weekLoads: Record<string, number>;
   windows: Array<{ driverId: string; startMs: number; endMs: number }>;
 }
 
-export async function driverDispatchData(
-  db: Database,
-  now: Date = new Date(),
-): Promise<DriverDispatchData> {
+export async function driverDispatchData(db: Database): Promise<DriverDispatchData> {
   const rows = await db
     .select({
       assignedDriverId: bookings.assignedDriverId,
@@ -507,26 +503,57 @@ export async function driverDispatchData(
     .from(bookings)
     .where(inArray(bookings.state, ACTIVE_STATES));
 
-  // Current week boundaries (Mon 00:00 → next Mon 00:00), local server time.
-  const weekStart = new Date(now);
-  const dow = (weekStart.getDay() + 6) % 7; // 0 = Monday
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() - dow);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
-
-  const weekLoads: Record<string, number> = {};
   const windows: DriverDispatchData['windows'] = [];
   for (const r of rows) {
     if (!r.assignedDriverId) continue;
     const startMs = r.pickupAt.getTime();
     const endMs = startMs + (r.expectedDurationMinutes || 60) * 60_000;
     windows.push({ driverId: r.assignedDriverId, startMs, endMs });
-    if (startMs >= weekStart.getTime() && startMs < weekEnd.getTime()) {
-      weekLoads[r.assignedDriverId] = (weekLoads[r.assignedDriverId] ?? 0) + 1;
-    }
   }
-  return { weekLoads, windows };
+  return { windows };
+}
+
+/**
+ * Per-driver live status for the drivers roster — what each driver is doing
+ * now and next, keyed by driver id. Replaces the old weekly-load bar. Built
+ * from active assignments (open bookings with an assigned driver) and the
+ * pure {@link deriveDriverStatus} reducer.
+ */
+export async function driverStatusData(
+  db: Database,
+  now: Date = new Date(),
+): Promise<Record<string, DriverStatus>> {
+  const rows = await db
+    .select({
+      assignedDriverId: bookings.assignedDriverId,
+      pickupAt: bookings.pickupAt,
+      expectedDurationMinutes: bookings.expectedDurationMinutes,
+      pickupAddress: bookings.pickupAddress,
+      dropoffAddress: bookings.dropoffAddress,
+    })
+    .from(bookings)
+    .where(inArray(bookings.state, ACTIVE_STATES));
+
+  const byDriver = new Map<string, DriverStatusRow[]>();
+  for (const r of rows) {
+    if (!r.assignedDriverId) continue;
+    const startMs = r.pickupAt.getTime();
+    const list = byDriver.get(r.assignedDriverId) ?? [];
+    list.push({
+      startMs,
+      endMs: startMs + (r.expectedDurationMinutes || 60) * 60_000,
+      pickup: r.pickupAddress,
+      dropoff: r.dropoffAddress,
+    });
+    byDriver.set(r.assignedDriverId, list);
+  }
+
+  const nowMs = now.getTime();
+  const out: Record<string, DriverStatus> = {};
+  for (const [driverId, list] of byDriver) {
+    out[driverId] = deriveDriverStatus(list, nowMs);
+  }
+  return out;
 }
 
 export { ACTIVE_STATES };
