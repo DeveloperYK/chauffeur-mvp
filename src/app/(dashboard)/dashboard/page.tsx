@@ -126,8 +126,10 @@ export default async function DashboardHome({
   const q = (params.q ?? '').trim();
   const savedView =
     params.savedView && SAVED_VIEW_STATE[params.savedView] ? params.savedView : null;
-  const layout = params.layout === 'list' ? 'list' : 'board';
-  const showDone = params.showDone === '1';
+  // List is the default layout; board is opt-in via ?layout=board.
+  const layout = params.layout === 'board' ? 'board' : 'list';
+  // Done bookings show by default; the operator can hide them via ?showDone=0.
+  const showDone = params.showDone !== '0';
   const selectedTokens = new Set(
     (params.assignee ?? '')
       .split(',')
@@ -212,8 +214,8 @@ export default async function DashboardHome({
       assignee: params.assignee,
       q: q || undefined,
       savedView: savedView ?? undefined,
-      layout: layout === 'list' ? 'list' : undefined,
-      showDone: showDone ? '1' : undefined,
+      layout: layout === 'board' ? 'board' : undefined,
+      showDone: showDone ? undefined : '0',
     };
     for (const [k, v] of Object.entries({ ...cur, ...overrides })) {
       if (v) p.set(k, v);
@@ -350,17 +352,17 @@ export default async function DashboardHome({
 
         <Link
           className={`f-chip ${showDone ? 'has-value' : ''}`}
-          href={qs({ showDone: showDone ? null : '1' })}
+          href={qs({ showDone: showDone ? '0' : null })}
         >
           <Icon.Check />
           {showDone ? 'Showing done' : 'Hide done'}
         </Link>
 
         <div className="viewswitch">
-          <Link className={layout === 'board' ? 'is-active' : ''} href={qs({ layout: null })}>
+          <Link className={layout === 'board' ? 'is-active' : ''} href={qs({ layout: 'board' })}>
             <Icon.Board /> Board
           </Link>
-          <Link className={layout === 'list' ? 'is-active' : ''} href={qs({ layout: 'list' })}>
+          <Link className={layout === 'list' ? 'is-active' : ''} href={qs({ layout: null })}>
             <Icon.List /> List
           </Link>
         </div>

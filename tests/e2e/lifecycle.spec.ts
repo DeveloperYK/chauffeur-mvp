@@ -72,7 +72,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // releases them: the booking goes back to UNASSIGNED so it re-enters the
   // queue (truthful — nobody is committed in the gap), then a new driver is
   // dispatched and taps Accept via the normal path.
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   // Next.js dev RSC cache can lag a single revalidatePath; reload forces a
   // fresh server render so the just-assigned booking shows on the board.
   await page.reload({ waitUntil: 'networkidle' });
@@ -90,7 +90,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
 
   // Re-dispatch via the multi-select fan-out: tick two free drivers, offer to
   // both (each gets its own link), then accept one — first-to-accept wins.
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
@@ -138,7 +138,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
 
   // ── Console: approve from the detail panel → completed ───────
   // The fast-forwards put the pickup at "today", so it shows on today's board.
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('AWAITING REVIEW');
@@ -161,7 +161,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await row(page, MERC).locator('select[name="scenario"]').selectOption('about_to_start');
   await clickAndSettle(page, row(page, MERC).getByRole('button', { name: 'Apply' }).click());
 
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'Mercedes-Benz UK' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await page.locator('.panel.is-open').getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -188,7 +188,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
 
   // ── Console: hand to a backfill (subcontractor) driver ───────
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
@@ -220,7 +220,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await expectSimState(page, JJ, 'Awaiting driver form');
 
   // ── Console: generate the completion link for the backfill driver ──
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
@@ -252,7 +252,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await expectSimState(page, JJ, 'Awaiting operator review');
 
   // ── Console: approve → completed (same as a normal driver) ──
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
@@ -284,7 +284,7 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await expectSimState(page, LEGO, 'Awaiting driver form');
 
   // ── Console: operator enters the completion details (driver was slow) ──
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
   await expect(page.locator('.panel.is-open')).toBeVisible();
@@ -304,7 +304,7 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await expectSimState(page, LEGO, 'Completed');
 
   // The completed booking is marked operator-entered on the board.
-  await page.goto('/dashboard?showDone=1', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?layout=board&showDone=1', { waitUntil: 'networkidle' });
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
     'OP-ENTERED',
   );
