@@ -1074,9 +1074,12 @@ a:hover {
   display: grid;
   grid-template-columns: 22px 130px 1.5fr 1.4fr 0.9fr 130px 64px 90px;
   gap: 14px;
-  padding: 0 16px;
+  /* min-height (not a fixed height) + vertical padding so the two-line Customer
+     cell (company + passenger·case) never overflows and collides with the next
+     row. The header keeps its own fixed single-line height below. */
+  padding: 9px 16px;
   align-items: center;
-  height: var(--d-row-h);
+  min-height: var(--d-row-h);
   cursor: pointer;
   transition: background 100ms ease;
 }
@@ -1091,6 +1094,9 @@ a:hover {
 }
 .list__row.head {
   height: 32px;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
   background: var(--surface-2);
   font-size: 10.5px;
   font-weight: 600;
