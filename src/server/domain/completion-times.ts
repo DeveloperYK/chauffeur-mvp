@@ -24,14 +24,12 @@ export interface ResolvedCompletionTimes {
   waitingTimeMinutes: number;
 }
 
-export type ResolveCompletionTimesError = 'bad_format' | 'waiting_too_long' | 'journey_too_long';
+export type ResolveCompletionTimesError = 'bad_format';
 
 export type ResolveCompletionTimesResult =
   | ({ ok: true } & ResolvedCompletionTimes)
   | { ok: false; reason: ResolveCompletionTimesError };
 
-const MAX_WAITING_MINUTES = 720; // 12h — matches the old manual waiting cap.
-const MAX_JOURNEY_MINUTES = 24 * 60; // a single chauffeur leg never exceeds a day.
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 function parseHhmm(value: string): { hours: number; minutes: number } | null {
@@ -51,8 +49,8 @@ function parseHhmm(value: string): { hours: number; minutes: number } | null {
  * - Passenger-on-board rolls to the next day if its clock time is before arrival.
  * - Completion rolls to the next day if its clock time is before on-board.
  *
- * Waiting time is derived as (on-board − arrival). Returns an error for a
- * malformed time or spans that are implausibly long (likely a typo).
+ * Waiting time is derived as (on-board − arrival). The only failure is a
+ * malformed time; spans are never rejected (the operator reviews completions).
  */
 export function resolveCompletionTimes(
   pickupAt: Date,
@@ -89,13 +87,13 @@ export function resolveCompletionTimes(
     dropoffAt = onDay(nextDay, completion);
   }
 
+  // No plausibility caps on the spans: the operator reviews every completion,
+  // so we accept whatever the driver enters (even an out-of-order typo that
+  // rolls into a long wait) and let review catch it, rather than blocking the
+  // submission. Only a genuinely unparseable time is rejected, above.
   const waitingTimeMinutes = Math.round(
     (passengerOnBoardAt.getTime() - arrivalAt.getTime()) / 60_000,
   );
-  if (waitingTimeMinutes > MAX_WAITING_MINUTES) return { ok: false, reason: 'waiting_too_long' };
-
-  const journeyMinutes = Math.round((dropoffAt.getTime() - passengerOnBoardAt.getTime()) / 60_000);
-  if (journeyMinutes > MAX_JOURNEY_MINUTES) return { ok: false, reason: 'journey_too_long' };
 
   return { ok: true, arrivalAt, passengerOnBoardAt, dropoffAt, waitingTimeMinutes };
 }

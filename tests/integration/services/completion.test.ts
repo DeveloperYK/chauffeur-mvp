@@ -401,16 +401,17 @@ describe('services/completion (integration)', () => {
       if (!r.ok) expect(r.reason).toBe('validation');
     });
 
-    it('rejects an implausibly long derived wait (times_invalid)', async () => {
+    it('accepts a long derived wait without blocking (operator reviews)', async () => {
       const r = await completeFormOnBehalf(
         bookingId,
-        // 08:00 → 21:00 is a 13h wait, past the 12h cap.
+        // 08:00 → 21:00 is a 13h wait — no longer rejected; stored for review.
         { ...input, arrivalTime: '08:00', passengerOnBoardTime: '21:00', completionTime: '21:30' },
         operatorId,
         onBehalfDeps(),
       );
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe('times_invalid');
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.waitingTimeMinutes).toBe(13 * 60);
     });
   });
 });
