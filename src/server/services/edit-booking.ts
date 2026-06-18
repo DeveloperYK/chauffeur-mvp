@@ -34,6 +34,7 @@ export const editBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
+    execEmail: z.string().email().max(200).optional().nullable(),
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
@@ -134,6 +135,7 @@ export async function editBooking(
       passengerFirstName: data.passengerFirstName,
       passengerLastName: lastName,
       execMobile: data.execMobile,
+      execEmail: data.execEmail ?? null,
       clientName: data.customerAccount,
       accountCode: data.customerAccount,
       caseCode: data.caseCode,
@@ -185,6 +187,7 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
     out.push('passenger name');
   }
   if (existing.execMobile !== next.execMobile) out.push('exec mobile');
+  if ((existing.execEmail ?? null) !== (next.execEmail ?? null)) out.push('exec email');
   // Customer Account is held in account_code (client_name mirrors it).
   if (existing.accountCode !== next.customerAccount) out.push('customer account');
   if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');

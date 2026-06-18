@@ -36,6 +36,11 @@ export const createBookingSchema = z
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
+    // Exec email — recipient when the email channel is active. Optional at the
+    // schema level (SMS-mode bookings don't need one); the form requires it when
+    // email is the active channel, and a missing one surfaces as a loud failed
+    // notification rather than a silent drop.
+    execEmail: z.string().email().max(200).optional().nullable(),
     // Single "Customer Account" — the company/account billed for the trip.
     // Stored in account_code (+ mirrored into client_name for now).
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
@@ -131,6 +136,7 @@ export async function createBooking(
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,
+      execEmail: parsed.data.execEmail ?? null,
       // Customer Account lives in account_code; client_name is kept in sync
       // until that legacy column is dropped.
       clientName: parsed.data.customerAccount,

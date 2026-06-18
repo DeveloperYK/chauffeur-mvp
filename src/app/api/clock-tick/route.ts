@@ -1,6 +1,6 @@
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
-import { db, notifications } from '@/server/composition';
+import { db, email, notifications } from '@/server/composition';
 import { clockTick } from '@/server/services/clock-tick';
 import { NextResponse } from 'next/server';
 
@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
     return new NextResponse('unauthorized', { status: 401 });
   }
   try {
-    const report = await clockTick({ db: db(), notifications: notifications() });
+    const report = await clockTick({ db: db(), notifications: notifications(), email: email() });
     return NextResponse.json({ ok: true, report });
   } catch (err) {
     logger.error({ err }, 'clock tick failed');

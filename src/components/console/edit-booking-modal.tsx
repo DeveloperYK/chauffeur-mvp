@@ -1,6 +1,7 @@
 'use client';
 
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
+import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
@@ -32,6 +33,7 @@ interface EditForm {
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
+  execEmail?: string;
   customerAccount: string;
   caseCode: string;
   contractPricePounds: string;
@@ -64,6 +66,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         passengerFirstName: booking.passengerFirstName,
         passengerLastName: booking.passengerLastName ?? '',
         execMobile: booking.execMobile,
+        execEmail: booking.execEmail ?? '',
         customerAccount: booking.accountCode,
         caseCode: booking.caseCode ?? '',
         contractPricePounds: String((booking.contractPricePence ?? 0) / 100),
@@ -152,6 +155,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
+    fd.set('execEmail', form.execEmail ?? '');
     fd.set('customerAccount', form.customerAccount);
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
@@ -374,6 +378,22 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   type="tel"
                   value={form.execMobile}
                   onChange={(e) => set('execMobile', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>
+                Exec email
+                {EXEC_NOTIFICATION_CHANNEL === 'email' ? <span className="req">*</span> : null}
+              </label>
+              <div className="ctrl">
+                <input
+                  type="email"
+                  value={form.execEmail ?? ''}
+                  onChange={(e) => set('execEmail', e.target.value)}
+                  placeholder="exec@example.com"
+                  required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
               </div>
             </div>

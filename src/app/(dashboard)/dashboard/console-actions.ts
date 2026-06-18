@@ -7,6 +7,7 @@ import {
   appUrl,
   db,
   driverLinkSecret,
+  email,
   notifications,
   spreadsheetMirror,
 } from '@/server/composition';
@@ -242,6 +243,7 @@ export async function handToBackfillAction(
   const result = await handToBackfill(bookingId, input, op.id, {
     db: db(),
     notifications: notifications(),
+    email: email(),
     mirror: spreadsheetMirror(),
   });
   if (!result.ok) {
@@ -354,6 +356,7 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? '') || null,
     execMobile: String(formData.get('execMobile') ?? ''),
+    execEmail: String(formData.get('execEmail') ?? '') || null,
     customerAccount: String(formData.get('customerAccount') ?? ''),
     caseCode: String(formData.get('caseCode') ?? ''),
     contractPricePence: pence,
@@ -422,7 +425,7 @@ export async function resendExecNotificationAction(notificationId: string): Prom
   if (!notificationId) return { ok: false, error: 'Missing message.' };
 
   const result = await resendExecNotification(
-    { db: db(), notifications: notifications() },
+    { db: db(), notifications: notifications(), email: email() },
     notificationId,
   );
   if (!result.ok) {

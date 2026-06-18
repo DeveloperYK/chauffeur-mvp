@@ -12,6 +12,12 @@ const schema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
+  // Resend (exec email channel). When both are set the real ResendEmailAdapter
+  // is used; otherwise the in-memory FakeEmailAdapter (dev/test). RESEND_FROM
+  // must be a verified sender/domain in production (sandbox onboarding@resend.dev
+  // works for testing but only delivers to the account owner).
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().optional(),
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),

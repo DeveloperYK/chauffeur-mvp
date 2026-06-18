@@ -4,6 +4,7 @@ import {
   appUrl,
   db,
   driverLinkSecret,
+  email,
   notifications,
   spreadsheetMirror,
 } from '@/server/composition';
@@ -32,6 +33,7 @@ export async function acceptAction(formData: FormData): Promise<void> {
     {
       db: db(),
       notifications: notifications(),
+      email: email(),
       secret: driverLinkSecret(),
       appUrl: appUrl(),
       mirror: spreadsheetMirror(),

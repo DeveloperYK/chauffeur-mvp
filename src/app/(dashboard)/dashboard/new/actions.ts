@@ -54,6 +54,7 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? '') || null,
     execMobile: String(formData.get('execMobile') ?? ''),
+    execEmail: String(formData.get('execEmail') ?? '') || null,
     customerAccount: String(formData.get('customerAccount') ?? ''),
     caseCode: String(formData.get('caseCode') ?? ''),
     contractPricePence: pence,

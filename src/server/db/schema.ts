@@ -160,6 +160,12 @@ export const bookings = pgTable(
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
     execMobile: text('exec_mobile').notNull(),
+    // Exec email address — the recipient when the email channel is active (see
+    // EXEC_NOTIFICATION_CHANNEL). Nullable: SMS-mode bookings need not carry one,
+    // and it is collected by the booking form only when email is the active
+    // channel. An email-mode booking with no address surfaces as a loud failed
+    // exec notification, never a silent drop. See docs/shaping/exec-messages.
+    execEmail: text('exec_email'),
     // "Customer Account" — the company/account the trip is billed to (e.g.
     // "LEGO Group"). The legacy JJ sheet column J. Stored in account_code.
     clientName: text('client_name').notNull(),

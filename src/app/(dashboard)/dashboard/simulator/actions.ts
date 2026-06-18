@@ -1,7 +1,7 @@
 'use server';
 
 import { currentSession } from '@/server/auth/current';
-import { db, fakeMirror, fakeNotifier } from '@/server/composition';
+import { db, fakeEmailer, fakeMirror, fakeNotifier } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
 import { simulatorEnabled } from '@/server/feature-flags';
 import { clockTick } from '@/server/services/clock-tick';
@@ -53,7 +53,7 @@ export async function clockTickAction(): Promise<void> {
   // Always use the in-memory fake here so the simulator never sends real SMS,
   // even on a production demo deploy where notifications() is the live Twilio
   // adapter. The "SMS sent" panel reads this same fake.
-  await clockTick({ db: db(), notifications: fakeNotifier });
+  await clockTick({ db: db(), notifications: fakeNotifier, email: fakeEmailer });
   revalidatePath('/dashboard/simulator');
   revalidatePath('/dashboard');
   redirect('/dashboard/simulator?ok=ticked');

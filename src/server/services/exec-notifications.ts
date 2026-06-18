@@ -12,37 +12,44 @@
  * propagated, so it can't break the (already-committed) state transition that
  * triggered the message. See docs/shaping/exec-messages.
  *
- * V1 sends over SMS only. The channel constant and per-row `channel` are in
- * place so a later slice can add the email branch without reshaping anything.
+ * The active channel (SMS or email) is chosen by EXEC_NOTIFICATION_CHANNEL and
+ * the recipient + renderer are picked to match. SMS is accepted-only; an email
+ * is accepted now (row `sent` → cached `pending`) and confirmed later by webhook
+ * (V3). If the active channel has no recipient on file, a loud `failed` row is
+ * written and no provider call is made — never a silent drop.
  */
+import { EXEC_NOTIFICATION_CHANNEL, type ExecNotificationChannel } from '@/lib/exec-channel';
 import { carDescription } from '@/lib/labels';
 import { logger } from '@/lib/logger';
 import type { Database } from '@/server/db';
 import {
   type ExecNotification,
   type NewExecNotification,
-  type NotificationChannel,
   type NotificationKind,
   bookings,
   drivers,
   execNotifications,
 } from '@/server/db/schema';
 import { type LatestMessage, rollupExecStatus } from '@/server/domain/exec-notifications';
+import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { assignedEmail, enRouteEmail } from './email-templates';
 import { assignedSms, enRouteSms } from './sms-templates';
 
-/**
- * The active exec-message channel. This is a deliberate code-level switch — not
- * env- or runtime-configurable — so moving all exec traffic between SMS and
- * email is one reviewed line change plus a deploy, and reverts the same way.
- * SMS is the default and stays fully supported.
- */
-export const EXEC_NOTIFICATION_CHANNEL: NotificationChannel = 'sms';
+export { EXEC_NOTIFICATION_CHANNEL };
 
 export interface ExecNotificationDeps {
   db: Database;
   notifications: NotificationPort;
+  /** Required when the active channel is email; unused for SMS. */
+  email?: EmailPort | undefined;
+  /**
+   * Override the active channel for this call. Production never sets this — it
+   * defaults to EXEC_NOTIFICATION_CHANNEL. Exists so tests can exercise the
+   * email branch without mocking the module constant.
+   */
+  channel?: ExecNotificationChannel | undefined;
 }
 
 /**
@@ -71,6 +78,13 @@ function renderSmsBody(ctx: ExecMessageContext): string {
   return enRouteSms(ctx.booking, { name: ctx.driverName });
 }
 
+function renderEmail(ctx: ExecMessageContext): { subject: string; text: string } {
+  if (ctx.kind === 'assigned') {
+    return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
+  }
+  return enRouteEmail(ctx.booking, { name: ctx.driverName });
+}
+
 async function performSmsSend(
   notifications: NotificationPort,
   to: string,
@@ -84,6 +98,82 @@ async function performSmsSend(
     logger.error({ err }, 'exec sms send threw');
     return { status: 'failed', providerMessageId: null, errorReason: 'exception' };
   }
+}
+
+async function performEmailSend(
+  email: EmailPort,
+  to: string,
+  subject: string,
+  text: string,
+): Promise<SendOutcome> {
+  try {
+    const res = await email.sendEmail({ to, subject, text });
+    if (res.ok) return { status: 'sent', providerMessageId: res.id, errorReason: null };
+    return { status: 'failed', providerMessageId: null, errorReason: res.reason };
+  } catch (err) {
+    logger.error({ err }, 'exec email send threw');
+    return { status: 'failed', providerMessageId: null, errorReason: 'exception' };
+  }
+}
+
+/**
+ * Resolve the active channel + recipient + rendered message, send it, and return
+ * the row to persist. No-contact guard: if the active channel has no recipient
+ * on file (email mode, no `exec_email`), no provider call is made and a `failed`
+ * row is returned (loud, never silent). Shared by initial send and resend.
+ */
+async function sendOnActiveChannel(
+  deps: ExecNotificationDeps,
+  ctx: ExecMessageContext,
+): Promise<NewExecNotification> {
+  const channel = deps.channel ?? EXEC_NOTIFICATION_CHANNEL;
+  const base = { bookingId: ctx.booking.id, channel, kind: ctx.kind };
+
+  if (channel === 'email') {
+    const to = ctx.booking.execEmail ?? '';
+    const { subject, text } = renderEmail(ctx);
+    if (!to) {
+      return {
+        ...base,
+        to: '',
+        subject,
+        body: text,
+        status: 'failed',
+        providerMessageId: null,
+        errorReason: 'no_email',
+      };
+    }
+    if (!deps.email) {
+      return {
+        ...base,
+        to,
+        subject,
+        body: text,
+        status: 'failed',
+        providerMessageId: null,
+        errorReason: 'email_not_configured',
+      };
+    }
+    const outcome = await performEmailSend(deps.email, to, subject, text);
+    return { ...base, to, subject, body: text, ...outcome };
+  }
+
+  // SMS (default). execMobile is required at booking creation, but guard anyway.
+  const to = ctx.booking.execMobile;
+  const body = renderSmsBody(ctx);
+  if (!to) {
+    return {
+      ...base,
+      to: '',
+      subject: null,
+      body,
+      status: 'failed',
+      providerMessageId: null,
+      errorReason: 'no_mobile',
+    };
+  }
+  const outcome = await performSmsSend(deps.notifications, to, body);
+  return { ...base, to, subject: null, body, ...outcome };
 }
 
 /** Latest non-superseded message per kind → cached booking status. */
@@ -151,21 +241,8 @@ export async function sendExecNotification(
   deps: ExecNotificationDeps,
   ctx: ExecMessageContext,
 ): Promise<ExecNotification | null> {
-  const channel = EXEC_NOTIFICATION_CHANNEL;
-  const to = ctx.booking.execMobile;
-  const body = renderSmsBody(ctx);
-  const outcome = await performSmsSend(deps.notifications, to, body);
-  return persistAttempt(deps.db, {
-    bookingId: ctx.booking.id,
-    channel,
-    kind: ctx.kind,
-    to,
-    subject: null,
-    body,
-    status: outcome.status,
-    providerMessageId: outcome.providerMessageId,
-    errorReason: outcome.errorReason,
-  });
+  const values = await sendOnActiveChannel(deps, ctx);
+  return persistAttempt(deps.db, values);
 }
 
 /** Rebuild the render context from the booking's CURRENT driver/backfill state. */
@@ -231,25 +308,8 @@ export async function resendExecNotification(
   const ctx = await buildExecContextForBooking(deps.db, booking, old.kind);
   if (!ctx) return { ok: false, reason: 'no_driver' };
 
-  const channel = EXEC_NOTIFICATION_CHANNEL;
-  const to = booking.execMobile;
-  const body = renderSmsBody(ctx);
-  const outcome = await performSmsSend(deps.notifications, to, body);
-  const row = await persistAttempt(
-    deps.db,
-    {
-      bookingId: booking.id,
-      channel,
-      kind: old.kind,
-      to,
-      subject: null,
-      body,
-      status: outcome.status,
-      providerMessageId: outcome.providerMessageId,
-      errorReason: outcome.errorReason,
-    },
-    old.id,
-  );
+  const values = await sendOnActiveChannel(deps, ctx);
+  const row = await persistAttempt(deps.db, values, old.id);
   if (!row) return { ok: false, reason: 'persist_failed' };
   return { ok: true, notification: row };
 }

@@ -4,6 +4,7 @@ import { AddressAutocomplete } from '@/components/console/address-autocomplete';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import type { VehicleClass } from '@/server/db/schema';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,6 +41,12 @@ const bookingFormSchema = z.object({
   passengerFirstName: z.string().min(1, 'First name is required').max(80, 'First name is too long'),
   passengerLastName: z.string().max(80, 'Last name is too long').optional(),
   execMobile: phoneSchema,
+  execEmail: z
+    .string()
+    .email('Enter a valid email')
+    .max(200, 'Email is too long')
+    .optional()
+    .or(z.literal('')),
   customerAccount: z
     .string()
     .min(1, 'Customer account is required')
@@ -104,6 +111,7 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
       formData.set('passengerFirstName', data.passengerFirstName);
       formData.set('passengerLastName', data.passengerLastName ?? '');
       formData.set('execMobile', data.execMobile);
+      formData.set('execEmail', data.execEmail ?? '');
       formData.set('customerAccount', data.customerAccount);
       formData.set('caseCode', data.caseCode);
       formData.set('contractPricePounds', String(data.contractPricePounds));
@@ -249,6 +257,21 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
           {...register('execMobile')}
           placeholder="+44 7911 123 456"
           aria-invalid={!!errors.execMobile}
+        />
+      </Field>
+
+      <Field
+        label="Executive email"
+        required={EXEC_NOTIFICATION_CHANNEL === 'email'}
+        error={errors.execEmail?.message}
+        helper="Used for exec emails when the email channel is active."
+        className="md:col-span-2"
+      >
+        <Input
+          type="email"
+          {...register('execEmail')}
+          placeholder="exec@example.com"
+          aria-invalid={!!errors.execEmail}
         />
       </Field>
 
