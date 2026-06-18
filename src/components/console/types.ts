@@ -1,4 +1,4 @@
-import type { BookingState, VehicleClass } from '@/server/db/schema';
+import type { BookingState, ExecNotificationStatus, VehicleClass } from '@/server/db/schema';
 
 // Serializable shapes passed from the board server component into the client
 // console shell. Dates are ISO strings so the client formats them consistently.
@@ -31,6 +31,12 @@ export interface ConsoleBooking {
   createdByOperatorId: string | null;
   assignedOperatorId: string | null;
   assignedDriverId: string | null;
+  /**
+   * Cached health of automated exec messages for this booking. `failed` drives
+   * the red indicator on the tile; `pending` (email accepted, not yet confirmed)
+   * shows only in the detail panel. See exec-messages shaping.
+   */
+  execNotificationStatus: ExecNotificationStatus;
   /** True when the job is covered by a backfill (subcontractor) driver, not the internal roster. */
   isBackfill: boolean;
   /** Operator-entered backfill driver name (only when isBackfill). */

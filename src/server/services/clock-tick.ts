@@ -11,7 +11,7 @@ import { systemClock } from '@/server/ports/clock';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
-import { enRouteSms } from './sms-templates';
+import { sendExecNotification } from './exec-notifications';
 
 export interface ClockTickDeps {
   db: Database;
@@ -84,18 +84,18 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
         .where(eq(drivers.id, updated.assignedDriverId))
         .limit(1);
       if (driver) {
-        await deps.notifications.sendSms({
-          to: updated.execMobile,
-          body: enRouteSms(updated, driver),
-        });
+        await sendExecNotification(
+          { db: deps.db, notifications: deps.notifications },
+          { booking: updated, kind: 'en_route', driverName: driver.name },
+        );
       }
     } else if (updated.isBackfill && updated.backfillDriverName) {
-      // Backfill jobs have no `drivers` row — the en-route SMS names the
+      // Backfill jobs have no `drivers` row — the en-route message names the
       // operator-entered subcontractor instead. Exec experience is unchanged.
-      await deps.notifications.sendSms({
-        to: updated.execMobile,
-        body: enRouteSms(updated, { name: updated.backfillDriverName }),
-      });
+      await sendExecNotification(
+        { db: deps.db, notifications: deps.notifications },
+        { booking: updated, kind: 'en_route', driverName: updated.backfillDriverName },
+      );
     }
   }
 

@@ -10,6 +10,7 @@ import {
   resetAllData,
   seedSampleData,
   setBookingState,
+  simulateExecMessageFailure,
 } from '@/server/services/simulator';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -71,6 +72,17 @@ export async function fastForwardAction(formData: FormData): Promise<void> {
   revalidatePath('/dashboard/simulator');
   revalidatePath('/dashboard');
   redirect('/dashboard/simulator?ok=fast-forwarded');
+}
+
+export async function forceExecFailureAction(formData: FormData): Promise<void> {
+  assertSimulatorEnabled();
+  await requireSession();
+  const bookingId = String(formData.get('bookingId') ?? '');
+  if (!bookingId) redirect('/dashboard/simulator?error=missing');
+  await simulateExecMessageFailure(db(), bookingId);
+  revalidatePath('/dashboard/simulator');
+  revalidatePath('/dashboard');
+  redirect('/dashboard/simulator?ok=exec-failed');
 }
 
 export async function forceStateAction(formData: FormData): Promise<void> {

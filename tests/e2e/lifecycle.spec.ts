@@ -118,6 +118,38 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
 
+  // ── Exec-message failure surfaces on the board + one-click resend clears it ─
+  // Force a failed exec confirmation (the booking has a real driver, so the
+  // resend can rebuild + send it). Exercises the tile marker, the panel health
+  // pill, the drawer error, and the resend that auto-clears the failure.
+  await clickAndSettle(
+    page,
+    row(page, LEGO).getByRole('button', { name: 'Fail exec msg' }).click(),
+  );
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  const legoFailCard = page.locator('.card', { hasText: 'LEGO Group' }).first();
+  await expect(legoFailCard).toContainText('exec'); // red ⚠ exec marker
+  await legoFailCard.click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText(
+    'EXEC MESSAGE FAILED',
+  );
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Exec messages/ })
+    .click();
+  await expect(page.locator('.panel.is-open')).toContainText('FAILED');
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Resend' }).first().click();
+  await expect(page.locator('.toast')).toContainText(/re-sent/i);
+
+  // Tile marker is gone once the resend succeeds.
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText('exec');
+
+  await gotoSimulator(page);
+
   // ── Clock: assigned → in_progress (pickup in 30 min, already fast-fwd'd) ─
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, LEGO, 'In progress');

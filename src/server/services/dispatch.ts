@@ -12,10 +12,11 @@ import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
+import { sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
 import { recordDispatchOffer, resolveOffersOnAccept } from './offers';
 import { createShortLink } from './short-links';
-import { assignedSms, dispatchSms, unassignedSms } from './sms-templates';
+import { dispatchSms, unassignedSms } from './sms-templates';
 
 export interface DispatchDeps {
   db: Database;
@@ -276,12 +277,18 @@ export async function acceptDispatchLink(
   // on the booking lapse (the operator's console clears its "awaiting" count).
   await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
 
-  // Side effect: SMS exec — name the driver and their car + colour so the exec
-  // can identify the vehicle kerbside.
-  await deps.notifications.sendSms({
-    to: booking.execMobile,
-    body: assignedSms(updated, driver, carDescription(driver.car, driver.carColour)),
-  });
+  // Confirm the exec — name the driver and their car + colour so they can
+  // identify the vehicle kerbside. Routed through sendExecNotification so the
+  // attempt is recorded and a failed send is never silent.
+  await sendExecNotification(
+    { db: deps.db, notifications: deps.notifications },
+    {
+      booking: updated,
+      kind: 'assigned',
+      driverName: driver.name,
+      car: carDescription(driver.car, driver.carColour),
+    },
+  );
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 

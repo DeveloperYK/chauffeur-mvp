@@ -24,8 +24,8 @@ import { and, eq } from 'drizzle-orm';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
-import { assignedSms } from './sms-templates';
 
 export interface BackfillDeps {
   db: Database;
@@ -136,12 +136,12 @@ export async function handToBackfill(
     },
   });
 
-  // Exec confirmation — same template as a normal accept, naming the backfill
-  // driver and the car they're bringing.
-  await deps.notifications.sendSms({
-    to: updated.execMobile,
-    body: assignedSms(updated, { name }, car),
-  });
+  // Confirm the exec — same message as a normal accept, naming the backfill
+  // driver and the car they're bringing. Recorded so a failed send isn't silent.
+  await sendExecNotification(
+    { db: deps.db, notifications: deps.notifications },
+    { booking: updated, kind: 'assigned', driverName: name, car },
+  );
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 

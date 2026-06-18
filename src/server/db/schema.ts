@@ -43,6 +43,45 @@ export const offerStatusEnum = pgEnum('offer_status', ['open', 'accepted', 'laps
 // route) or `hourly` as-directed hire (price from booked hours, no destination).
 export const serviceTypeEnum = pgEnum('service_type', ['transfer', 'hourly']);
 
+// Channel an automated exec message went out on. SMS is the original path;
+// email arrives in a later slice. Recorded per message so the operator can see
+// how each one was sent.
+export const notificationChannelEnum = pgEnum('notification_channel', ['sms', 'email']);
+
+// Which exec message this is. Mirrors the two automated send sites: `assigned`
+// (a driver accepted — booking confirmed) and `en_route` (clock fired ~1h
+// before pickup).
+export const notificationKindEnum = pgEnum('notification_kind', ['assigned', 'en_route']);
+
+// Lifecycle of one exec message attempt:
+//   sent       — handed to the provider (SMS: accepted by Twilio; email: accepted by Resend)
+//   delivered  — provider confirmed delivery (email webhook only)
+//   failed     — provider rejected at send, an exception was thrown, or no contact on file
+//   bounced    — email bounced after acceptance (webhook)
+//   complained — recipient marked the email as spam (webhook)
+//   superseded — a later resend replaced this attempt
+export const notificationStatusEnum = pgEnum('notification_status', [
+  'sent',
+  'delivered',
+  'failed',
+  'bounced',
+  'complained',
+  'superseded',
+]);
+
+// Cached, per-booking roll-up of exec-message health so the board can flag a
+// problem without a per-tile query:
+//   none    — nothing sent yet
+//   pending — an email is accepted but delivery is not yet confirmed (email only)
+//   ok      — latest message per kind is sent (SMS) or delivered (email)
+//   failed  — at least one latest-per-kind message failed/bounced/complained
+export const execNotificationStatusEnum = pgEnum('exec_notification_status', [
+  'none',
+  'pending',
+  'ok',
+  'failed',
+]);
+
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 export const operators = pgTable(
@@ -199,6 +238,14 @@ export const bookings = pgTable(
     // Auto-flag for no-accept window
     flaggedAt: timestamp('flagged_at', { withTimezone: true }),
 
+    // Cached roll-up of exec-message delivery health (see execNotifications).
+    // Maintained by the exec-notification wrapper inside the same transaction as
+    // the message-row write, so the board can render a failure indicator per
+    // tile without joining/aggregating the message log on every render.
+    execNotificationStatus: execNotificationStatusEnum('exec_notification_status')
+      .notNull()
+      .default('none'),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -274,6 +321,40 @@ export const shortLinks = pgTable('short_links', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Every automated message sent to the exec over a booking's life, one row per
+// attempt — success or failure. Callers never throw the provider result away
+// any more: the wrapper (services/exec-notifications) writes a row here whatever
+// happens, so operators can see what the exec was told and catch silent send
+// failures. `to` is the recipient (phone for sms, email for email); `subject`
+// is email-only; `provider_message_id` correlates a later delivery webhook back
+// to the row. See docs/shaping/exec-messages.
+export const execNotifications = pgTable(
+  'exec_notifications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    channel: notificationChannelEnum('channel').notNull(),
+    kind: notificationKindEnum('kind').notNull(),
+    to: text('to').notNull(),
+    subject: text('subject'),
+    body: text('body').notNull(),
+    status: notificationStatusEnum('status').notNull(),
+    providerMessageId: text('provider_message_id'),
+    errorReason: text('error_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('exec_notifications_booking_created_idx').on(t.bookingId, t.createdAt),
+    // Partial index for "does this booking have an outstanding problem" lookups.
+    index('exec_notifications_failed_idx')
+      .on(t.bookingId)
+      .where(sql`status in ('failed', 'bounced', 'complained')`),
+  ],
+);
+
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
@@ -292,3 +373,10 @@ export type NewAuditEvent = typeof auditEvents.$inferInsert;
 export type OfferStatus = (typeof offerStatusEnum.enumValues)[number];
 export type DispatchOffer = typeof dispatchOffers.$inferSelect;
 export type NewDispatchOffer = typeof dispatchOffers.$inferInsert;
+
+export type NotificationChannel = (typeof notificationChannelEnum.enumValues)[number];
+export type NotificationKind = (typeof notificationKindEnum.enumValues)[number];
+export type NotificationStatus = (typeof notificationStatusEnum.enumValues)[number];
+export type ExecNotificationStatus = (typeof execNotificationStatusEnum.enumValues)[number];
+export type ExecNotification = typeof execNotifications.$inferSelect;
+export type NewExecNotification = typeof execNotifications.$inferInsert;

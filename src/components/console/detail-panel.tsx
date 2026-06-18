@@ -1,13 +1,16 @@
 'use client';
 
 import {
+  type ExecMessageEntry,
   type HistoryEntry,
   approveBookingAction,
   assignBookingOperatorAction,
   bookingHistoryAction,
+  execNotificationsAction,
   generateCompletionLinkAction,
   rejectBookingAction,
   releaseDriverAction,
+  resendExecNotificationAction,
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
@@ -57,6 +60,9 @@ export function DetailPanel({
   const [editingPay, setEditingPay] = useState(false);
   const [payDraft, setPayDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showExec, setShowExec] = useState(false);
+  const [execMessages, setExecMessages] = useState<ExecMessageEntry[] | null>(null);
+  const [execLoading, setExecLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset panel UI state only when it opens or the booking changes
@@ -64,6 +70,8 @@ export function DetailPanel({
     if (isOpen) {
       setShowHistory(false);
       setHistory(null);
+      setShowExec(false);
+      setExecMessages(null);
       setCompletionLink(null);
       setEditingPay(false);
       setPayDraft('');
@@ -122,6 +130,32 @@ export function DetailPanel({
         .then((rows) => setHistory(rows))
         .finally(() => setHistoryLoading(false));
     }
+  };
+
+  const loadExecMessages = () => {
+    setExecLoading(true);
+    execNotificationsAction(booking.id)
+      .then((rows) => setExecMessages(rows))
+      .finally(() => setExecLoading(false));
+  };
+  const toggleExec = () => {
+    const next = !showExec;
+    setShowExec(next);
+    if (next && execMessages === null && !execLoading) loadExecMessages();
+  };
+  const resendExec = (id: string) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await resendExecNotificationAction(id);
+      if (!result.ok) {
+        setError(result.error ?? 'Could not resend the message.');
+        return;
+      }
+      // Reload the drawer (new row + superseded old) and refresh the board so
+      // the tile indicator clears.
+      loadExecMessages();
+      onMutated('Message re-sent to the exec.');
+    });
   };
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, toast: string) => {
@@ -362,6 +396,7 @@ export function DetailPanel({
                   24H NO ACCEPT
                 </Lozenge>
               ) : null}
+              <ExecHealthLozenge status={booking.execNotificationStatus} onClick={toggleExec} />
             </div>
             <div className="dp-hero__eyebrow">
               <Icon.Person style={{ width: 11, height: 11 }} /> Customer account
@@ -684,6 +719,106 @@ export function DetailPanel({
             </section>
           ) : null}
 
+          {/* EXEC MESSAGES */}
+          <section className="ic ic--activity">
+            <button
+              type="button"
+              className="ic__head ic__head--toggle"
+              onClick={toggleExec}
+              aria-expanded={showExec}
+            >
+              <span>Exec messages</span>
+              <span className="ic__head-meta">
+                {execStatusMeta(booking.execNotificationStatus)}
+                <Icon.ChevDown
+                  style={{
+                    width: 12,
+                    height: 12,
+                    marginLeft: 6,
+                    transform: showExec ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 120ms ease',
+                  }}
+                />
+              </span>
+            </button>
+            {showExec ? (
+              <div className="ic__body">
+                {execLoading ? (
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Loading…
+                  </div>
+                ) : execMessages && execMessages.length > 0 ? (
+                  <div className="timeline">
+                    {execMessages.map((m) => {
+                      const isFailure =
+                        m.status === 'failed' ||
+                        m.status === 'bounced' ||
+                        m.status === 'complained';
+                      return (
+                        <div className="timeline__item" key={m.id}>
+                          <span className={`timeline__dot ${isFailure ? '' : 'muted'}`} />
+                          <div className="timeline__body">
+                            <div className="ts">
+                              {fmtTimeWithDay(m.createdAt)} · {relTime(m.createdAt)}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span className="who">{EXEC_KIND_LABEL[m.kind]}</span>
+                              <span className="muted" style={{ fontSize: 11 }}>
+                                {EXEC_CHANNEL_LABEL[m.channel]}
+                              </span>
+                              <ExecStatusLozenge status={m.status} channel={m.channel} />
+                            </div>
+                            <div
+                              className="muted"
+                              style={{ fontSize: 12, whiteSpace: 'pre-line', marginTop: 4 }}
+                            >
+                              {m.body}
+                            </div>
+                            {m.errorReason ? (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: 'var(--prio-high)',
+                                  marginTop: 2,
+                                }}
+                              >
+                                Error: {m.errorReason}
+                              </div>
+                            ) : null}
+                            {isFailure ? (
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => resendExec(m.id)}
+                                style={{
+                                  marginTop: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: 'var(--prio-high)',
+                                  background: 'none',
+                                  border: '1px solid currentColor',
+                                  borderRadius: 6,
+                                  padding: '2px 10px',
+                                  cursor: isPending ? 'default' : 'pointer',
+                                }}
+                              >
+                                {isPending ? 'Resending…' : 'Resend'}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    No messages sent to the exec yet.
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </section>
+
           {/* HISTORY */}
           <section className="ic ic--activity">
             <button
@@ -754,4 +889,84 @@ export function DetailPanel({
       />
     </>
   );
+}
+
+const EXEC_KIND_LABEL: Record<ExecMessageEntry['kind'], string> = {
+  assigned: 'Booking confirmed',
+  en_route: 'Driver en route',
+};
+
+const EXEC_CHANNEL_LABEL: Record<ExecMessageEntry['channel'], string> = {
+  sms: 'SMS',
+  email: 'Email',
+};
+
+/** One-line summary shown in the collapsed "Exec messages" section header. */
+function execStatusMeta(status: ConsoleBooking['execNotificationStatus']): string {
+  switch (status) {
+    case 'failed':
+      return '⚠ a message failed';
+    case 'pending':
+      return 'email pending';
+    case 'ok':
+      return 'all delivered';
+    default:
+      return 'none yet';
+  }
+}
+
+/** Clickable health pill in the panel hero; opens the exec-messages drawer. */
+function ExecHealthLozenge({
+  status,
+  onClick,
+}: {
+  status: ConsoleBooking['execNotificationStatus'];
+  onClick: () => void;
+}) {
+  if (status === 'none') return null;
+  const cfg =
+    status === 'failed'
+      ? { tone: 'red' as const, label: 'EXEC MESSAGE FAILED' }
+      : status === 'pending'
+        ? { tone: 'orange' as const, label: 'EXEC EMAIL PENDING' }
+        : { tone: 'green' as const, label: 'EXEC NOTIFIED' };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="View exec messages"
+      style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+    >
+      <Lozenge tone={cfg.tone}>{cfg.label}</Lozenge>
+    </button>
+  );
+}
+
+/** Per-message status pill in the drawer. */
+function ExecStatusLozenge({
+  status,
+  channel,
+}: {
+  status: ExecMessageEntry['status'];
+  channel: ExecMessageEntry['channel'];
+}) {
+  const cfg = ((): { tone: 'gray' | 'green' | 'orange' | 'red'; label: string } => {
+    switch (status) {
+      case 'sent':
+        return channel === 'email'
+          ? { tone: 'orange', label: 'PENDING' }
+          : { tone: 'green', label: 'SENT' };
+      case 'delivered':
+        return { tone: 'green', label: 'DELIVERED' };
+      case 'failed':
+        return { tone: 'red', label: 'FAILED' };
+      case 'bounced':
+        return { tone: 'red', label: 'BOUNCED' };
+      case 'complained':
+        return { tone: 'red', label: 'SPAM' };
+      case 'superseded':
+        return { tone: 'gray', label: 'SUPERSEDED' };
+    }
+  })();
+  return <Lozenge tone={cfg.tone}>{cfg.label}</Lozenge>;
 }
