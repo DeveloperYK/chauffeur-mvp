@@ -59,6 +59,7 @@ function toConsoleBooking(
     passengerFirstName: b.passengerFirstName,
     passengerLastName: b.passengerLastName,
     execMobile: b.execMobile,
+    execEmail: b.execEmail,
     clientName: b.clientName,
     accountCode: b.accountCode,
     caseCode: b.caseCode,

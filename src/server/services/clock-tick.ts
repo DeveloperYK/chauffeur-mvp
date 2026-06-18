@@ -8,6 +8,7 @@ import {
 } from '@/server/domain/durations';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
@@ -17,6 +18,8 @@ export interface ClockTickDeps {
   db: Database;
   clock?: Clock;
   notifications: NotificationPort;
+  /** Email channel, used by the en-route exec message when email is active. */
+  email?: EmailPort;
   noAcceptWindowMs?: number;
 }
 
@@ -85,7 +88,7 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
         .limit(1);
       if (driver) {
         await sendExecNotification(
-          { db: deps.db, notifications: deps.notifications },
+          { db: deps.db, notifications: deps.notifications, email: deps.email },
           { booking: updated, kind: 'en_route', driverName: driver.name },
         );
       }
@@ -93,7 +96,7 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
       // Backfill jobs have no `drivers` row — the en-route message names the
       // operator-entered subcontractor instead. Exec experience is unchanged.
       await sendExecNotification(
-        { db: deps.db, notifications: deps.notifications },
+        { db: deps.db, notifications: deps.notifications, email: deps.email },
         { booking: updated, kind: 'en_route', driverName: updated.backfillDriverName },
       );
     }

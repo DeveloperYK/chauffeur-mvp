@@ -16,6 +16,7 @@ const baseBooking: Booking = {
   passengerFirstName: 'Eric',
   passengerLastName: 'French',
   execMobile: '+447911999999',
+  execEmail: null,
   clientName: 'LEGO Group',
   accountCode: 'LEGO',
   caseCode: 'LEGO-CASE-9',

@@ -18,6 +18,7 @@ import { type Booking, bookings } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
@@ -31,6 +32,8 @@ export interface BackfillDeps {
   db: Database;
   clock?: Clock;
   notifications: NotificationPort;
+  /** Email channel, used by the exec confirmation when email is the active channel. */
+  email?: EmailPort;
   mirror?: SpreadsheetMirrorPort;
 }
 
@@ -139,7 +142,7 @@ export async function handToBackfill(
   // Confirm the exec — same message as a normal accept, naming the backfill
   // driver and the car they're bringing. Recorded so a failed send isn't silent.
   await sendExecNotification(
-    { db: deps.db, notifications: deps.notifications },
+    { db: deps.db, notifications: deps.notifications, email: deps.email },
     { booking: updated, kind: 'assigned', driverName: name, car },
   );
 

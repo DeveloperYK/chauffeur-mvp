@@ -8,6 +8,7 @@ import {
   drivers,
 } from '@/server/db/schema';
 import { operators } from '@/server/db/schema';
+import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { eq, sql } from 'drizzle-orm';
 import { createBooking } from './bookings';
@@ -302,12 +303,18 @@ export async function simulateExecMessageFailure(db: Database, bookingId: string
   if (!booking) return;
   const ctx = await buildExecContextForBooking(db, booking, 'assigned');
   if (!ctx) return;
-  const failing: NotificationPort = {
+  // Fail whichever channel is active so the failure surfaces regardless of mode.
+  const failingSms: NotificationPort = {
     async sendSms() {
       return { ok: false, reason: 'simulated_failure' };
     },
   };
-  await sendExecNotification({ db, notifications: failing }, ctx);
+  const failingEmail: EmailPort = {
+    async sendEmail() {
+      return { ok: false, reason: 'simulated_failure' };
+    },
+  };
+  await sendExecNotification({ db, notifications: failingSms, email: failingEmail }, ctx);
 }
 
 export async function ensureDemoOperator(db: Database): Promise<{ id: string }> {

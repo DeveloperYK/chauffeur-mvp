@@ -8,6 +8,7 @@ import { dispatchLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
@@ -22,6 +23,8 @@ export interface DispatchDeps {
   db: Database;
   clock?: Clock;
   notifications: NotificationPort;
+  /** Email channel, used by the exec confirmation when email is the active channel. */
+  email?: EmailPort;
   secret: string;
   appUrl: string;
   mirror?: SpreadsheetMirrorPort;
@@ -281,7 +284,7 @@ export async function acceptDispatchLink(
   // identify the vehicle kerbside. Routed through sendExecNotification so the
   // attempt is recorded and a failed send is never silent.
   await sendExecNotification(
-    { db: deps.db, notifications: deps.notifications },
+    { db: deps.db, notifications: deps.notifications, email: deps.email },
     {
       booking: updated,
       kind: 'assigned',
