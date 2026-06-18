@@ -14,6 +14,7 @@ import { notFound } from 'next/navigation';
 import {
   clockTickAction,
   fastForwardAction,
+  forceExecFailureAction,
   forceStateAction,
   resetAction,
   seedAction,
@@ -133,6 +134,7 @@ export default async function SimulatorPage({
                   <Th>Account</Th>
                   <Th>Fast-forward</Th>
                   <Th>Force state</Th>
+                  <Th>Exec msg</Th>
                 </tr>
               </thead>
               <tbody>
@@ -186,6 +188,14 @@ export default async function SimulatorPage({
                         </Select>
                         <Button size="sm" type="submit">
                           Set
+                        </Button>
+                      </form>
+                    </Td>
+                    <Td>
+                      <form action={forceExecFailureAction}>
+                        <input type="hidden" name="bookingId" value={b.id} />
+                        <Button size="sm" variant="danger" type="submit">
+                          Fail exec msg
                         </Button>
                       </form>
                     </Td>

@@ -22,6 +22,10 @@ import {
 } from '@/server/services/completion';
 import { generateDispatchLinks, releaseDriver } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
+import {
+  listExecNotifications,
+  resendExecNotification,
+} from '@/server/services/exec-notifications';
 import { assignOperator } from '@/server/services/operators';
 import { revalidatePath } from 'next/cache';
 
@@ -374,6 +378,64 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
   }
   revalidatePath('/dashboard');
   return { ok: true, changedFields: result.changedFields };
+}
+
+/** One exec message in the detail-panel drawer, serializable for the client. */
+export interface ExecMessageEntry {
+  id: string;
+  channel: 'sms' | 'email';
+  kind: 'assigned' | 'en_route';
+  to: string;
+  body: string;
+  status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained' | 'superseded';
+  errorReason: string | null;
+  createdAt: string;
+}
+
+/** Full timeline of automated exec messages for a booking (newest first). */
+export async function execNotificationsAction(bookingId: string): Promise<ExecMessageEntry[]> {
+  const op = await requireOperator();
+  if (!op) return [];
+  if (!bookingId) return [];
+  try {
+    const rows = await listExecNotifications(db(), bookingId);
+    return rows.map((r) => ({
+      id: r.id,
+      channel: r.channel,
+      kind: r.kind,
+      to: r.to,
+      body: r.body,
+      status: r.status,
+      errorReason: r.errorReason,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to load exec notifications');
+    return [];
+  }
+}
+
+/** Re-send a failed/bounced exec message, rebuilt from the booking's current state. */
+export async function resendExecNotificationAction(notificationId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!notificationId) return { ok: false, error: 'Missing message.' };
+
+  const result = await resendExecNotification(
+    { db: db(), notifications: notifications() },
+    notificationId,
+  );
+  if (!result.ok) {
+    const error =
+      result.reason === 'not_found'
+        ? 'Message not found.'
+        : result.reason === 'no_driver'
+          ? 'This booking has no driver to message — assign one first.'
+          : 'Could not record the resend. Please try again.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 export async function bookingHistoryAction(bookingId: string): Promise<HistoryEntry[]> {

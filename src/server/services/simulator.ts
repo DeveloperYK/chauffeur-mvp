@@ -8,8 +8,10 @@ import {
   drivers,
 } from '@/server/db/schema';
 import { operators } from '@/server/db/schema';
+import type { NotificationPort } from '@/server/ports/notifications';
 import { eq, sql } from 'drizzle-orm';
 import { createBooking } from './bookings';
+import { buildExecContextForBooking, sendExecNotification } from './exec-notifications';
 
 const SAMPLE_DRIVERS = [
   {
@@ -286,6 +288,26 @@ export async function listAllForSimulator(db: Database): Promise<BookingSummary[
     pickupAt: b.pickupAt,
     accountCode: b.accountCode,
   }));
+}
+
+/**
+ * Force a failed exec confirmation message on a booking, so operators (and the
+ * lifecycle e2e) can exercise the silent-failure surfaces — red tile, panel
+ * indicator, drawer error, and one-click resend — without a real provider
+ * outage. Goes through the real send path with a notifier that always rejects,
+ * so a genuine `failed` row is written and the cached status flips to `failed`.
+ */
+export async function simulateExecMessageFailure(db: Database, bookingId: string): Promise<void> {
+  const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+  if (!booking) return;
+  const ctx = await buildExecContextForBooking(db, booking, 'assigned');
+  if (!ctx) return;
+  const failing: NotificationPort = {
+    async sendSms() {
+      return { ok: false, reason: 'simulated_failure' };
+    },
+  };
+  await sendExecNotification({ db, notifications: failing }, ctx);
 }
 
 export async function ensureDemoOperator(db: Database): Promise<{ id: string }> {

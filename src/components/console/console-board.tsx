@@ -438,6 +438,7 @@ function ListRow({
             <Lozenge tone="blue">OP-ENTERED</Lozenge>
           </span>
         ) : null}
+        <ExecFailureTag status={b.execNotificationStatus} />
       </span>
       <span>
         {assignee ? (
@@ -448,6 +449,29 @@ function ListRow({
       </span>
       <span className="price-cell">{fmtPrice(b.contractPricePence)}</span>
     </button>
+  );
+}
+
+/**
+ * Red marker shown on a tile when an automated exec message failed/bounced and
+ * hasn't been re-sent. Lets the operator spot a problem booking on the board
+ * without opening each one. Cleared automatically once a resend succeeds.
+ */
+function ExecFailureTag({ status }: { status: ConsoleBooking['execNotificationStatus'] }) {
+  if (status !== 'failed') return null;
+  return (
+    <span
+      title="Exec didn't receive the last message — open the booking to resend"
+      style={{
+        marginLeft: 6,
+        color: 'var(--prio-high)',
+        fontWeight: 600,
+        fontSize: 11,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ⚠ exec
+    </span>
   );
 }
 
@@ -511,6 +535,7 @@ function BoardCard({
             <Lozenge tone="blue">OP-ENTERED</Lozenge>
           </span>
         ) : null}
+        <ExecFailureTag status={booking.execNotificationStatus} />
         <span className="card__meta-right">
           {operator ? (
             <Avatar

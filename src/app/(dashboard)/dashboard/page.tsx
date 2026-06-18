@@ -74,6 +74,7 @@ function toConsoleBooking(
     backfillCar: b.backfillCar,
     backfillDriverPayPence: b.backfillDriverPayPence,
     completionByOperator: b.completionByOperator,
+    execNotificationStatus: b.execNotificationStatus,
     carParkPence: b.carParkPence,
     arrivalAt: b.arrivalAt ? b.arrivalAt.toISOString() : null,
     passengerOnBoardAt: b.passengerOnBoardAt ? b.passengerOnBoardAt.toISOString() : null,
