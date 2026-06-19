@@ -76,13 +76,25 @@ describe('resolveCompletionTimes', () => {
     if (!r.ok) expect(r.reason).toBe('bad_format');
   });
 
-  it('rejects an implausibly long wait (> 12h)', () => {
+  it('accepts a long wait without capping it (operator reviews)', () => {
     const r = resolveCompletionTimes(summerPickup, {
       arrivalTime: '10:00',
-      passengerOnBoardTime: '23:00', // 13h wait, same day
+      passengerOnBoardTime: '23:00', // 13h wait, same day — no longer rejected
       completionTime: '23:30',
     });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe('waiting_too_long');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.waitingTimeMinutes).toBe(13 * 60);
+  });
+
+  it('accepts out-of-order times rather than blocking the submission', () => {
+    // on-board before arrival rolls on-board to the next day → a long wait,
+    // which the operator can correct on review instead of being blocked here.
+    const r = resolveCompletionTimes(summerPickup, {
+      arrivalTime: '14:00',
+      passengerOnBoardTime: '13:55',
+      completionTime: '14:30',
+    });
+    expect(r.ok).toBe(true);
   });
 });
