@@ -11,7 +11,7 @@ import { systemClock } from '@/server/ports/clock';
 import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
 import { sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
@@ -254,6 +254,7 @@ export async function acceptDispatchLink(
       state: t.next,
       assignedDriverId: driver.id,
       assignedAt: now,
+      assignmentMethod: 'driver_self',
       updatedAt: now,
     })
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'unassigned')))
@@ -296,6 +297,161 @@ export async function acceptDispatchLink(
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
   return { ok: true, booking: updated, driver };
+}
+
+export type AssignDirectResult =
+  | { ok: true; booking: Booking; driver: Driver; swapped: boolean }
+  | {
+      ok: false;
+      reason:
+        | 'booking_not_found'
+        | 'driver_not_found'
+        | 'driver_inactive'
+        | 'same_driver'
+        | 'wrong_state';
+      state?: string;
+    };
+
+/**
+ * Operator-attested assignment: the operator phoned the driver, who agreed, so
+ * the operator commits them directly — no signed-link round-trip. Handles both
+ *  - initial assign (`unassigned → assigned`), and
+ *  - swap (`assigned → assigned` with a different driver), dropping the old one.
+ *
+ * The newly-assigned driver is NOT messaged (the phone call was the
+ * confirmation); the exec gets the usual confirmation, any open offers lapse,
+ * and on a swap the previous driver is told they're off. Mirrors + audits.
+ */
+export async function assignDriverDirect(
+  bookingId: string,
+  driverId: string,
+  operatorId: string,
+  deps: DispatchDeps,
+): Promise<AssignDirectResult> {
+  const clock = deps.clock ?? systemClock;
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+
+  const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
+  if (!driver) return { ok: false, reason: 'driver_not_found' };
+  if (!driver.active) return { ok: false, reason: 'driver_inactive' };
+
+  const now = clock.now();
+
+  // ── Initial assign: unassigned → assigned ──
+  if (booking.state === 'unassigned') {
+    const [updated] = await deps.db
+      .update(bookings)
+      .set({
+        state: 'assigned',
+        assignedDriverId: driver.id,
+        assignedAt: now,
+        assignmentMethod: 'operator_attested',
+        updatedAt: now,
+      })
+      .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'unassigned')))
+      .returning();
+    if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+    await recordAuditEvent(deps.db, {
+      actorType: 'operator',
+      actorId: operatorId,
+      entityType: 'booking',
+      entityId: booking.id,
+      action: 'operator_assign',
+      before: { state: 'unassigned' },
+      after: { state: 'assigned', driverId: driver.id, method: 'operator_attested' },
+    });
+
+    // Lapse any open offers (the operator may have fanned out links first).
+    await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
+
+    await sendExecNotification(
+      { db: deps.db, notifications: deps.notifications, email: deps.email },
+      {
+        booking: updated,
+        kind: 'assigned',
+        driverName: driver.name,
+        car: carDescription(driver.car, driver.carColour),
+      },
+    );
+
+    if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+    return { ok: true, booking: updated, driver, swapped: false };
+  }
+
+  // ── Swap: assigned → assigned (different driver) ──
+  if (booking.state === 'assigned') {
+    const previousDriverId = booking.assignedDriverId;
+    if (previousDriverId === driver.id) return { ok: false, reason: 'same_driver' };
+
+    const [updated] = await deps.db
+      .update(bookings)
+      .set({
+        assignedDriverId: driver.id,
+        assignedAt: now,
+        assignmentMethod: 'operator_attested',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(bookings.id, booking.id),
+          eq(bookings.state, 'assigned'),
+          previousDriverId
+            ? eq(bookings.assignedDriverId, previousDriverId)
+            : isNull(bookings.assignedDriverId),
+        ),
+      )
+      .returning();
+    if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+    await recordAuditEvent(deps.db, {
+      actorType: 'operator',
+      actorId: operatorId,
+      entityType: 'booking',
+      entityId: booking.id,
+      action: 'operator_swap',
+      before: { state: 'assigned', driverId: previousDriverId },
+      after: { state: 'assigned', driverId: driver.id, method: 'operator_attested' },
+    });
+
+    await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
+
+    // Tell the dropped driver they're off the job.
+    if (previousDriverId) {
+      const [previousDriver] = await deps.db
+        .select()
+        .from(drivers)
+        .where(eq(drivers.id, previousDriverId))
+        .limit(1);
+      if (previousDriver) {
+        await deps.notifications.sendSms({
+          to: previousDriver.whatsappNumber,
+          body: unassignedSms(updated),
+        });
+      }
+    }
+
+    // Re-confirm the exec with the new driver + car.
+    await sendExecNotification(
+      { db: deps.db, notifications: deps.notifications, email: deps.email },
+      {
+        booking: updated,
+        kind: 'assigned',
+        driverName: driver.name,
+        car: carDescription(driver.car, driver.carColour),
+      },
+    );
+
+    if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+    return { ok: true, booking: updated, driver, swapped: true };
+  }
+
+  return { ok: false, reason: 'wrong_state', state: booking.state };
 }
 
 export type ReleaseDriverResult =

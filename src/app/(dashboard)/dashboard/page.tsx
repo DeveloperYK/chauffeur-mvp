@@ -69,6 +69,7 @@ function toConsoleBooking(
     createdByOperatorId: b.createdByOperatorId,
     assignedOperatorId: b.assignedOperatorId,
     assignedDriverId: b.assignedDriverId,
+    assignmentMethod: b.assignmentMethod,
     isBackfill: b.isBackfill,
     backfillDriverName: b.backfillDriverName,
     backfillDriverPhone: b.backfillDriverPhone,
@@ -92,6 +93,9 @@ function toConsoleBooking(
     cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
     cancellationReason: b.cancellationReason,
     flaggedAt: b.flaggedAt ? b.flaggedAt.toISOString() : null,
+    changeConfirmationStatus: b.changeConfirmationStatus,
+    changeConfirmedMethod: b.changeConfirmedMethod,
+    changeConfirmedAt: b.changeConfirmedAt ? b.changeConfirmedAt.toISOString() : null,
     openOffers,
   };
 }

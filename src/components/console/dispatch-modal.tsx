@@ -2,6 +2,7 @@
 
 import {
   type DispatchOfferResult,
+  confirmAssignByPhoneAction,
   dispatchManyAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
@@ -109,6 +110,11 @@ export function DispatchModal({
   // link, no reply yet). Marked in the picker so they aren't re-offered blindly.
   const offeredIds = new Set(booking.openOffers.map((o) => o.driverId));
 
+  // Opened on an already-assigned booking → this is a driver swap, not initial
+  // dispatch. Only the operator-attested (phone) path applies (link-based swap
+  // is out of scope); the fan-out "Offer" action is hidden.
+  const isReassign = booking.state === 'assigned';
+
   const toggle = (driverId: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -129,6 +135,28 @@ export function DispatchModal({
       }
       setOffers(result.offers);
       setSkippedCount(result.skippedCount ?? 0);
+    });
+  };
+
+  // Operator-attested assign: the operator phoned the single picked driver, who
+  // agreed, so commit them directly — no link to send. In `assigned` state this
+  // is a swap (the modal opens as "Reassign driver").
+  const confirmByPhone = () => {
+    if (picked.size !== 1) return;
+    const driverId = [...picked][0] as string;
+    setError(null);
+    startTransition(async () => {
+      const result = await confirmAssignByPhoneAction(booking.id, driverId);
+      if (!result.ok) {
+        setError(result.error ?? 'Could not assign the driver.');
+        return;
+      }
+      const name = drivers.find((d) => d.id === driverId)?.name.split(' ')[0] ?? 'driver';
+      onSent(
+        isReassign
+          ? `Reassigned to ${name} — confirmed by phone.`
+          : `Assigned ${name} — confirmed by phone.`,
+      );
     });
   };
 
@@ -161,7 +189,7 @@ export function DispatchModal({
           <div className="row">
             <div>
               <div className="modal__title">
-                {offers ? 'Send the links' : 'Find drivers'}{' '}
+                {offers ? 'Send the links' : isReassign ? 'Reassign driver' : 'Find drivers'}{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>
@@ -389,12 +417,23 @@ export function DispatchModal({
               </button>
               <button
                 type="button"
-                className="btn btn--primary"
-                disabled={picked.size === 0 || isPending}
-                onClick={offerToSelected}
+                className="btn"
+                disabled={picked.size !== 1 || isPending}
+                onClick={confirmByPhone}
+                title="Operator phoned the driver, who agreed — assign them directly"
               >
-                <Icon.Link /> {isPending ? 'Generating…' : offerLabel}
+                <Icon.Phone /> {isPending ? 'Assigning…' : 'Confirmed by phone'}
               </button>
+              {!isReassign ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={picked.size === 0 || isPending}
+                  onClick={offerToSelected}
+                >
+                  <Icon.Link /> {isPending ? 'Generating…' : offerLabel}
+                </button>
+              ) : null}
             </>
           ) : (
             <>

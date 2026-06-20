@@ -1,7 +1,8 @@
 export interface EmailMessage {
   to: string; // recipient email address
   subject: string;
-  text: string; // plain-text body (no user-controlled HTML — same safety posture as SMS)
+  text: string; // plain-text fallback (always sent)
+  html?: string; // optional branded HTML body; interpolated values must be escaped by the renderer
 }
 
 export interface EmailPort {

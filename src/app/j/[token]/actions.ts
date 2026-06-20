@@ -8,6 +8,7 @@ import {
   notifications,
   spreadsheetMirror,
 } from '@/server/composition';
+import { confirmChangeBySelf } from '@/server/services/change-confirmation';
 import { submitCompletionForm } from '@/server/services/completion';
 import { acceptDispatchLink, declineDispatchLink } from '@/server/services/dispatch';
 import { revalidatePath } from 'next/cache';
@@ -69,6 +70,33 @@ export async function declineAction(formData: FormData): Promise<void> {
     appUrl: appUrl(),
   });
   redirect(`/j/${parsed.data.token}?status=declined`);
+}
+
+const confirmChangeSchema = z.object({ token: z.string().min(20).max(4096) }).strict();
+
+export async function confirmChangeAction(formData: FormData): Promise<void> {
+  const parsed = confirmChangeSchema.safeParse({ token: String(formData.get('token') ?? '') });
+  if (!parsed.success) redirect('/j/_/?error=invalid');
+
+  const result = await confirmChangeBySelf(parsed.data.token, {
+    db: db(),
+    secret: driverLinkSecret(),
+    mirror: spreadsheetMirror(),
+  });
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'token_expired'
+        ? 'This link has expired.'
+        : result.reason === 'no_pending_change'
+          ? 'This change has already been confirmed.'
+          : 'Sorry, this link is not valid.';
+    redirect(`/j/${parsed.data.token}?error=${encodeURIComponent(msg)}`);
+  }
+
+  // Operator console should reflect the driver's confirmation promptly.
+  revalidatePath('/dashboard');
+  redirect(`/j/${parsed.data.token}?status=confirmed`);
 }
 
 export async function submitCompletionAction(formData: FormData): Promise<void> {

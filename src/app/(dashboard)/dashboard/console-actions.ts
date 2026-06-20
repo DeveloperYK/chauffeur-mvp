@@ -16,15 +16,24 @@ import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
 import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
+  confirmChangeOnBehalf,
+  generateChangeConfirmLink,
+} from '@/server/services/change-confirmation';
+import {
   approveBooking,
   completeFormOnBehalf,
   generateCompletionLink,
   rejectBooking,
 } from '@/server/services/completion';
-import { generateDispatchLinks, releaseDriver } from '@/server/services/dispatch';
+import {
+  assignDriverDirect,
+  generateDispatchLinks,
+  releaseDriver,
+} from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import {
   listExecNotifications,
+  notifyExecOfChange,
   resendExecNotification,
 } from '@/server/services/exec-notifications';
 import { assignOperator } from '@/server/services/operators';
@@ -180,6 +189,103 @@ export async function dispatchManyAction(
       whatsappUrl: o.whatsappUrl,
     })),
     skippedCount: result.skipped.length,
+  };
+}
+
+/**
+ * Operator-attested assignment: the operator phoned the driver, who agreed, so
+ * commit them directly (no link round-trip). Works from `unassigned` (assign)
+ * and `assigned` (swap to a different driver).
+ */
+export async function confirmAssignByPhoneAction(
+  bookingId: string,
+  driverId: string,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId || !driverId) return { ok: false, error: 'Missing booking or driver.' };
+
+  const result = await assignDriverDirect(bookingId, driverId, op.id, {
+    db: db(),
+    notifications: notifications(),
+    email: email(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'driver_not_found'
+          ? 'Driver not found.'
+          : result.reason === 'driver_inactive'
+            ? 'That driver is inactive.'
+            : result.reason === 'same_driver'
+              ? 'That driver is already on this job.'
+              : `Cannot assign from state: ${result.state}.`;
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/**
+ * Operator attests — after a phone call — that the assigned driver knows the
+ * changed plan, clearing the booking's `change pending` flag.
+ */
+export async function confirmChangeOnBehalfAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await confirmChangeOnBehalf(bookingId, op.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : 'There is no pending change to confirm.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/**
+ * Mint a "your booking changed — confirm" link for the assigned driver and
+ * return a WhatsApp deep link the operator sends (mirrors dispatch). Backfill
+ * jobs have no app driver — the operator attests by phone instead.
+ */
+export async function generateChangeConfirmLinkAction(
+  bookingId: string,
+): Promise<DispatchActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await generateChangeConfirmLink(bookingId, op.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'no_app_driver'
+          ? 'No app driver on this job — confirm by phone instead.'
+          : 'There is no pending change to confirm.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return {
+    ok: true,
+    url: result.url,
+    whatsappUrl: result.whatsappUrl,
+    driverName: result.driver.name,
   };
 }
 
@@ -384,10 +490,36 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
 }
 
 /** One exec message in the detail-panel drawer, serializable for the client. */
+/**
+ * Notify the exec their booking changed (operator-triggered from the change
+ * banner), restating the current plan over the active channel.
+ */
+export async function notifyExecOfChangeAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await notifyExecOfChange(
+    { db: db(), notifications: notifications(), email: email() },
+    bookingId,
+  );
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'no_driver'
+          ? 'No driver on this booking yet.'
+          : 'Could not record the exec notification.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
 export interface ExecMessageEntry {
   id: string;
   channel: 'sms' | 'email';
-  kind: 'assigned' | 'en_route';
+  kind: 'assigned' | 'en_route' | 'changed';
   to: string;
   body: string;
   status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained' | 'superseded';

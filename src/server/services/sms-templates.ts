@@ -64,6 +64,29 @@ export function enRouteSms(booking: Booking, driver: NamedDriver): string {
 }
 
 /**
+ * Exec — their booking changed after it was confirmed; restate the current plan
+ * (time, pickup, destination) so the exec's earlier confirmation isn't stale.
+ *
+ *   Chauffeur MVP - BKNG-00001
+ *   Your booking has been updated.
+ *   Pickup: Sat 23 May, 14:00 - 12 King St, London
+ *   To: Heathrow T5
+ */
+export function changeExecSms(booking: Booking): string {
+  const lines = [
+    `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
+    'Your booking has been updated.',
+    `Pickup: ${formatLondonDateTimeShort(booking.pickupAt)} - ${booking.pickupAddress}`,
+  ];
+  if (booking.serviceType === 'hourly') {
+    lines.push(`As directed - ${formatHireDuration(booking.expectedDurationMinutes)}`);
+  } else {
+    lines.push(`To: ${destination(booking)}`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * Driver — dispatch offer; they tap the link to accept.
  *
  * Transfer (point-to-point) shows the route; an as-directed hire shows the
@@ -104,6 +127,22 @@ export function unassignedSms(booking: Booking): string {
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
     "This booking has been reassigned. You're no longer on it.",
+  ].join('\n');
+}
+
+/**
+ * Driver — a booking they already accepted has changed; they tap to review the
+ * new details and confirm they're across the new plan.
+ *
+ *   Chauffeur MVP - BKNG-00001
+ *   Your booking has changed. Please review the new details and confirm:
+ *   <url>
+ */
+export function changeSms(booking: Booking, url: string): string {
+  return [
+    `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
+    'Your booking has changed. Please review the new details and confirm:',
+    url,
   ].join('\n');
 }
 

@@ -17,6 +17,8 @@ interface CompletionLinkModalProps {
   driverName: string | null;
   link: CompletionLink | null;
   onClose: () => void;
+  /** Modal heading; defaults to the completion-form wording. */
+  title?: string;
 }
 
 /**
@@ -29,6 +31,7 @@ export function CompletionLinkModal({
   driverName,
   link,
   onClose,
+  title = 'Completion form link',
 }: CompletionLinkModalProps) {
   const [copied, setCopied] = useState(false);
   const isOpen = link !== null;
@@ -54,7 +57,7 @@ export function CompletionLinkModal({
           <div className="row">
             <div>
               <div className="modal__title">
-                Completion form link{' '}
+                {title}{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>

@@ -48,10 +48,15 @@ export const serviceTypeEnum = pgEnum('service_type', ['transfer', 'hourly']);
 // how each one was sent.
 export const notificationChannelEnum = pgEnum('notification_channel', ['sms', 'email']);
 
-// Which exec message this is. Mirrors the two automated send sites: `assigned`
-// (a driver accepted — booking confirmed) and `en_route` (clock fired ~1h
-// before pickup).
-export const notificationKindEnum = pgEnum('notification_kind', ['assigned', 'en_route']);
+// Which exec message this is. `assigned` (a driver accepted — booking confirmed)
+// and `en_route` (clock fired ~1h before pickup) are the automated sends;
+// `changed` is the operator-triggered "booking updated" re-notification after a
+// mid-flight change. See docs/shaping/mid-flight-changes.
+export const notificationKindEnum = pgEnum('notification_kind', [
+  'assigned',
+  'en_route',
+  'changed',
+]);
 
 // Lifecycle of one exec message attempt:
 //   sent       — handed to the provider (SMS: accepted by Twilio; email: accepted by Resend)
@@ -67,6 +72,29 @@ export const notificationStatusEnum = pgEnum('notification_status', [
   'bounced',
   'complained',
   'superseded',
+]);
+
+// Whether a driver-facing change made to a booking after dispatch has been
+// confirmed with the assigned driver, and how far along that is:
+//   none      — no unconfirmed change outstanding
+//   pending   — a material (driver-facing) field was edited after dispatch and
+//               the driver has not yet confirmed they know the new plan
+//   confirmed — the driver is aware of and agreed to the new plan
+// Orthogonal to `state` — advisory, never blocks the lifecycle. See
+// docs/shaping/mid-flight-changes.
+export const changeConfirmationStatusEnum = pgEnum('change_confirmation_status', [
+  'none',
+  'pending',
+  'confirmed',
+]);
+
+// How a driver confirmation was captured: the driver tapped a link themselves
+// (`driver_self`) or the operator attested it after a phone call
+// (`operator_attested`). Used for mid-flight change confirmation (and, later,
+// for how a driver was assigned to a job).
+export const confirmationMethodEnum = pgEnum('confirmation_method', [
+  'driver_self',
+  'operator_attested',
 ]);
 
 // Cached, per-booking roll-up of exec-message health so the board can flag a
@@ -196,6 +224,11 @@ export const bookings = pgTable(
       onDelete: 'restrict',
     }),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    // How the assigned driver was committed: `driver_self` — the driver tapped
+    // their dispatch link; `operator_attested` — the operator phoned them and
+    // marked it confirmed (direct assign / swap). Null for unassigned/backfill.
+    // See docs/shaping/mid-flight-changes.
+    assignmentMethod: confirmationMethodEnum('assignment_method'),
 
     // Backfill (subcontractor) driver — used when no internal driver is
     // available and the operator hands the job to someone from the WhatsApp
@@ -243,6 +276,23 @@ export const bookings = pgTable(
 
     // Auto-flag for no-accept window
     flaggedAt: timestamp('flagged_at', { withTimezone: true }),
+
+    // Mid-flight change confirmation. When a driver-facing field is edited after
+    // dispatch (assigned/in_progress), the booking is flagged `pending` so the
+    // operator can ensure the assigned driver knows the new plan — either by
+    // attesting a phone call (operator_attested) or by the driver tapping a
+    // confirm link (driver_self). Advisory and orthogonal to `state`. See
+    // docs/shaping/mid-flight-changes.
+    changeConfirmationStatus: changeConfirmationStatusEnum('change_confirmation_status')
+      .notNull()
+      .default('none'),
+    changePendingSince: timestamp('change_pending_since', { withTimezone: true }),
+    changeConfirmedAt: timestamp('change_confirmed_at', { withTimezone: true }),
+    changeConfirmedMethod: confirmationMethodEnum('change_confirmed_method'),
+    changeConfirmedByOperatorId: uuid('change_confirmed_by_operator_id').references(
+      () => operators.id,
+      { onDelete: 'set null' },
+    ),
 
     // Cached roll-up of exec-message delivery health (see execNotifications).
     // Maintained by the exec-notification wrapper inside the same transaction as
@@ -364,6 +414,8 @@ export const execNotifications = pgTable(
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
+export type ChangeConfirmationStatus = (typeof changeConfirmationStatusEnum.enumValues)[number];
+export type ConfirmationMethod = (typeof confirmationMethodEnum.enumValues)[number];
 export type VehicleClass = (typeof vehicleClassEnum.enumValues)[number];
 export type ServiceType = (typeof serviceTypeEnum.enumValues)[number];
 export type ActorType = (typeof actorTypeEnum.enumValues)[number];

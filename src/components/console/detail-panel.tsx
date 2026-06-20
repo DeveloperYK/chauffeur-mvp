@@ -6,8 +6,11 @@ import {
   approveBookingAction,
   assignBookingOperatorAction,
   bookingHistoryAction,
+  confirmChangeOnBehalfAction,
   execNotificationsAction,
+  generateChangeConfirmLinkAction,
   generateCompletionLinkAction,
+  notifyExecOfChangeAction,
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
@@ -57,6 +60,7 @@ export function DetailPanel({
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
+  const [changeLink, setChangeLink] = useState<CompletionLink | null>(null);
   const [editingPay, setEditingPay] = useState(false);
   const [payDraft, setPayDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +77,7 @@ export function DetailPanel({
       setShowExec(false);
       setExecMessages(null);
       setCompletionLink(null);
+      setChangeLink(null);
       setEditingPay(false);
       setPayDraft('');
       setError(null);
@@ -218,6 +223,80 @@ export function DetailPanel({
       setCompletionLink({ url: result.url, whatsappUrl: result.whatsappUrl });
     });
   };
+  const confirmChangeByPhone = () =>
+    run(
+      () => confirmChangeOnBehalfAction(booking.id),
+      'Change confirmed — driver attested by phone.',
+    );
+  const notifyExecChange = () =>
+    run(() => notifyExecOfChangeAction(booking.id), 'Exec notified of the update.');
+  const sendChangeLink = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await generateChangeConfirmLinkAction(booking.id);
+      if (!result.ok || !result.url || !result.whatsappUrl) {
+        setError(result.error ?? 'Could not generate the change link.');
+        return;
+      }
+      setChangeLink({ url: result.url, whatsappUrl: result.whatsappUrl });
+    });
+  };
+
+  // Mid-flight change confirmation banner — only on a dispatched booking that
+  // has an outstanding (or just-confirmed) driver-facing change. Advisory: the
+  // new details are already live; this only tracks whether the driver knows.
+  const renderChangeConfirm = () => {
+    const isDispatched = booking.state === 'assigned' || booking.state === 'in_progress';
+    if (!isDispatched) return null;
+    if (booking.changeConfirmationStatus === 'pending') {
+      return (
+        <div className="dp-change dp-change--pending">
+          <div className="dp-change__head">
+            <Lozenge tone="red">
+              <Icon.Flag style={{ width: 10, height: 10, marginRight: 4 }} />
+              CHANGE — DRIVER NOT CONFIRMED
+            </Lozenge>
+          </div>
+          <p className="dp-change__note">
+            Booking details changed after dispatch. Confirm the driver knows the new plan.
+          </p>
+          <div className="dp-actions">
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={confirmChangeByPhone}
+              disabled={isPending}
+            >
+              <Icon.Phone /> Driver confirmed by phone
+            </button>
+            {booking.assignedDriverId ? (
+              <button type="button" className="btn" onClick={sendChangeLink} disabled={isPending}>
+                <Icon.Send /> Send change link
+              </button>
+            ) : null}
+            <button type="button" className="btn" onClick={notifyExecChange} disabled={isPending}>
+              <Icon.Send /> Notify exec
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (booking.changeConfirmationStatus === 'confirmed') {
+      const how = booking.changeConfirmedMethod === 'operator_attested' ? 'by phone' : 'by driver';
+      return (
+        <div className="dp-change dp-change--ok">
+          <Lozenge tone="green">
+            <Icon.Check style={{ width: 10, height: 10, marginRight: 4 }} />
+            CHANGE CONFIRMED {how.toUpperCase()}
+          </Lozenge>
+          {booking.changeConfirmedAt ? (
+            <span className="dp-change__when">{relTime(booking.changeConfirmedAt)}</span>
+          ) : null}
+        </div>
+      );
+    }
+    return null;
+  };
   // Contextual actions per state. Only offers what the backend can actually do.
   const renderActions = () => {
     switch (booking.state) {
@@ -279,6 +358,11 @@ export function DetailPanel({
             <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
               <Icon.Reset /> Driver pulled out — unassign
             </button>
+            {!booking.isBackfill ? (
+              <button type="button" className="btn" onClick={onDispatch}>
+                <Icon.Person /> Reassign driver
+              </button>
+            ) : null}
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>
@@ -433,6 +517,9 @@ export function DetailPanel({
             </div>
           ) : null}
 
+          {/* MID-FLIGHT CHANGE CONFIRMATION */}
+          {renderChangeConfirm()}
+
           {/* PRIMARY ACTIONS */}
           {renderActions()}
 
@@ -543,16 +630,25 @@ export function DetailPanel({
                       ) : null}
                     </div>
                   ) : driver ? (
-                    <div className="ir__row">
-                      <Avatar name={driver.name} id={driver.id} size={22} />
-                      <span>{driver.name}</span>
-                      <span className={`vc-tag ${driver.vehicleClass}`}>
-                        {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
-                      </span>
-                      <span className="ir__sub mono" style={{ marginLeft: 4 }}>
-                        {driver.whatsappNumber}
-                      </span>
-                    </div>
+                    <>
+                      <div className="ir__row">
+                        <Avatar name={driver.name} id={driver.id} size={22} />
+                        <span>{driver.name}</span>
+                        <span className={`vc-tag ${driver.vehicleClass}`}>
+                          {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                        </span>
+                        <span className="ir__sub mono" style={{ marginLeft: 4 }}>
+                          {driver.whatsappNumber}
+                        </span>
+                      </div>
+                      {booking.assignmentMethod ? (
+                        <div className="ir__sub" style={{ marginTop: 2 }}>
+                          {booking.assignmentMethod === 'operator_attested'
+                            ? 'Confirmed by phone'
+                            : 'Accepted link'}
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <span className="muted">Not yet assigned</span>
                   )}
@@ -887,6 +983,13 @@ export function DetailPanel({
         link={completionLink}
         onClose={() => setCompletionLink(null)}
       />
+      <CompletionLinkModal
+        booking={booking}
+        driverName={contact?.name ?? null}
+        link={changeLink}
+        onClose={() => setChangeLink(null)}
+        title="Change confirmation link"
+      />
     </>
   );
 }
@@ -894,6 +997,7 @@ export function DetailPanel({
 const EXEC_KIND_LABEL: Record<ExecMessageEntry['kind'], string> = {
   assigned: 'Booking confirmed',
   en_route: 'Driver en route',
+  changed: 'Booking updated',
 };
 
 const EXEC_CHANNEL_LABEL: Record<ExecMessageEntry['channel'], string> = {

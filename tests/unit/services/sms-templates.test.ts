@@ -3,6 +3,8 @@ import type { Booking, Driver } from '@/server/db/schema';
 import {
   SMS_BRAND_NAME,
   assignedSms,
+  changeExecSms,
+  changeSms,
   completionRequestSms,
   dispatchSms,
   enRouteSms,
@@ -93,5 +95,28 @@ describe('SMS templates — brand, reference, structured format', () => {
     expect(body.startsWith(`${SMS_BRAND_NAME} - BKNG-00001\n`)).toBe(true);
     expect(body.toLowerCase()).toContain('trip form');
     expect(body).toContain('https://app.test/s/Qz9p2');
+  });
+
+  it('formats the driver change-confirmation SMS with the link', () => {
+    const body = changeSms(booking, 'https://app.test/s/Ch4ng');
+    expect(body.startsWith(`${SMS_BRAND_NAME} - BKNG-00001\n`)).toBe(true);
+    expect(body.toLowerCase()).toContain('changed');
+    expect(body.toLowerCase()).toContain('confirm');
+    expect(body).toContain('https://app.test/s/Ch4ng');
+  });
+
+  it('formats the exec change-notification SMS with the current plan', () => {
+    const body = changeExecSms(booking);
+    expect(body.startsWith(`${SMS_BRAND_NAME} - BKNG-00001\n`)).toBe(true);
+    expect(body.toLowerCase()).toContain('updated');
+    expect(body).toContain(booking.pickupAddress);
+    expect(body).toContain('Heathrow T5');
+  });
+
+  it('omits the destination line for an hourly exec change SMS', () => {
+    const body = changeExecSms(hourlyBooking);
+    expect(body.toLowerCase()).toContain('updated');
+    expect(body).toContain('As directed');
+    expect(body).not.toContain('To:');
   });
 });
