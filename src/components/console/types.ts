@@ -1,4 +1,10 @@
-import type { BookingState, ExecNotificationStatus, VehicleClass } from '@/server/db/schema';
+import type {
+  BookingState,
+  ChangeConfirmationStatus,
+  ConfirmationMethod,
+  ExecNotificationStatus,
+  VehicleClass,
+} from '@/server/db/schema';
 
 // Serializable shapes passed from the board server component into the client
 // console shell. Dates are ISO strings so the client formats them consistently.
@@ -70,6 +76,16 @@ export interface ConsoleBooking {
   cancelledAt: string | null;
   cancellationReason: string | null;
   flaggedAt: string | null;
+  /**
+   * Mid-flight change confirmation. `pending` after a driver-facing edit on an
+   * already-dispatched booking until the driver confirms (by phone-attest or by
+   * tapping their link). Drives the "change — driver not confirmed" badge.
+   */
+  changeConfirmationStatus: ChangeConfirmationStatus;
+  /** How the latest change was confirmed; null while none/pending. */
+  changeConfirmedMethod: ConfirmationMethod | null;
+  /** When the latest change was confirmed (ISO); null while none/pending. */
+  changeConfirmedAt: string | null;
   /**
    * Drivers with an open (awaiting) dispatch offer on this booking — the
    * operator has sent them a link but none has accepted yet. Empty unless the

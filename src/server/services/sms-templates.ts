@@ -108,6 +108,22 @@ export function unassignedSms(booking: Booking): string {
 }
 
 /**
+ * Driver — a booking they already accepted has changed; they tap to review the
+ * new details and confirm they're across the new plan.
+ *
+ *   Chauffeur MVP - BKNG-00001
+ *   Your booking has changed. Please review the new details and confirm:
+ *   <url>
+ */
+export function changeSms(booking: Booking, url: string): string {
+  return [
+    `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
+    'Your booking has changed. Please review the new details and confirm:',
+    url,
+  ].join('\n');
+}
+
+/**
  * Driver — completion-form request after the trip.
  *
  *   Chauffeur MVP - BKNG-00001

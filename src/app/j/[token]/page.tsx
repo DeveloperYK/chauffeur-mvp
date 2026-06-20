@@ -10,10 +10,16 @@ import {
   drivers as driversTable,
 } from '@/server/db/schema';
 import { verifyDriverLink } from '@/server/domain/link-tokens';
+import { previewChangeConfirmLink } from '@/server/services/change-confirmation';
 import { previewDispatchLink } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import type { ReactNode } from 'react';
-import { acceptAction, declineAction, submitCompletionAction } from './actions';
+import {
+  acceptAction,
+  confirmChangeAction,
+  declineAction,
+  submitCompletionAction,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +68,19 @@ export default async function DriverLinkPage({
       </Stage>
     );
   }
+  if (search.status === 'confirmed') {
+    return (
+      <Stage>
+        <div className="ph-center">
+          <div className="ph-check">
+            <Icon.Check />
+          </div>
+          <h1>Change confirmed</h1>
+          <p className="you">Thanks — the operator knows you're across the new plan.</p>
+        </div>
+      </Stage>
+    );
+  }
   if (search.status === 'submitted') {
     return (
       <Stage>
@@ -94,6 +113,10 @@ export default async function DriverLinkPage({
 
   if (verified.payload.type === 'completion') {
     return <CompletionPage token={token} search={search} />;
+  }
+
+  if (verified.payload.type === 'change_confirm') {
+    return <ChangeConfirmPage token={token} search={search} />;
   }
 
   const result = await previewDispatchLink(token, {
@@ -342,6 +365,121 @@ async function CompletionPage({
           Submit
         </button>
       </form>
+    </Stage>
+  );
+}
+
+async function ChangeConfirmPage({
+  token,
+  search,
+}: {
+  token: string;
+  search: { error?: string };
+}) {
+  const result = await previewChangeConfirmLink(token, {
+    db: db(),
+    secret: driverLinkSecret(),
+  });
+
+  if (!result.ok) {
+    return (
+      <Stage>
+        <div className="ph-center">
+          <h1>
+            {result.reason === 'no_pending_change' ? 'Nothing to confirm' : 'Link unavailable'}
+          </h1>
+          <p className="you">
+            {result.reason === 'token_expired'
+              ? 'This link has expired.'
+              : result.reason === 'no_pending_change'
+                ? 'This change has already been confirmed, or there is no change outstanding.'
+                : 'Sorry, this link is not valid.'}
+          </p>
+        </div>
+      </Stage>
+    );
+  }
+
+  const { booking, driver } = result;
+  const passengerLabel = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
+
+  return (
+    <Stage>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Avatar name={driver.name} id={driver.id} size={36} />
+        <div>
+          <div
+            style={{
+              fontSize: 10.5,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+              color: 'var(--ink-3)',
+            }}
+          >
+            Updated job for
+          </div>
+          <strong style={{ fontSize: 14 }}>{driver.name}</strong>
+        </div>
+        <span style={{ flex: 1 }} />
+        <Lozenge tone="orange">CHANGED</Lozenge>
+      </div>
+
+      <h1>{passengerLabel}</h1>
+
+      {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
+
+      <div className="public-card__job">
+        <div className="row">
+          <span className="pin" />
+          <div className="addr">
+            <div className="lbl">Pickup · {fmtTimeWithDay(booking.pickupAt)}</div>
+            {booking.pickupAddress}
+          </div>
+        </div>
+        {booking.dropoffAddress ? (
+          <div className="row">
+            <span className="pin to" />
+            <div className="addr">
+              <div className="lbl">Drop-off</div>
+              {booking.dropoffAddress}
+            </div>
+          </div>
+        ) : null}
+        <div className="meta">
+          <div className="m">
+            <div className="k">Duration</div>
+            <div className="v">{booking.expectedDurationMinutes} min</div>
+          </div>
+        </div>
+        {booking.notes ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--ink-3)',
+              borderTop: '1px solid var(--hairline-soft)',
+              paddingTop: 10,
+            }}
+          >
+            <strong style={{ color: 'var(--ink)' }}>Note:</strong> {booking.notes}
+          </div>
+        ) : null}
+      </div>
+
+      <form action={confirmChangeAction}>
+        <input type="hidden" name="token" value={token} />
+        <button
+          type="submit"
+          className="btn btn--success btn--lg btn--block"
+          style={{ marginTop: 12 }}
+        >
+          <Icon.Check /> Confirm the new details
+        </button>
+      </form>
+
+      <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
+        By confirming, you agree to the updated job above.
+      </div>
     </Stage>
   );
 }

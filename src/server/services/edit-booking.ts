@@ -1,5 +1,6 @@
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
+import { isMaterialChange } from '@/server/domain/booking-changes';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
@@ -63,7 +64,18 @@ export interface EditBookingDeps {
 }
 
 export type EditBookingResult =
-  | { ok: true; booking: Booking; changedFields: string[] }
+  | {
+      ok: true;
+      booking: Booking;
+      changedFields: string[];
+      /**
+       * True when a driver-facing field was edited on an already-dispatched
+       * booking (assigned/in_progress). The booking is now flagged
+       * `change pending` and the console should prompt the operator to confirm
+       * the driver knows the new plan. See docs/shaping/mid-flight-changes.
+       */
+      materialChange: boolean;
+    }
   | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
   | { ok: false; reason: 'booking_not_found' }
   | { ok: false; reason: 'not_editable'; state: string };
@@ -119,8 +131,13 @@ export async function editBooking(
 
   // Nothing changed — return the booking untouched, no audit, no mirror.
   if (changedFields.length === 0) {
-    return { ok: true, booking: existing, changedFields };
+    return { ok: true, booking: existing, changedFields, materialChange: false };
   }
+
+  // A driver-facing change on an already-dispatched booking flags it for driver
+  // re-confirmation (advisory — the new details go live immediately regardless).
+  const isDispatched = existing.state === 'assigned' || existing.state === 'in_progress';
+  const materialChange = isDispatched && isMaterialChange(changedFields);
 
   const now = (deps.clock ?? systemClock).now();
   const [updated] = await deps.db
@@ -142,6 +159,17 @@ export async function editBooking(
       contractPricePence: data.contractPricePence,
       notes,
       operatorNotes,
+      // Flag for driver re-confirmation on a material mid-flight change. A new
+      // change supersedes any prior confirmation, so reset the confirmed fields.
+      ...(materialChange
+        ? {
+            changeConfirmationStatus: 'pending' as const,
+            changePendingSince: now,
+            changeConfirmedAt: null,
+            changeConfirmedMethod: null,
+            changeConfirmedByOperatorId: null,
+          }
+        : {}),
       updatedAt: now,
     })
     .where(and(eq(bookings.id, data.bookingId), eq(bookings.state, existing.state)))
@@ -162,7 +190,7 @@ export async function editBooking(
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
-  return { ok: true, booking: updated, changedFields };
+  return { ok: true, booking: updated, changedFields, materialChange };
 }
 
 type EditableFields = Omit<EditBookingInput, 'bookingId' | 'dropoffAddress' | 'distanceMeters'> & {
