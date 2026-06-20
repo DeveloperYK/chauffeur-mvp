@@ -140,12 +140,7 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         </Alert>
       ) : null}
 
-      <Field
-        label="Customer account"
-        required
-        error={errors.customerAccount?.message}
-        helper="The company the trip is billed to — not the passenger."
-      >
+      <Field label="Customer account" required error={errors.customerAccount?.message}>
         <Input
           type="text"
           {...register('customerAccount')}
@@ -154,12 +149,7 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         />
       </Field>
 
-      <Field
-        label="Case code"
-        required
-        error={errors.caseCode?.message}
-        helper="Expense code the customer's company uses to cover the cost."
-      >
+      <Field label="Case code" required error={errors.caseCode?.message}>
         <Input
           type="text"
           {...register('caseCode')}
@@ -168,12 +158,7 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         />
       </Field>
 
-      <Field
-        label="Pickup date and time"
-        required
-        error={errors.pickupAt?.message}
-        helper="Local UK time"
-      >
+      <Field label="Pickup date and time" required error={errors.pickupAt?.message}>
         <Input type="datetime-local" {...register('pickupAt')} aria-invalid={!!errors.pickupAt} />
       </Field>
 
@@ -249,7 +234,6 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         label="Executive mobile"
         required
         error={errors.execMobile?.message}
-        helper="International format with country code: e.g. +44 7911 123 456"
         className="md:col-span-2"
       >
         <Input
@@ -264,7 +248,6 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         label="Executive email"
         required={EXEC_NOTIFICATION_CHANNEL === 'email'}
         error={errors.execEmail?.message}
-        helper="Used for exec emails when the email channel is active."
         className="md:col-span-2"
       >
         <Input
@@ -275,12 +258,12 @@ export function BookingForm({ drivers, error: serverError }: BookingFormProps) {
         />
       </Field>
 
-      <Field label="Notes" helper="Optional — special requests, flight number, etc.">
+      <Field label="Notes">
         <Textarea {...register('notes')} rows={3} aria-invalid={!!errors.notes} />
       </Field>
 
       <div className="flex flex-col gap-2">
-        <Field label="Assign driver" helper="Optional — assign a driver now">
+        <Field label="Assign driver">
           <Select {...register('assignedDriverId')} defaultValue="">
             <option value="">— Select a driver (optional) —</option>
             {drivers.map((d) => (

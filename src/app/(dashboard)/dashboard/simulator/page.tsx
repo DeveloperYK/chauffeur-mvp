@@ -56,7 +56,7 @@ export default async function SimulatorPage({
     <PageContent>
       <PageHeader
         title="Simulator"
-        description="Demo sandbox: seed data, advance time, force state transitions, and inspect the in-memory SMS + Sheets mirrors. The clock tick here uses the in-memory SMS fake — no real texts are sent."
+        description="Demo sandbox: seed data, advance time, force state transitions, and inspect the in-memory SMS + Sheets mirrors. SMS stays an in-memory fake (no real texts) — but the clock tick sends REAL exec emails, so you can verify email delivery end-to-end. Only bookings with a real exec email on file are emailed."
         breadcrumb={
           <Link href="/dashboard" className="hover:underline">
             Board
@@ -105,7 +105,8 @@ export default async function SimulatorPage({
           </CardHeader>
           <p className="mb-3 text-sm text-ink-muted">
             Run one pass of the clock service. In production this is triggered every minute by an
-            external scheduler — here you fire it on demand.
+            external scheduler — here you fire it on demand. A booking advancing to “in progress”
+            sends a real en-route email to its exec (if an exec email is on file).
           </p>
           <form action={clockTickAction}>
             <Button variant="primary" type="submit">

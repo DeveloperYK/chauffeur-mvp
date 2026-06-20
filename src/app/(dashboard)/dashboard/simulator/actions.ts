@@ -1,7 +1,7 @@
 'use server';
 
 import { currentSession } from '@/server/auth/current';
-import { db, fakeEmailer, fakeMirror, fakeNotifier } from '@/server/composition';
+import { db, email, fakeMirror, fakeNotifier } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
 import { simulatorEnabled } from '@/server/feature-flags';
 import { clockTick } from '@/server/services/clock-tick';
@@ -50,10 +50,13 @@ export async function resetAction(): Promise<void> {
 export async function clockTickAction(): Promise<void> {
   assertSimulatorEnabled();
   await requireSession();
-  // Always use the in-memory fake here so the simulator never sends real SMS,
-  // even on a production demo deploy where notifications() is the live Twilio
-  // adapter. The "SMS sent" panel reads this same fake.
-  await clockTick({ db: db(), notifications: fakeNotifier, email: fakeEmailer });
+  // SMS stays the in-memory fake (no real texts / Twilio cost, even on a prod
+  // demo deploy). Email uses the REAL adapter so a clock tick that advances a
+  // booking to in_progress sends a genuine en-route email — the only way to
+  // verify exec email delivery end-to-end without waiting for the cron. Seed
+  // bookings have no exec email, so the no-contact guard skips them; only a
+  // booking with a real exec email on file actually sends.
+  await clockTick({ db: db(), notifications: fakeNotifier, email: email() });
   revalidatePath('/dashboard/simulator');
   revalidatePath('/dashboard');
   redirect('/dashboard/simulator?ok=ticked');

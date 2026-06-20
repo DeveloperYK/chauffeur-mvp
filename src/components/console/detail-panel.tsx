@@ -715,7 +715,7 @@ export function DetailPanel({
           {hasOperatorNotes ? (
             <section className="ic">
               <header className="ic__head">
-                <span>🔒 Private notes — operators only</span>
+                <span>Private notes</span>
               </header>
               <div className="ic__body ic__body--prose">{booking.operatorNotes}</div>
             </section>
