@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm run migrate:deploy && pnpm build"
+  "buildCommand": "pnpm run migrate:deploy && pnpm build",
+  "crons": [
+    {
+      "path": "/api/clock-tick",
+      "schedule": "* * * * *"
+    }
+  ]
 }
