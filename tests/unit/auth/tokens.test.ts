@@ -1,4 +1,9 @@
-import { constantTimeEqualHex, generateSessionToken, hashSessionToken } from '@/server/auth/tokens';
+import {
+  constantTimeEqual,
+  constantTimeEqualHex,
+  generateSessionToken,
+  hashSessionToken,
+} from '@/server/auth/tokens';
 import { describe, expect, it } from 'vitest';
 
 describe('tokens', () => {
@@ -20,5 +25,12 @@ describe('tokens', () => {
     expect(constantTimeEqualHex('ab12', 'ab12')).toBe(true);
     expect(constantTimeEqualHex('ab12', 'ab13')).toBe(false);
     expect(constantTimeEqualHex('ab12', 'ab1234')).toBe(false);
+  });
+
+  it('constantTimeEqual compares arbitrary utf-8 strings', () => {
+    expect(constantTimeEqual('Bearer secret', 'Bearer secret')).toBe(true);
+    expect(constantTimeEqual('Bearer secret', 'Bearer secreX')).toBe(false);
+    expect(constantTimeEqual('short', 'longer-value')).toBe(false);
+    expect(constantTimeEqual('', '')).toBe(true);
   });
 });

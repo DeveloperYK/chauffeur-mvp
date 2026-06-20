@@ -9,6 +9,11 @@ const schema = z.object({
   // unset the clock loop is disabled. When present it must be long enough to
   // resist guessing — validated here so a misconfigured deploy fails fast.
   CLOCK_TICK_SECRET: z.string().min(16).optional(),
+  // Secret used to authenticate Vercel Cron calls to GET /api/clock-tick. Vercel
+  // injects this as `Authorization: Bearer <CRON_SECRET>` on every scheduled
+  // invocation (the var MUST be named CRON_SECRET for that injection to happen).
+  // Optional: when unset the GET endpoint reports the clock loop as disabled (503).
+  CRON_SECRET: z.string().min(16).optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
