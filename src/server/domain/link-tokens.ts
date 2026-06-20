@@ -1,7 +1,7 @@
 import { type JWTPayload, SignJWT, jwtVerify } from 'jose';
 import { z } from 'zod';
 
-export type DriverLinkType = 'dispatch' | 'completion';
+export type DriverLinkType = 'dispatch' | 'completion' | 'change_confirm';
 
 export interface DriverLinkPayload {
   jobId: string;
@@ -15,7 +15,7 @@ export interface DriverLinkPayload {
 const payloadSchema = z.object({
   jobId: z.string().uuid(),
   driverId: z.string().uuid(),
-  type: z.enum(['dispatch', 'completion']),
+  type: z.enum(['dispatch', 'completion', 'change_confirm']),
   jti: z.string().min(8),
   iat: z.number().int(),
   exp: z.number().int(),

@@ -6,7 +6,9 @@ import {
   approveBookingAction,
   assignBookingOperatorAction,
   bookingHistoryAction,
+  confirmChangeOnBehalfAction,
   execNotificationsAction,
+  generateChangeConfirmLinkAction,
   generateCompletionLinkAction,
   rejectBookingAction,
   releaseDriverAction,
@@ -57,6 +59,7 @@ export function DetailPanel({
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
+  const [changeLink, setChangeLink] = useState<CompletionLink | null>(null);
   const [editingPay, setEditingPay] = useState(false);
   const [payDraft, setPayDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +76,7 @@ export function DetailPanel({
       setShowExec(false);
       setExecMessages(null);
       setCompletionLink(null);
+      setChangeLink(null);
       setEditingPay(false);
       setPayDraft('');
       setError(null);
@@ -217,6 +221,75 @@ export function DetailPanel({
       }
       setCompletionLink({ url: result.url, whatsappUrl: result.whatsappUrl });
     });
+  };
+  const confirmChangeByPhone = () =>
+    run(
+      () => confirmChangeOnBehalfAction(booking.id),
+      'Change confirmed — driver attested by phone.',
+    );
+  const sendChangeLink = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await generateChangeConfirmLinkAction(booking.id);
+      if (!result.ok || !result.url || !result.whatsappUrl) {
+        setError(result.error ?? 'Could not generate the change link.');
+        return;
+      }
+      setChangeLink({ url: result.url, whatsappUrl: result.whatsappUrl });
+    });
+  };
+
+  // Mid-flight change confirmation banner — only on a dispatched booking that
+  // has an outstanding (or just-confirmed) driver-facing change. Advisory: the
+  // new details are already live; this only tracks whether the driver knows.
+  const renderChangeConfirm = () => {
+    const isDispatched = booking.state === 'assigned' || booking.state === 'in_progress';
+    if (!isDispatched) return null;
+    if (booking.changeConfirmationStatus === 'pending') {
+      return (
+        <div className="dp-change dp-change--pending">
+          <div className="dp-change__head">
+            <Lozenge tone="red">
+              <Icon.Flag style={{ width: 10, height: 10, marginRight: 4 }} />
+              CHANGE — DRIVER NOT CONFIRMED
+            </Lozenge>
+          </div>
+          <p className="dp-change__note">
+            Booking details changed after dispatch. Confirm the driver knows the new plan.
+          </p>
+          <div className="dp-actions">
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={confirmChangeByPhone}
+              disabled={isPending}
+            >
+              <Icon.Phone /> Driver confirmed by phone
+            </button>
+            {booking.assignedDriverId ? (
+              <button type="button" className="btn" onClick={sendChangeLink} disabled={isPending}>
+                <Icon.Send /> Send change link
+              </button>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+    if (booking.changeConfirmationStatus === 'confirmed') {
+      const how = booking.changeConfirmedMethod === 'operator_attested' ? 'by phone' : 'by driver';
+      return (
+        <div className="dp-change dp-change--ok">
+          <Lozenge tone="green">
+            <Icon.Check style={{ width: 10, height: 10, marginRight: 4 }} />
+            CHANGE CONFIRMED {how.toUpperCase()}
+          </Lozenge>
+          {booking.changeConfirmedAt ? (
+            <span className="dp-change__when">{relTime(booking.changeConfirmedAt)}</span>
+          ) : null}
+        </div>
+      );
+    }
+    return null;
   };
   // Contextual actions per state. Only offers what the backend can actually do.
   const renderActions = () => {
@@ -432,6 +505,9 @@ export function DetailPanel({
               <div className="ic__body">{error}</div>
             </div>
           ) : null}
+
+          {/* MID-FLIGHT CHANGE CONFIRMATION */}
+          {renderChangeConfirm()}
 
           {/* PRIMARY ACTIONS */}
           {renderActions()}
@@ -886,6 +962,13 @@ export function DetailPanel({
         driverName={contact?.name ?? null}
         link={completionLink}
         onClose={() => setCompletionLink(null)}
+      />
+      <CompletionLinkModal
+        booking={booking}
+        driverName={contact?.name ?? null}
+        link={changeLink}
+        onClose={() => setChangeLink(null)}
+        title="Change confirmation link"
       />
     </>
   );

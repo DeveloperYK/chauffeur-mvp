@@ -3487,6 +3487,39 @@ a:hover {
   max-width: 45%;
 }
 
+/* Mid-flight change confirmation banner (docs/shaping/mid-flight-changes) */
+.dp-change {
+  margin: 0 24px 12px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+}
+.dp-change--pending {
+  background: var(--lz-red-bg);
+  border: 1px solid var(--lz-red-fg);
+}
+.dp-change--ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--lz-green-bg);
+  border: 1px solid var(--lz-green-fg);
+}
+.dp-change__head {
+  margin-bottom: 6px;
+}
+.dp-change__note {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.dp-change--pending .dp-actions {
+  padding: 0;
+}
+.dp-change__when {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
 .dp-actions {
   padding: 0 24px 18px;
   display: flex;

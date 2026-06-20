@@ -16,6 +16,10 @@ import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
 import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
+  confirmChangeOnBehalf,
+  generateChangeConfirmLink,
+} from '@/server/services/change-confirmation';
+import {
   approveBooking,
   completeFormOnBehalf,
   generateCompletionLink,
@@ -180,6 +184,65 @@ export async function dispatchManyAction(
       whatsappUrl: o.whatsappUrl,
     })),
     skippedCount: result.skipped.length,
+  };
+}
+
+/**
+ * Operator attests — after a phone call — that the assigned driver knows the
+ * changed plan, clearing the booking's `change pending` flag.
+ */
+export async function confirmChangeOnBehalfAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await confirmChangeOnBehalf(bookingId, op.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : 'There is no pending change to confirm.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/**
+ * Mint a "your booking changed — confirm" link for the assigned driver and
+ * return a WhatsApp deep link the operator sends (mirrors dispatch). Backfill
+ * jobs have no app driver — the operator attests by phone instead.
+ */
+export async function generateChangeConfirmLinkAction(
+  bookingId: string,
+): Promise<DispatchActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await generateChangeConfirmLink(bookingId, op.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'no_app_driver'
+          ? 'No app driver on this job — confirm by phone instead.'
+          : 'There is no pending change to confirm.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return {
+    ok: true,
+    url: result.url,
+    whatsappUrl: result.whatsappUrl,
+    driverName: result.driver.name,
   };
 }
 
