@@ -155,10 +155,10 @@ describe('spreadsheet mirror integration', () => {
     // mirror.rows is keyed by booking.id; multiple upserts overwrite.
     const finalRow = mirror.rows.get(bookingId);
     expect(finalRow).toBeDefined();
-    expect(finalRow?.[11]).toBe('300.00'); // contract price
-    expect(finalRow?.[15]).toBe('7.50'); // car park
-    expect(finalRow?.[18]).toBe('Yes'); // invoiced (completed)
-    expect(finalRow?.[12]).toBe('Tom'); // driver name
+    expect(finalRow?.[11]).toBe('300.00'); // contract price (L)
+    expect(finalRow?.[15]).toBe('7.50'); // car park (P)
+    expect(finalRow?.[17]).toBe('Eric French'); // passenger name (R)
+    expect(finalRow?.[12]).toBe('Tom'); // driver name (M)
   });
 
   it('mirror failure does not break the operation', async () => {

@@ -3,7 +3,17 @@ import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
 import { waitingFee } from '@/server/domain/waiting-fee';
 
-/** Columns A–AD from the existing JJ DATA workbook. */
+/**
+ * Columns A–AA matching the "Main Data" table in the current JJ workbook
+ * (`JJ .xlsx`). The mirror reproduces this table exactly so the sheet is a
+ * faithful, self-contained backup operators can fall back to.
+ *
+ * Changed from the previous layout: `Hourly Rate` is now `Driver Cost`, and the
+ * three columns `Drop Off Time (24hr)`, `Raise an invoice??` and
+ * `Invoiced by Driver?` were removed (everything after `Waiting Time` shifts
+ * left by three). Billing-output columns (Driver Cost, Net Due, VAT, Total,
+ * Sub-contractor Cost) are left blank for the operators' downstream invoicing.
+ */
 export const SHEET_HEADERS = [
   'Job #', // A
   'Date', // B
@@ -19,23 +29,23 @@ export const SHEET_HEADERS = [
   'Contract Price (£)', // L
   'Driver Name', // M
   'Driver Type', // N
-  'Hourly Rate', // O — reserved
+  'Driver Cost', // O — reserved for downstream billing
   'Car Park (£)', // P
   'Waiting Time (hh:mm)', // Q
-  'Drop Off Time (24hr)', // R
-  'Raise an invoice??', // S
-  'Invoiced by Driver?', // T
-  'Passenger Name', // U
-  'Total Trip Time', // V
-  'Trip Details From To', // W
-  'Waiting (£)', // X
-  'Net Due (£)', // Y
-  'VAT (£)', // Z
-  'Total (£)', // AA
-  'Sub-contractor Cost', // AB
-  'Month', // AC
-  'WeekDay', // AD
+  'Passenger Name', // R
+  'Total Trip Time', // S
+  'Trip Details From To', // T
+  'Waiting (£)', // U
+  'Net Due (£)', // V
+  'VAT (£)', // W
+  'Total (£)', // X
+  'Sub-contractor Cost', // Y
+  'Month', // Z
+  'WeekDay', // AA
 ] as const;
+
+/** Last spreadsheet column letter for the table (27 columns → AA). */
+export const SHEET_LAST_COLUMN = 'AA';
 
 export interface MirrorRowInput {
   booking: Booking;
@@ -97,7 +107,6 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     ? carLabel(booking.backfillCar)
     : [driver?.carColour?.trim(), carLabel(driver?.car ?? null)].filter(Boolean).join(' ');
   const pickup = booking.pickupAt;
-  const dropoff = booking.dropoffAt;
   const totalMinutes = booking.dropoffAt
     ? Math.max(0, Math.round((booking.dropoffAt.getTime() - pickup.getTime()) / 60_000))
     : booking.expectedDurationMinutes;
@@ -118,30 +127,27 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     booking.accountCode,
     car,
     (booking.contractPricePence / 100).toFixed(2),
-    driver?.name ?? '',
-    employmentLabel(driver),
-    '', // hourly rate
-    booking.carParkPence != null ? (booking.carParkPence / 100).toFixed(2) : '',
+    driver?.name ?? '', // M Driver Name
+    employmentLabel(driver), // N Driver Type
+    '', // O Driver Cost — reserved for downstream billing
+    booking.carParkPence != null ? (booking.carParkPence / 100).toFixed(2) : '', // P Car Park (£)
     booking.waitingTimeMinutes != null
       ? `${Math.floor(booking.waitingTimeMinutes / 60)
           .toString()
           .padStart(2, '0')}:${(booking.waitingTimeMinutes % 60).toString().padStart(2, '0')}`
-      : '',
-    dropoff ? formatTimeOfDay(dropoff) : '',
-    booking.state === 'completed' ? 'Yes' : 'No',
-    '',
-    `${booking.passengerFirstName}${booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}`,
-    `${totalMinutes} min`,
-    `${booking.pickupAddress} → ${booking.dropoffAddress}`,
-    // Waiting (£) — computed live from the reported waiting minutes; blank when
-    // none is chargeable. Net Due / VAT / Total stay blank for the sheet's own
-    // formulas (see docs/shaping/invoicing-reporting.md).
+      : '', // Q Waiting Time (hh:mm)
+    `${booking.passengerFirstName}${booking.passengerLastName ? ` ${booking.passengerLastName}` : ''}`, // R Passenger Name
+    `${totalMinutes} min`, // S Total Trip Time
+    `${booking.pickupAddress} → ${booking.dropoffAddress}`, // T Trip Details From To
+    // U Waiting (£) — computed live from the reported waiting minutes; blank when
+    // none is chargeable. Driver Cost / Net Due / VAT / Total / Sub-contractor
+    // Cost stay blank for the operators' downstream invoicing.
     waitingPounds(booking.waitingTimeMinutes),
-    '', // Net Due (£)
-    '', // VAT (£)
-    '', // Total (£)
-    '', // Sub-contractor Cost
-    pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'Europe/London' }),
-    pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'Europe/London' }),
+    '', // V Net Due (£)
+    '', // W VAT (£)
+    '', // X Total (£)
+    '', // Y Sub-contractor Cost
+    pickup.toLocaleString('en-GB', { month: 'long', timeZone: 'Europe/London' }), // Z Month
+    pickup.toLocaleString('en-GB', { weekday: 'long', timeZone: 'Europe/London' }), // AA WeekDay
   ];
 }

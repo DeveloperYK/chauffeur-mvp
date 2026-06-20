@@ -80,10 +80,10 @@ const operator: Operator = {
 };
 
 describe('rowFromBooking', () => {
-  it('produces a 30-column row matching the JJ DATA layout', () => {
+  it('produces a 27-column row matching the JJ Main Data layout', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(30);
+    expect(row.length).toBe(27);
   });
 
   it('formats pickup date and time of day in Europe/London (BST)', () => {
@@ -100,7 +100,7 @@ describe('rowFromBooking', () => {
     });
     expect(row[1]).toBe('2026-06-02'); // Date (London)
     expect(row[2]).toBe('00:30'); // Pick Up Time (London)
-    expect(row[29]).toBe('Tuesday'); // WeekDay (London) — 2 Jun 2026
+    expect(row[26]).toBe('Tuesday'); // WeekDay (London, col AA) — 2 Jun 2026
   });
 
   it('renders price in pounds with 2 decimals', () => {
@@ -127,32 +127,27 @@ describe('rowFromBooking', () => {
       },
       driver,
     });
-    expect(row[15]).toBe('');
-    expect(row[16]).toBe('');
-    expect(row[17]).toBe('');
+    expect(row[14]).toBe(''); // Driver Cost (O) — reserved, always blank
+    expect(row[15]).toBe(''); // Car Park (P)
+    expect(row[16]).toBe(''); // Waiting Time (Q)
   });
 
-  it('renders the waiting charge in the Waiting (£) column (X), blank within the free period', () => {
+  it('renders the waiting charge in the Waiting (£) column (U), blank within the free period', () => {
     // 50 min waited -> 20 chargeable min @ £0.50 = £10.00
     const charged = rowFromBooking({
       booking: { ...baseBooking, waitingTimeMinutes: 50 },
       driver,
     });
-    expect(charged[23]).toBe('10.00'); // Waiting (£)
+    expect(charged[20]).toBe('10.00'); // Waiting (£)
 
     // base booking waited 12 min -> within the free period -> blank
     const free = rowFromBooking({ booking: baseBooking, driver });
-    expect(free[23]).toBe('');
+    expect(free[20]).toBe('');
   });
 
-  it('renders Yes/No for invoice flag based on completed state', () => {
-    const completed = rowFromBooking({ booking: baseBooking, driver });
-    expect(completed[18]).toBe('Yes');
-    const assigned = rowFromBooking({
-      booking: { ...baseBooking, state: 'assigned' },
-      driver,
-    });
-    expect(assigned[18]).toBe('No');
+  it('renders the full passenger name in the Passenger Name column (R)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[17]).toBe('Eric French');
   });
 
   it("renders the assigned driver's car + colour in the Car Type column", () => {
