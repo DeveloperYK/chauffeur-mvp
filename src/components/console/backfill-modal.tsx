@@ -119,7 +119,6 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. +44 7911 123456"
               />
-              <div className="hint">Include the country code with a leading +.</div>
             </div>
           </div>
 
@@ -154,7 +153,6 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
                   placeholder="120"
                 />
               </div>
-              <div className="hint">What this backfill driver is paid for the job.</div>
             </div>
           </div>
         </div>

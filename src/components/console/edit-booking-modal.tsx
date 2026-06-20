@@ -305,9 +305,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                       </option>
                     ))}
                   </select>
-                  <div className="hint">
-                    No fixed destination — the car is at the exec’s disposal.
-                  </div>
                 </div>
               </div>
             )}
@@ -328,7 +325,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   placeholder="e.g. LEGO Group, Mercedes-Benz UK"
                   ariaLabel="Customer account"
                 />
-                <div className="hint">The company the trip is billed to — not the passenger.</div>
               </div>
             </div>
             <div className="field">
@@ -343,7 +339,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   onChange={(e) => set('caseCode', e.target.value)}
                   placeholder="e.g. LEGO-2026-0142"
                 />
-                <div className="hint">Expense code the customer&apos;s company bills against.</div>
               </div>
             </div>
             <div className="field">
@@ -416,7 +411,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     onChange={(e) => set('contractPricePounds', e.target.value)}
                   />
                 </div>
-                <div className="hint">Contract price, excluding car park &amp; waiting time.</div>
               </div>
             </div>
           </div>
@@ -437,11 +431,10 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   onChange={(e) => set('notes', e.target.value)}
                 />
               </div>
-              <div className="hint">The driver sees this on their job link.</div>
             </div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Private notes — operators only</label>
+              <label>Private notes</label>
               <div className="ctrl">
                 <textarea
                   rows={3}
@@ -450,7 +443,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   placeholder="e.g. difficult client, account on stop, billing quirk…"
                 />
               </div>
-              <div className="hint">🔒 Never shown to the driver.</div>
             </div>
           </div>
         </div>

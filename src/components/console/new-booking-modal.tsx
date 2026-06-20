@@ -290,11 +290,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     As-directed (hourly)
                   </button>
                 </div>
-                <div className="hint">
-                  {form.serviceType === 'transfer'
-                    ? 'Point-to-point. Drive time and price are estimated from the route.'
-                    : 'Driver at the exec’s disposal for a set number of hours — no fixed destination.'}
-                </div>
               </div>
             </div>
 
@@ -363,9 +358,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                       value={form.expectedDurationMinutes}
                       onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
                     />
-                    <div className="hint">
-                      Auto-filled from the route; adjust for traffic/buffer.
-                    </div>
                   </div>
                 </div>
               </>
@@ -386,7 +378,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                       </option>
                     ))}
                   </select>
-                  <div className="hint">How long the car is booked for. 2-hour minimum.</div>
                 </div>
               </div>
             )}
@@ -407,10 +398,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   placeholder="e.g. LEGO Group, Mercedes-Benz UK"
                   ariaLabel="Customer account"
                 />
-                <div className="hint">
-                  The company the trip is billed to — not the passenger. This is the account on the
-                  invoice.
-                </div>
               </div>
             </div>
             <div className="field">
@@ -425,10 +412,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   onChange={(e) => set('caseCode', e.target.value)}
                   placeholder="e.g. LEGO-2026-0142"
                 />
-                <div className="hint">
-                  The expense code the customer&apos;s company uses to cover the cost. Required for
-                  billing.
-                </div>
               </div>
             </div>
             <div className="field">
@@ -465,10 +448,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   onChange={(e) => set('execMobile', e.target.value)}
                   placeholder="+44 7911 123 456"
                 />
-                <div className="hint">
-                  International format with country code. Used for the &lsquo;booking
-                  confirmed&rsquo; and &lsquo;en route&rsquo; SMS.
-                </div>
               </div>
             </div>
             <div className="field">
@@ -485,9 +464,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   placeholder="exec@example.com"
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
-                <div className="hint">
-                  Used for the exec emails when the email channel is active.
-                </div>
               </div>
             </div>
           </div>
@@ -509,10 +485,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     onChange={(e) => set('contractPricePounds', e.target.value)}
                     placeholder="145"
                   />
-                </div>
-                <div className="hint">
-                  Contract price, excluding car park &amp; waiting time (the driver fills those
-                  after the trip).
                 </div>
               </div>
             </div>
@@ -539,11 +511,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   }
                 />
               </div>
-              <div className="hint">The driver sees this on their job link.</div>
             </div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>Private notes — operators only</label>
+              <label>Private notes</label>
               <div className="ctrl">
                 <textarea
                   rows={3}
@@ -552,7 +523,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   placeholder="e.g. difficult client, account on stop, billing quirk…"
                 />
               </div>
-              <div className="hint">🔒 Never shown to the driver.</div>
             </div>
           </div>
         </div>
