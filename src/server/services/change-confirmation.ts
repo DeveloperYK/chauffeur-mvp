@@ -6,12 +6,37 @@ import { dispatchLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink, verifyDriverLink } from '@/server/domain/link-tokens';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { EmailPort } from '@/server/ports/email';
+import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
+import { notifyExecOfChange } from './exec-notifications';
 import { mirrorBooking } from './mirror';
 import { createShortLink } from './short-links';
 import { changeSms } from './sms-templates';
+
+/**
+ * Best-effort: when a confirmed change was exec-relevant (touched time / pickup /
+ * destination), email the exec that the update is confirmed. Email-only and never
+ * blocks confirmation — a send problem is recorded as a failed exec notification,
+ * not surfaced here. See docs/shaping/mid-flight-changes.
+ */
+async function maybeEmailExecOfChange(
+  deps: { db: Database; notifications?: NotificationPort; email?: EmailPort },
+  booking: Booking,
+): Promise<void> {
+  if (!booking.changeExecRelevant) return;
+  if (!deps.notifications || !deps.email) return;
+  try {
+    await notifyExecOfChange(
+      { db: deps.db, notifications: deps.notifications, email: deps.email },
+      booking.id,
+    );
+  } catch {
+    // Confirmation already succeeded; an exec-email hiccup must never undo it.
+  }
+}
 
 // ── Generate a change-confirm link for the assigned driver ───────────────────
 
@@ -148,6 +173,9 @@ export interface ConfirmChangeOnBehalfDeps {
   db: Database;
   clock?: Clock;
   mirror?: SpreadsheetMirrorPort;
+  /** Ports for the auto exec-email on an exec-relevant confirmed change. */
+  notifications?: NotificationPort;
+  email?: EmailPort;
 }
 
 /**
@@ -194,6 +222,7 @@ export async function confirmChangeOnBehalf(
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+  await maybeEmailExecOfChange(deps, updated);
 
   return { ok: true, booking: updated };
 }
@@ -203,6 +232,9 @@ export interface ConfirmChangeBySelfDeps {
   clock?: Clock;
   secret: string;
   mirror?: SpreadsheetMirrorPort;
+  /** Ports for the auto exec-email on an exec-relevant confirmed change. */
+  notifications?: NotificationPort;
+  email?: EmailPort;
 }
 
 export type ConfirmChangeBySelfResult =
@@ -258,6 +290,7 @@ export async function confirmChangeBySelf(
   });
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+  await maybeEmailExecOfChange(deps, updated);
 
   return { ok: true, booking: updated };
 }

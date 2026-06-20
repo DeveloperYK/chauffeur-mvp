@@ -99,6 +99,19 @@ describe('services/edit-booking — mid-flight change flag (integration)', () =>
     const [row] = await db.select().from(bookings).where(eq(bookings.id, b.id));
     expect(row?.changeConfirmationStatus).toBe('pending');
     expect(row?.changePendingSince).toBeTruthy();
+    // Destination is exec-facing, so the change is flagged exec-relevant.
+    expect(row?.changeExecRelevant).toBe(true);
+  });
+
+  it('flags pending but NOT exec-relevant for a driver-only change (duration)', async () => {
+    const b = await seed('assigned');
+    const res = await editBooking(fullEdit(b.id, { expectedDurationMinutes: 150 }), operatorId, {
+      db,
+    });
+    expect(res.ok && res.materialChange).toBe(true);
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(row?.changeConfirmationStatus).toBe('pending');
+    expect(row?.changeExecRelevant).toBe(false);
   });
 
   it('flags pending on a driver-facing change while in_progress', async () => {

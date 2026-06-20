@@ -286,6 +286,11 @@ export const bookings = pgTable(
     changeConfirmationStatus: changeConfirmationStatusEnum('change_confirmation_status')
       .notNull()
       .default('none'),
+    // True when the pending change touched something the exec was told (time /
+    // pickup / destination). On confirmation, an exec-relevant change auto-emails
+    // the exec that the booking was updated; driver-only changes leave it false so
+    // confirming them stays silent to the exec. See docs/shaping/mid-flight-changes.
+    changeExecRelevant: boolean('change_exec_relevant').notNull().default(false),
     changePendingSince: timestamp('change_pending_since', { withTimezone: true }),
     changeConfirmedAt: timestamp('change_confirmed_at', { withTimezone: true }),
     changeConfirmedMethod: confirmationMethodEnum('change_confirmed_method'),

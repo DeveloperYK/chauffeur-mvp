@@ -1,4 +1,9 @@
-import { DRIVER_FACING_CHANGE_LABELS, isMaterialChange } from '@/server/domain/booking-changes';
+import {
+  DRIVER_FACING_CHANGE_LABELS,
+  EXEC_FACING_CHANGE_LABELS,
+  isExecFacingChange,
+  isMaterialChange,
+} from '@/server/domain/booking-changes';
 import { describe, expect, it } from 'vitest';
 
 describe('domain/booking-changes — isMaterialChange', () => {
@@ -41,5 +46,32 @@ describe('domain/booking-changes — isMaterialChange', () => {
   it('distinguishes driver-facing "notes" from operator-only "private notes"', () => {
     expect(isMaterialChange(['notes'])).toBe(true);
     expect(isMaterialChange(['private notes'])).toBe(false);
+  });
+});
+
+describe('domain/booking-changes — isExecFacingChange', () => {
+  it('is exec-facing for time / pickup / destination', () => {
+    for (const label of EXEC_FACING_CHANGE_LABELS) {
+      expect(isExecFacingChange([label])).toBe(true);
+    }
+  });
+
+  it('is NOT exec-facing for driver-only fields (duration, notes, passenger, service type)', () => {
+    expect(isExecFacingChange(['duration'])).toBe(false);
+    expect(isExecFacingChange(['notes'])).toBe(false);
+    expect(isExecFacingChange(['passenger name'])).toBe(false);
+    expect(isExecFacingChange(['service type'])).toBe(false);
+  });
+
+  it('is NOT exec-facing for cosmetic fields or an empty set', () => {
+    expect(isExecFacingChange(['price'])).toBe(false);
+    expect(isExecFacingChange(['exec mobile'])).toBe(false);
+    expect(isExecFacingChange([])).toBe(false);
+  });
+
+  it('every exec-facing label is also driver-facing (exec-facing ⊆ material)', () => {
+    for (const label of EXEC_FACING_CHANGE_LABELS) {
+      expect(DRIVER_FACING_CHANGE_LABELS).toContain(label);
+    }
   });
 });

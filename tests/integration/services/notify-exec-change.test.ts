@@ -1,3 +1,4 @@
+import { FakeEmailAdapter } from '@/server/adapters/email-fake';
 import { FakeNotificationAdapter } from '@/server/adapters/notification-fake';
 import { bookings, drivers, execNotifications, operators } from '@/server/db/schema';
 import { notifyExecOfChange } from '@/server/services/exec-notifications';
@@ -11,8 +12,9 @@ describe('services/exec-notifications — notifyExecOfChange (integration)', () 
   let operatorId: string;
   let driverId: string;
   let notifications: FakeNotificationAdapter;
+  let email: FakeEmailAdapter;
 
-  const EXEC = '+447911999999';
+  const EXEC_EMAIL = 'eric@example.com';
 
   beforeAll(async () => {
     const t = await createTestDb();
@@ -44,58 +46,69 @@ describe('services/exec-notifications — notifyExecOfChange (integration)', () 
     await db.delete(execNotifications);
     await db.delete(bookings);
     notifications = new FakeNotificationAdapter();
+    email = new FakeEmailAdapter();
   });
 
-  async function seed(assigned: boolean) {
+  async function seed(opts: { assigned: boolean; execEmail: string | null }) {
     const [row] = await db
       .insert(bookings)
       .values({
-        state: assigned ? 'assigned' : 'unassigned',
+        state: opts.assigned ? 'assigned' : 'unassigned',
         pickupAt: new Date('2026-06-01T10:00:00.000Z'),
         expectedDurationMinutes: 90,
         pickupAddress: '11 Belsize Park Gardens, London',
         dropoffAddress: 'LHR Terminal 5',
         passengerFirstName: 'Eric',
-        execMobile: EXEC,
+        execMobile: '+447911999999',
+        execEmail: opts.execEmail,
         clientName: 'LEGO Group',
         accountCode: 'LEGO Group',
         contractPricePence: 30000,
         createdByOperatorId: operatorId,
-        assignedOperatorId: operatorId,
-        assignedDriverId: assigned ? driverId : null,
+        assignedOperatorId: opts.assigned ? operatorId : null,
+        assignedDriverId: opts.assigned ? driverId : null,
       })
       .returning();
     if (!row) throw new Error('seed failed');
     return row;
   }
 
-  it('sends a `changed` exec SMS and records the attempt', async () => {
-    const booking = await seed(true);
-    const res = await notifyExecOfChange({ db, notifications }, booking.id);
+  it('emails the exec (never SMS) and records a `changed` attempt', async () => {
+    const booking = await seed({ assigned: true, execEmail: EXEC_EMAIL });
+    const res = await notifyExecOfChange({ db, notifications, email }, booking.id);
     expect(res.ok).toBe(true);
 
-    // Exec was texted the update.
-    const execMsg = notifications.sent.find((m) => m.to === EXEC);
-    expect(execMsg).toBeTruthy();
-    expect(execMsg?.body.toLowerCase()).toContain('updated');
+    // Emailed, not texted.
+    expect(email.sent.some((m) => m.to === EXEC_EMAIL)).toBe(true);
+    expect(email.sent[0]?.text.toLowerCase()).toContain('confirmed');
+    expect(notifications.sent).toHaveLength(0);
 
-    // Attempt persisted as a `changed` notification.
+    // Persisted as a `changed` email notification.
     const rows = await db
       .select()
       .from(execNotifications)
       .where(eq(execNotifications.bookingId, booking.id));
-    expect(rows.some((r) => r.kind === 'changed' && r.status === 'sent')).toBe(true);
+    expect(
+      rows.some((r) => r.kind === 'changed' && r.channel === 'email' && r.status === 'sent'),
+    ).toBe(true);
+  });
+
+  it('no-ops (no_email) when the booking has no exec email', async () => {
+    const booking = await seed({ assigned: true, execEmail: null });
+    const res = await notifyExecOfChange({ db, notifications, email }, booking.id);
+    expect(res).toMatchObject({ ok: false, reason: 'no_email' });
+    expect(email.sent).toHaveLength(0);
   });
 
   it('fails cleanly when the booking has no driver', async () => {
-    const booking = await seed(false);
-    const res = await notifyExecOfChange({ db, notifications }, booking.id);
+    const booking = await seed({ assigned: false, execEmail: EXEC_EMAIL });
+    const res = await notifyExecOfChange({ db, notifications, email }, booking.id);
     expect(res).toMatchObject({ ok: false, reason: 'no_driver' });
   });
 
   it('fails cleanly for an unknown booking', async () => {
     const res = await notifyExecOfChange(
-      { db, notifications },
+      { db, notifications, email },
       '00000000-0000-0000-0000-0000000000ff',
     );
     expect(res).toMatchObject({ ok: false, reason: 'booking_not_found' });

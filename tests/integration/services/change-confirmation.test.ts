@@ -1,5 +1,7 @@
+import { FakeEmailAdapter } from '@/server/adapters/email-fake';
+import { FakeNotificationAdapter } from '@/server/adapters/notification-fake';
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
-import { auditEvents, bookings, drivers, operators } from '@/server/db/schema';
+import { auditEvents, bookings, drivers, execNotifications, operators } from '@/server/db/schema';
 import {
   confirmChangeBySelf,
   confirmChangeOnBehalf,
@@ -56,6 +58,8 @@ describe('services/change-confirmation (integration)', () => {
     status?: 'none' | 'pending' | 'confirmed';
     assigned?: boolean;
     backfill?: boolean;
+    execRelevant?: boolean;
+    execEmail?: string | null;
   }) {
     const [row] = await db
       .insert(bookings)
@@ -70,6 +74,7 @@ describe('services/change-confirmation (integration)', () => {
         passengerFirstName: 'Eric',
         passengerLastName: 'French',
         execMobile: '+447911123456',
+        execEmail: opts.execEmail ?? null,
         clientName: 'LEGO Group',
         accountCode: 'LEGO Group',
         contractPricePence: 30000,
@@ -80,6 +85,7 @@ describe('services/change-confirmation (integration)', () => {
         backfillDriverName: opts.backfill ? 'Sub Sam' : null,
         backfillDriverPhone: opts.backfill ? '+447900000777' : null,
         changeConfirmationStatus: opts.status ?? 'none',
+        changeExecRelevant: opts.execRelevant ?? false,
         changePendingSince: opts.status === 'pending' ? new Date() : null,
       })
       .returning();
@@ -261,6 +267,98 @@ describe('services/change-confirmation (integration)', () => {
       await confirmChangeBySelf(token, { db, secret: SECRET, mirror });
       const res = await previewChangeConfirmLink(token, { db, secret: SECRET });
       expect(res).toEqual({ ok: false, reason: 'no_pending_change' });
+    });
+  });
+
+  // ── Auto exec-email on confirming an exec-relevant change ──────────────────
+  describe('auto exec-email on confirm', () => {
+    it('emails the exec when an exec-relevant change is attested', async () => {
+      const notifications = new FakeNotificationAdapter();
+      const email = new FakeEmailAdapter();
+      const booking = await seed({
+        status: 'pending',
+        assigned: true,
+        execRelevant: true,
+        execEmail: 'eric@example.com',
+      });
+      const res = await confirmChangeOnBehalf(booking.id, operatorId, {
+        db,
+        mirror,
+        notifications,
+        email,
+      });
+      expect(res.ok).toBe(true);
+      expect(email.sent.some((m) => m.to === 'eric@example.com')).toBe(true);
+      expect(notifications.sent).toHaveLength(0);
+      const rows = await db
+        .select()
+        .from(execNotifications)
+        .where(eq(execNotifications.bookingId, booking.id));
+      expect(rows.some((r) => r.kind === 'changed' && r.channel === 'email')).toBe(true);
+    });
+
+    it('does NOT email the exec when the change is not exec-relevant', async () => {
+      const notifications = new FakeNotificationAdapter();
+      const email = new FakeEmailAdapter();
+      const booking = await seed({
+        status: 'pending',
+        assigned: true,
+        execRelevant: false,
+        execEmail: 'eric@example.com',
+      });
+      const res = await confirmChangeOnBehalf(booking.id, operatorId, {
+        db,
+        mirror,
+        notifications,
+        email,
+      });
+      expect(res.ok).toBe(true);
+      expect(email.sent).toHaveLength(0);
+    });
+
+    it('confirmation still succeeds when there is no exec email (no send)', async () => {
+      const notifications = new FakeNotificationAdapter();
+      const email = new FakeEmailAdapter();
+      const booking = await seed({
+        status: 'pending',
+        assigned: true,
+        execRelevant: true,
+        execEmail: null,
+      });
+      const res = await confirmChangeOnBehalf(booking.id, operatorId, {
+        db,
+        mirror,
+        notifications,
+        email,
+      });
+      expect(res.ok).toBe(true);
+      expect(email.sent).toHaveLength(0);
+    });
+
+    it('driver self-confirm also auto-emails the exec on an exec-relevant change', async () => {
+      const notifications = new FakeNotificationAdapter();
+      const email = new FakeEmailAdapter();
+      const booking = await seed({
+        status: 'pending',
+        assigned: true,
+        execRelevant: true,
+        execEmail: 'eric@example.com',
+      });
+      const link = await generateChangeConfirmLink(booking.id, operatorId, {
+        db,
+        secret: SECRET,
+        appUrl: APP_URL,
+      });
+      if (!link.ok) throw new Error('mint failed');
+      const res = await confirmChangeBySelf(tokenFromUrl(link.url), {
+        db,
+        secret: SECRET,
+        mirror,
+        notifications,
+        email,
+      });
+      expect(res.ok).toBe(true);
+      expect(email.sent.some((m) => m.to === 'eric@example.com')).toBe(true);
     });
   });
 });
