@@ -1,13 +1,17 @@
 export type ExecNotificationChannel = 'sms' | 'email';
 
 /**
- * The active exec-message channel. A deliberate code-level switch — not env- or
- * runtime-configurable — so moving all exec traffic between SMS and email is one
- * reviewed line change plus a deploy, and reverts the same way. SMS is the
- * default and stays fully supported.
+ * The active exec-message channel — the single switch that moves all exec
+ * traffic between SMS and email. SMS is the default and stays fully supported as
+ * the fallback.
  *
- * Lives in `lib` (no server imports) so both the server wrapper and the client
- * booking form can read it to decide routing / which contact field to require.
- * See docs/shaping/exec-messages.
+ * Driven by `NEXT_PUBLIC_EXEC_NOTIFICATION_CHANNEL` (so both the server wrapper
+ * and the client booking form read the same value) and defaults to `'sms'` when
+ * unset — which keeps the whole test suite and local dev on SMS unless email is
+ * explicitly turned on. To switch production to email, set
+ * `NEXT_PUBLIC_EXEC_NOTIFICATION_CHANNEL=email` (plus `RESEND_API_KEY` and a
+ * verified `RESEND_FROM`) and redeploy; revert by unsetting it. The value is
+ * read at build time. See docs/shaping/exec-messages.
  */
-export const EXEC_NOTIFICATION_CHANNEL: ExecNotificationChannel = 'sms';
+export const EXEC_NOTIFICATION_CHANNEL: ExecNotificationChannel =
+  process.env.NEXT_PUBLIC_EXEC_NOTIFICATION_CHANNEL === 'email' ? 'email' : 'sms';
