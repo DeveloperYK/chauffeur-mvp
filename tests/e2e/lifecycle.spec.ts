@@ -392,3 +392,52 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY PHONE');
 });
+
+test('operator-attested assign: confirm a driver by phone, then reassign by phone', async ({
+  page,
+}) => {
+  // Fresh data; bring an unassigned LEGO booking onto today's board.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+  await expectSimState(page, LEGO, 'Unassigned');
+
+  // ── Assign a driver by phone (no link round-trip) ──
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
+  const modal = page.locator('.modal.is-open');
+  await expect(modal).toBeVisible();
+  await modal.locator('.driver-row:not(.is-busy)').first().click();
+  await modal.getByRole('button', { name: /Confirmed by phone/i }).click();
+  await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
+
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Assigned');
+
+  // The panel records the assignment method.
+  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('ASSIGNED');
+  await expect(page.locator('.panel.is-open')).toContainText('Confirmed by phone');
+
+  // ── Reassign to a different driver, also by phone ──
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Reassign driver' }).click();
+  const reassign = page.locator('.modal.is-open');
+  await expect(reassign).toContainText('Reassign driver');
+  // Pick a different free driver than the one already assigned.
+  await reassign.locator('.driver-row:not(.is-busy)').nth(1).click();
+  await reassign.getByRole('button', { name: /Confirmed by phone/i }).click();
+  await expect(page.locator('.toast')).toContainText(/reassigned|confirmed by phone/i);
+
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Assigned');
+});

@@ -69,6 +69,7 @@ function toConsoleBooking(
     createdByOperatorId: b.createdByOperatorId,
     assignedOperatorId: b.assignedOperatorId,
     assignedDriverId: b.assignedDriverId,
+    assignmentMethod: b.assignmentMethod,
     isBackfill: b.isBackfill,
     backfillDriverName: b.backfillDriverName,
     backfillDriverPhone: b.backfillDriverPhone,
