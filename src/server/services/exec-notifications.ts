@@ -34,8 +34,8 @@ import { type LatestMessage, rollupExecStatus } from '@/server/domain/exec-notif
 import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
-import { assignedEmail, enRouteEmail } from './email-templates';
-import { assignedSms, enRouteSms } from './sms-templates';
+import { assignedEmail, changeExecEmail, enRouteEmail } from './email-templates';
+import { assignedSms, changeExecSms, enRouteSms } from './sms-templates';
 
 export { EXEC_NOTIFICATION_CHANNEL };
 
@@ -75,12 +75,18 @@ function renderSmsBody(ctx: ExecMessageContext): string {
   if (ctx.kind === 'assigned') {
     return assignedSms(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
   }
+  if (ctx.kind === 'changed') {
+    return changeExecSms(ctx.booking);
+  }
   return enRouteSms(ctx.booking, { name: ctx.driverName });
 }
 
 function renderEmail(ctx: ExecMessageContext): { subject: string; text: string } {
   if (ctx.kind === 'assigned') {
     return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
+  }
+  if (ctx.kind === 'changed') {
+    return changeExecEmail(ctx.booking);
   }
   return enRouteEmail(ctx.booking, { name: ctx.driverName });
 }
@@ -243,6 +249,35 @@ export async function sendExecNotification(
 ): Promise<ExecNotification | null> {
   const values = await sendOnActiveChannel(deps, ctx);
   return persistAttempt(deps.db, values);
+}
+
+export type NotifyExecChangeResult =
+  | { ok: true; notification: ExecNotification }
+  | { ok: false; reason: 'booking_not_found' | 'no_driver' | 'persist_failed' };
+
+/**
+ * Operator-triggered: tell the exec their booking changed, restating the current
+ * plan over the active channel. Recorded as a `changed` exec notification so the
+ * board health roll-up tracks it like any other send. Used from the mid-flight
+ * change banner. See docs/shaping/mid-flight-changes.
+ */
+export async function notifyExecOfChange(
+  deps: ExecNotificationDeps,
+  bookingId: string,
+): Promise<NotifyExecChangeResult> {
+  const [booking] = await deps.db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+
+  const ctx = await buildExecContextForBooking(deps.db, booking, 'changed');
+  if (!ctx) return { ok: false, reason: 'no_driver' };
+
+  const row = await sendExecNotification(deps, ctx);
+  if (!row) return { ok: false, reason: 'persist_failed' };
+  return { ok: true, notification: row };
 }
 
 /** Rebuild the render context from the booking's CURRENT driver/backfill state. */

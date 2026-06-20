@@ -43,3 +43,17 @@ export function enRouteEmail(
     ].join('\n'),
   };
 }
+
+/** Exec — their booking changed after confirmation; restate the current plan. */
+export function changeExecEmail(booking: Booking): { subject: string; text: string } {
+  const ref = bookingRef(booking.seq);
+  const lines = [
+    `${SMS_BRAND_NAME} - ${ref}`,
+    'Your booking has been updated.',
+    `Pickup: ${formatLondonDateTimeShort(booking.pickupAt)} - ${booking.pickupAddress}`,
+  ];
+  if (booking.serviceType !== 'hourly') {
+    lines.push(`To: ${booking.dropoffAddress ?? 'As directed'}`);
+  }
+  return { subject: `${SMS_BRAND_NAME} - ${ref} updated`, text: lines.join('\n') };
+}
