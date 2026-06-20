@@ -51,6 +51,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       cancellationReason: null,
       flaggedAt: null,
       changeConfirmationStatus: 'none',
+      changeExecRelevant: false,
       changePendingSince: null,
       changeConfirmedAt: null,
       changeConfirmedMethod: null,

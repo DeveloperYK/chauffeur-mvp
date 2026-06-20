@@ -1,6 +1,6 @@
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
-import { isMaterialChange } from '@/server/domain/booking-changes';
+import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
@@ -138,6 +138,8 @@ export async function editBooking(
   // re-confirmation (advisory — the new details go live immediately regardless).
   const isDispatched = existing.state === 'assigned' || existing.state === 'in_progress';
   const materialChange = isDispatched && isMaterialChange(changedFields);
+  // Whether this change is also worth emailing the exec about once confirmed.
+  const execRelevant = materialChange && isExecFacingChange(changedFields);
 
   const now = (deps.clock ?? systemClock).now();
   const [updated] = await deps.db
@@ -164,6 +166,7 @@ export async function editBooking(
       ...(materialChange
         ? {
             changeConfirmationStatus: 'pending' as const,
+            changeExecRelevant: execRelevant,
             changePendingSince: now,
             changeConfirmedAt: null,
             changeConfirmedMethod: null,

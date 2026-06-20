@@ -254,13 +254,16 @@ export async function sendExecNotification(
 
 export type NotifyExecChangeResult =
   | { ok: true; notification: ExecNotification }
-  | { ok: false; reason: 'booking_not_found' | 'no_driver' | 'persist_failed' };
+  | { ok: false; reason: 'booking_not_found' | 'no_driver' | 'no_email' | 'persist_failed' };
 
 /**
- * Operator-triggered: tell the exec their booking changed, restating the current
- * plan over the active channel. Recorded as a `changed` exec notification so the
- * board health roll-up tracks it like any other send. Used from the mid-flight
- * change banner. See docs/shaping/mid-flight-changes.
+ * Tell the exec a change to their booking has been confirmed, restating the
+ * current plan. **Email only** — regardless of the global channel switch, a
+ * change notification never goes by SMS (there's no value in a terse SMS for a
+ * detail change). Recorded as a `changed` exec notification so the board health
+ * roll-up tracks it. Fired automatically when an exec-relevant change is
+ * confirmed (see confirmChange* in change-confirmation). No-ops (no_email) when
+ * the booking has no exec email on file. See docs/shaping/mid-flight-changes.
  */
 export async function notifyExecOfChange(
   deps: ExecNotificationDeps,
@@ -272,11 +275,15 @@ export async function notifyExecOfChange(
     .where(eq(bookings.id, bookingId))
     .limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
+  // Email-only: skip silently when there's no address rather than writing a
+  // failed SMS-less attempt.
+  if (!booking.execEmail) return { ok: false, reason: 'no_email' };
 
   const ctx = await buildExecContextForBooking(deps.db, booking, 'changed');
   if (!ctx) return { ok: false, reason: 'no_driver' };
 
-  const row = await sendExecNotification(deps, ctx);
+  // Force the email channel for this notification, whatever the global switch is.
+  const row = await sendExecNotification({ ...deps, channel: 'email' }, ctx);
   if (!row) return { ok: false, reason: 'persist_failed' };
   return { ok: true, notification: row };
 }

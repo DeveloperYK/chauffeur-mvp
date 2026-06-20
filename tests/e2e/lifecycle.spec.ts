@@ -380,17 +380,9 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
 
-  // ── Operator notifies the exec of the update (V3) ──
-  await page
-    .locator('.panel.is-open')
-    .getByRole('button', { name: /Notify exec/i })
-    .click();
-  await expect(page.locator('.toast')).toContainText(/exec notified/i);
-
   // ── Operator attests the driver confirmed by phone ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  // (The exec is auto-emailed on confirm only for exec-relevant changes; this
+  // edit was duration-only, so no exec email — nothing to click here.)
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Driver confirmed by phone/i })

@@ -145,13 +145,18 @@ export function enRouteEmail(booking: Booking, driver: NamedDriver, car: string)
   };
 }
 
-/** Exec — their booking changed after confirmation; restate the current plan. */
+/**
+ * Exec — a change to their booking has been confirmed with the driver; restate
+ * the current plan so their earlier confirmation isn't stale. Sent automatically
+ * (email only) once an exec-relevant change is confirmed. See
+ * docs/shaping/mid-flight-changes.
+ */
 export function changeExecEmail(booking: Booking): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
-    heading: 'Booking updated',
-    intro: 'Your booking has been updated — the latest details are below.',
+    heading: 'Booking update confirmed',
+    intro: 'An update to your booking has been confirmed — the latest details are below.',
     rows: [
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
@@ -162,7 +167,7 @@ export function changeExecEmail(booking: Booking): RenderedEmail {
     closing: 'If anything looks incorrect, please contact our team.',
   };
   return {
-    subject: `Booking updated — ${ref} · ${when}`,
+    subject: `Booking update confirmed — ${ref} · ${when}`,
     html: renderHtml(layout),
     text: renderText(layout),
   };

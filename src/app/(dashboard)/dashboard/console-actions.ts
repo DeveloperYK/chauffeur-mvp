@@ -33,7 +33,6 @@ import {
 import { editBooking } from '@/server/services/edit-booking';
 import {
   listExecNotifications,
-  notifyExecOfChange,
   resendExecNotification,
 } from '@/server/services/exec-notifications';
 import { assignOperator } from '@/server/services/operators';
@@ -242,6 +241,8 @@ export async function confirmChangeOnBehalfAction(bookingId: string): Promise<Ac
   const result = await confirmChangeOnBehalf(bookingId, op.id, {
     db: db(),
     mirror: spreadsheetMirror(),
+    notifications: notifications(),
+    email: email(),
   });
   if (!result.ok) {
     const error =
@@ -490,32 +491,6 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
 }
 
 /** One exec message in the detail-panel drawer, serializable for the client. */
-/**
- * Notify the exec their booking changed (operator-triggered from the change
- * banner), restating the current plan over the active channel.
- */
-export async function notifyExecOfChangeAction(bookingId: string): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
-  if (!bookingId) return { ok: false, error: 'Missing booking.' };
-
-  const result = await notifyExecOfChange(
-    { db: db(), notifications: notifications(), email: email() },
-    bookingId,
-  );
-  if (!result.ok) {
-    const error =
-      result.reason === 'booking_not_found'
-        ? 'Booking not found.'
-        : result.reason === 'no_driver'
-          ? 'No driver on this booking yet.'
-          : 'Could not record the exec notification.';
-    return { ok: false, error };
-  }
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
 export interface ExecMessageEntry {
   id: string;
   channel: 'sms' | 'email';

@@ -36,3 +36,23 @@ const DRIVER_FACING = new Set<string>(DRIVER_FACING_CHANGE_LABELS);
 export function isMaterialChange(changedFields: readonly string[]): boolean {
   return changedFields.some((label) => DRIVER_FACING.has(label));
 }
+
+/**
+ * Field labels the EXEC was told (in their booking-confirmation message): the
+ * pickup time, pickup address and destination. A subset of the driver-facing
+ * set. A change to one of these is worth emailing the exec about once the driver
+ * has confirmed the new plan; driver-only fields (duration, notes, passenger,
+ * service type) are not. NOTE: these must track the labels in
+ * `services/edit-booking.ts`.
+ */
+export const EXEC_FACING_CHANGE_LABELS = ['pickup time', 'pickup address', 'drop-off'] as const;
+
+const EXEC_FACING = new Set<string>(EXEC_FACING_CHANGE_LABELS);
+
+/**
+ * True when a change touched something the exec was told (time / pickup /
+ * destination). Drives whether confirming the change auto-emails the exec.
+ */
+export function isExecFacingChange(changedFields: readonly string[]): boolean {
+  return changedFields.some((label) => EXEC_FACING.has(label));
+}

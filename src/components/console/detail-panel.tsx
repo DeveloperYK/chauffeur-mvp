@@ -10,7 +10,6 @@ import {
   execNotificationsAction,
   generateChangeConfirmLinkAction,
   generateCompletionLinkAction,
-  notifyExecOfChangeAction,
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
@@ -228,8 +227,6 @@ export function DetailPanel({
       () => confirmChangeOnBehalfAction(booking.id),
       'Change confirmed — driver attested by phone.',
     );
-  const notifyExecChange = () =>
-    run(() => notifyExecOfChangeAction(booking.id), 'Exec notified of the update.');
   const sendChangeLink = () => {
     setError(null);
     startTransition(async () => {
@@ -274,9 +271,6 @@ export function DetailPanel({
                 <Icon.Send /> Send change link
               </button>
             ) : null}
-            <button type="button" className="btn" onClick={notifyExecChange} disabled={isPending}>
-              <Icon.Send /> Notify exec
-            </button>
           </div>
         </div>
       );
