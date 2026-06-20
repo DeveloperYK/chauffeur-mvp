@@ -81,14 +81,14 @@ function renderSmsBody(ctx: ExecMessageContext): string {
   return enRouteSms(ctx.booking, { name: ctx.driverName });
 }
 
-function renderEmail(ctx: ExecMessageContext): { subject: string; text: string } {
+function renderEmail(ctx: ExecMessageContext): { subject: string; html: string; text: string } {
   if (ctx.kind === 'assigned') {
     return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
   }
   if (ctx.kind === 'changed') {
     return changeExecEmail(ctx.booking);
   }
-  return enRouteEmail(ctx.booking, { name: ctx.driverName });
+  return enRouteEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
 }
 
 async function performSmsSend(
@@ -111,9 +111,10 @@ async function performEmailSend(
   to: string,
   subject: string,
   text: string,
+  html: string,
 ): Promise<SendOutcome> {
   try {
-    const res = await email.sendEmail({ to, subject, text });
+    const res = await email.sendEmail({ to, subject, text, html });
     if (res.ok) return { status: 'sent', providerMessageId: res.id, errorReason: null };
     return { status: 'failed', providerMessageId: null, errorReason: res.reason };
   } catch (err) {
@@ -137,7 +138,7 @@ async function sendOnActiveChannel(
 
   if (channel === 'email') {
     const to = ctx.booking.execEmail ?? '';
-    const { subject, text } = renderEmail(ctx);
+    const { subject, html, text } = renderEmail(ctx);
     if (!to) {
       return {
         ...base,
@@ -160,7 +161,7 @@ async function sendOnActiveChannel(
         errorReason: 'email_not_configured',
       };
     }
-    const outcome = await performEmailSend(deps.email, to, subject, text);
+    const outcome = await performEmailSend(deps.email, to, subject, text, html);
     return { ...base, to, subject, body: text, ...outcome };
   }
 

@@ -46,6 +46,7 @@ export class ResendEmailAdapter implements EmailPort {
           to: msg.to,
           subject: msg.subject,
           text: msg.text,
+          ...(msg.html ? { html: msg.html } : {}),
         }),
         signal: controller.signal,
       });

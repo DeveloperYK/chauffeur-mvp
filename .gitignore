@@ -62,3 +62,4 @@ pnpm-debug.log*
 # background tooling locks
 .observer.lock
 .claude/scheduled_tasks.lock
+.vercel
