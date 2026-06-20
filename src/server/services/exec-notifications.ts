@@ -314,6 +314,37 @@ export async function resendExecNotification(
   return { ok: true, notification: row };
 }
 
+/**
+ * Apply a delivery outcome from the provider webhook to the matching attempt
+ * (by provider message id) and refresh the cached booking status. Ignores
+ * unknown ids and superseded rows (a resend already replaced them). Returns true
+ * if a row was updated. Idempotent: re-applying the same status is a no-op write.
+ */
+export async function recordDeliveryStatus(
+  db: Database,
+  providerMessageId: string,
+  status: 'delivered' | 'bounced' | 'complained',
+): Promise<boolean> {
+  const updated = await db
+    .update(execNotifications)
+    .set({ status, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(execNotifications.providerMessageId, providerMessageId),
+        ne(execNotifications.status, 'superseded'),
+      ),
+    )
+    .returning();
+  const row = updated[0];
+  if (!row) return false;
+  const cached = await computeRollup(db, row.bookingId);
+  await db
+    .update(bookings)
+    .set({ execNotificationStatus: cached })
+    .where(eq(bookings.id, row.bookingId));
+  return true;
+}
+
 /** Full timeline of exec messages for one booking, newest first. */
 export async function listExecNotifications(
   db: Database,

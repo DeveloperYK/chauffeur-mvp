@@ -18,6 +18,9 @@ const schema = z.object({
   // works for testing but only delivers to the account owner).
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),
+  // Signing secret for the Resend (Svix) delivery webhook. When unset the
+  // webhook endpoint returns 503 (disabled). Format: `whsec_<base64>`.
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
