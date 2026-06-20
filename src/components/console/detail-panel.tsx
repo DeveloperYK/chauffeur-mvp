@@ -10,6 +10,7 @@ import {
   execNotificationsAction,
   generateChangeConfirmLinkAction,
   generateCompletionLinkAction,
+  notifyExecOfChangeAction,
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
@@ -227,6 +228,8 @@ export function DetailPanel({
       () => confirmChangeOnBehalfAction(booking.id),
       'Change confirmed — driver attested by phone.',
     );
+  const notifyExecChange = () =>
+    run(() => notifyExecOfChangeAction(booking.id), 'Exec notified of the update.');
   const sendChangeLink = () => {
     setError(null);
     startTransition(async () => {
@@ -271,6 +274,9 @@ export function DetailPanel({
                 <Icon.Send /> Send change link
               </button>
             ) : null}
+            <button type="button" className="btn" onClick={notifyExecChange} disabled={isPending}>
+              <Icon.Send /> Notify exec
+            </button>
           </div>
         </div>
       );
@@ -991,6 +997,7 @@ export function DetailPanel({
 const EXEC_KIND_LABEL: Record<ExecMessageEntry['kind'], string> = {
   assigned: 'Booking confirmed',
   en_route: 'Driver en route',
+  changed: 'Booking updated',
 };
 
 const EXEC_CHANNEL_LABEL: Record<ExecMessageEntry['channel'], string> = {

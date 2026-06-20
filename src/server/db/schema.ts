@@ -48,10 +48,15 @@ export const serviceTypeEnum = pgEnum('service_type', ['transfer', 'hourly']);
 // how each one was sent.
 export const notificationChannelEnum = pgEnum('notification_channel', ['sms', 'email']);
 
-// Which exec message this is. Mirrors the two automated send sites: `assigned`
-// (a driver accepted — booking confirmed) and `en_route` (clock fired ~1h
-// before pickup).
-export const notificationKindEnum = pgEnum('notification_kind', ['assigned', 'en_route']);
+// Which exec message this is. `assigned` (a driver accepted — booking confirmed)
+// and `en_route` (clock fired ~1h before pickup) are the automated sends;
+// `changed` is the operator-triggered "booking updated" re-notification after a
+// mid-flight change. See docs/shaping/mid-flight-changes.
+export const notificationKindEnum = pgEnum('notification_kind', [
+  'assigned',
+  'en_route',
+  'changed',
+]);
 
 // Lifecycle of one exec message attempt:
 //   sent       — handed to the provider (SMS: accepted by Twilio; email: accepted by Resend)
