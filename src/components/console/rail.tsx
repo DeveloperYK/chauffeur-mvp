@@ -30,24 +30,31 @@ export function Rail({
   return (
     <aside className="rail">
       <div className="rail__group">
-        <Link className={`rail__item ${isBoardActive ? 'is-active' : ''}`} href="/dashboard">
+        <Link
+          className={`rail__item ${isBoardActive ? 'is-active' : ''}`}
+          href="/dashboard"
+          prefetch={false}
+        >
           <Icon.Board /> <span>Board</span>
         </Link>
         <Link
           className={`rail__item ${pathname === '/dashboard/calendar' ? 'is-active' : ''}`}
           href="/dashboard/calendar"
+          prefetch={false}
         >
           <Icon.Calendar /> <span>Calendar</span>
         </Link>
         <Link
           className={`rail__item ${pathname?.startsWith('/dashboard/drivers') ? 'is-active' : ''}`}
           href="/dashboard/drivers"
+          prefetch={false}
         >
           <Icon.Drivers /> <span>Drivers</span>
         </Link>
         <Link
           className={`rail__item ${pathname?.startsWith('/dashboard/invoicing') ? 'is-active' : ''}`}
           href="/dashboard/invoicing"
+          prefetch={false}
         >
           <Icon.Receipt /> <span>Invoicing</span>
         </Link>
@@ -55,6 +62,7 @@ export function Rail({
           <Link
             className={`rail__item ${pathname === '/dashboard/simulator' ? 'is-active' : ''}`}
             href="/dashboard/simulator"
+            prefetch={false}
           >
             <Icon.Settings /> <span>Simulator</span>
           </Link>
@@ -68,6 +76,7 @@ export function Rail({
             key={v.id}
             className={`rail__item ${onBoard && activeSavedView === v.id ? 'is-active' : ''}`}
             href={`/dashboard?savedView=${v.id}`}
+            prefetch={false}
           >
             <span className="vdot" style={{ background: v.vdot }} />
             <span>{v.name}</span>

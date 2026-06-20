@@ -271,7 +271,12 @@ export default async function DashboardHome({
             <span className="page-head__sub">
               {filtered.length} {filtered.length === 1 ? 'ticket' : 'tickets'}
             </span>
-            <Link className="link-btn" href={qs({ savedView: null })} style={{ marginLeft: 6 }}>
+            <Link
+              className="link-btn"
+              href={qs({ savedView: null })}
+              style={{ marginLeft: 6 }}
+              prefetch={false}
+            >
               ← Back to day view
             </Link>
           </div>
@@ -287,7 +292,11 @@ export default async function DashboardHome({
               {isToday ? (
                 <Lozenge tone="blue">TODAY</Lozenge>
               ) : (
-                <Link className="link-btn" href={qs({ date: today, calMonth: today.slice(0, 7) })}>
+                <Link
+                  className="link-btn"
+                  href={qs({ date: today, calMonth: today.slice(0, 7) })}
+                  prefetch={false}
+                >
                   ← Back to today
                 </Link>
               )}
@@ -331,7 +340,12 @@ export default async function DashboardHome({
             <span className="facepile-row__label">Assignee</span>
             <div className="facepile">
               {facepile.map((it) => (
-                <Link key={it.token} className="facepile__btn" href={toggleAssignee(it.token)}>
+                <Link
+                  key={it.token}
+                  className="facepile__btn"
+                  href={toggleAssignee(it.token)}
+                  prefetch={false}
+                >
                   {it.isUnassigned ? (
                     <UnassignedAvatar size={28} selected={selectedTokens.has(it.token)} />
                   ) : (
@@ -347,7 +361,7 @@ export default async function DashboardHome({
               ))}
             </div>
             {selectedTokens.size > 0 ? (
-              <Link className="facepile-row__clear" href={qs({ assignee: null })}>
+              <Link className="facepile-row__clear" href={qs({ assignee: null })} prefetch={false}>
                 Clear
               </Link>
             ) : null}
@@ -359,16 +373,25 @@ export default async function DashboardHome({
         <Link
           className={`f-chip ${showDone ? 'has-value' : ''}`}
           href={qs({ showDone: showDone ? '0' : null })}
+          prefetch={false}
         >
           <Icon.Check />
           {showDone ? 'Showing done' : 'Hide done'}
         </Link>
 
         <div className="viewswitch">
-          <Link className={layout === 'board' ? 'is-active' : ''} href={qs({ layout: 'board' })}>
+          <Link
+            className={layout === 'board' ? 'is-active' : ''}
+            href={qs({ layout: 'board' })}
+            prefetch={false}
+          >
             <Icon.Board /> Board
           </Link>
-          <Link className={layout === 'list' ? 'is-active' : ''} href={qs({ layout: null })}>
+          <Link
+            className={layout === 'list' ? 'is-active' : ''}
+            href={qs({ layout: null })}
+            prefetch={false}
+          >
             <Icon.List /> List
           </Link>
         </div>
