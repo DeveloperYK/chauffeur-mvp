@@ -219,6 +219,11 @@ export const bookings = pgTable(
       onDelete: 'restrict',
     }),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    // How the assigned driver was committed: `driver_self` — the driver tapped
+    // their dispatch link; `operator_attested` — the operator phoned them and
+    // marked it confirmed (direct assign / swap). Null for unassigned/backfill.
+    // See docs/shaping/mid-flight-changes.
+    assignmentMethod: confirmationMethodEnum('assignment_method'),
 
     // Backfill (subcontractor) driver — used when no internal driver is
     // available and the operator hands the job to someone from the WhatsApp

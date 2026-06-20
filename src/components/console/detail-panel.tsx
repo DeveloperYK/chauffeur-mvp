@@ -352,6 +352,11 @@ export function DetailPanel({
             <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
               <Icon.Reset /> Driver pulled out — unassign
             </button>
+            {!booking.isBackfill ? (
+              <button type="button" className="btn" onClick={onDispatch}>
+                <Icon.Person /> Reassign driver
+              </button>
+            ) : null}
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>
@@ -619,16 +624,25 @@ export function DetailPanel({
                       ) : null}
                     </div>
                   ) : driver ? (
-                    <div className="ir__row">
-                      <Avatar name={driver.name} id={driver.id} size={22} />
-                      <span>{driver.name}</span>
-                      <span className={`vc-tag ${driver.vehicleClass}`}>
-                        {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
-                      </span>
-                      <span className="ir__sub mono" style={{ marginLeft: 4 }}>
-                        {driver.whatsappNumber}
-                      </span>
-                    </div>
+                    <>
+                      <div className="ir__row">
+                        <Avatar name={driver.name} id={driver.id} size={22} />
+                        <span>{driver.name}</span>
+                        <span className={`vc-tag ${driver.vehicleClass}`}>
+                          {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                        </span>
+                        <span className="ir__sub mono" style={{ marginLeft: 4 }}>
+                          {driver.whatsappNumber}
+                        </span>
+                      </div>
+                      {booking.assignmentMethod ? (
+                        <div className="ir__sub" style={{ marginTop: 2 }}>
+                          {booking.assignmentMethod === 'operator_attested'
+                            ? 'Confirmed by phone'
+                            : 'Accepted link'}
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <span className="muted">Not yet assigned</span>
                   )}

@@ -39,6 +39,8 @@ export interface ConsoleBooking {
   createdByOperatorId: string | null;
   assignedOperatorId: string | null;
   assignedDriverId: string | null;
+  /** How the assigned driver was committed: link-accept (driver_self) vs operator phone-attest. */
+  assignmentMethod: ConfirmationMethod | null;
   /**
    * Cached health of automated exec messages for this booking. `failed` drives
    * the red indicator on the tile; `pending` (email accepted, not yet confirmed)

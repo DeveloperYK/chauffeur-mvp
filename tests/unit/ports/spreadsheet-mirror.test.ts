@@ -27,6 +27,7 @@ const baseBooking: Booking = {
   assignedOperatorId: 'op-1',
   assignedDriverId: 'driver-id-1',
   assignedAt: new Date('2026-06-01T07:00:00.000Z'),
+  assignmentMethod: 'driver_self',
   carParkPence: 750,
   arrivalAt: new Date('2026-06-01T09:50:00.000Z'),
   passengerOnBoardAt: new Date('2026-06-01T10:02:00.000Z'),

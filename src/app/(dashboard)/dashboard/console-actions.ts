@@ -25,7 +25,11 @@ import {
   generateCompletionLink,
   rejectBooking,
 } from '@/server/services/completion';
-import { generateDispatchLinks, releaseDriver } from '@/server/services/dispatch';
+import {
+  assignDriverDirect,
+  generateDispatchLinks,
+  releaseDriver,
+} from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import {
   listExecNotifications,
@@ -185,6 +189,44 @@ export async function dispatchManyAction(
     })),
     skippedCount: result.skipped.length,
   };
+}
+
+/**
+ * Operator-attested assignment: the operator phoned the driver, who agreed, so
+ * commit them directly (no link round-trip). Works from `unassigned` (assign)
+ * and `assigned` (swap to a different driver).
+ */
+export async function confirmAssignByPhoneAction(
+  bookingId: string,
+  driverId: string,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId || !driverId) return { ok: false, error: 'Missing booking or driver.' };
+
+  const result = await assignDriverDirect(bookingId, driverId, op.id, {
+    db: db(),
+    notifications: notifications(),
+    email: email(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'driver_not_found'
+          ? 'Driver not found.'
+          : result.reason === 'driver_inactive'
+            ? 'That driver is inactive.'
+            : result.reason === 'same_driver'
+              ? 'That driver is already on this job.'
+              : `Cannot assign from state: ${result.state}.`;
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 /**
