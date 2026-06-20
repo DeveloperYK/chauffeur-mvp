@@ -29,6 +29,16 @@ const schema = z.object({
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  // Sentry error tracking. When the DSN is unset the SDK initialises as a no-op
+  // (dev/test capture nothing), so these are all optional. The server DSN is
+  // read directly by the root `sentry.server.config.ts`; the client uses the
+  // NEXT_PUBLIC_ copy (inlined at build time). SENTRY_ENVIRONMENT lets prod and
+  // preview deploys be told apart; the trace sample rate defaults to 0 (errors
+  // only, no performance tracing) and is clamped to 0..1.
+  SENTRY_DSN: z.string().url().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
   // When set (`true`/`1`), the operator login screen is bypassed and the app
   // auto-resolves to the first active operator in every environment — including
   // production. Reversible by flipping the env var; no code change needed.

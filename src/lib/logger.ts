@@ -1,26 +1,12 @@
 import pino from 'pino';
 import { env } from './env';
+import { PINO_REDACT_PATHS, REDACTED } from './redaction';
 
 export const logger = pino({
   level: env().LOG_LEVEL,
   redact: {
-    paths: [
-      'password',
-      'passwordHash',
-      'token',
-      'accessToken',
-      'refreshToken',
-      '*.password',
-      '*.passwordHash',
-      '*.token',
-      'phone',
-      '*.phone',
-      'whatsappNumber',
-      '*.whatsappNumber',
-      'mobile',
-      '*.mobile',
-    ],
-    censor: '[redacted]',
+    paths: PINO_REDACT_PATHS,
+    censor: REDACTED,
   },
   base: { service: 'chauffeur-mvp' },
 });
