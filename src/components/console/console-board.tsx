@@ -15,6 +15,7 @@ import { Icon } from './icons';
 import { COL_LABEL, Lozenge, StateLozenge, Tag } from './lozenge';
 import { NewBookingModal } from './new-booking-modal';
 import type { AssignmentWindow, ConsoleBooking, ConsoleDriver, ConsoleOperator } from './types';
+import { useAutoRefresh } from './use-auto-refresh';
 
 const STATE_ORDER: BookingState[] = [
   'unassigned',
@@ -68,6 +69,14 @@ export function ConsoleBoard({
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Poll for out-of-band changes (driver accepts, clock tick, other operators)
+  // so the board stays near-live without a manual refresh. Paused while an
+  // input modal is open so a refresh can't clobber what the operator is typing;
+  // the read-only detail panel doesn't pause it, so a watched booking stays live.
+  const inputModalOpen =
+    dispatchOpen || backfillOpen || completeFormOpen || cancelOpen || editOpen || newOpen;
+  useAutoRefresh(inputModalOpen);
 
   const operatorById = useMemo(() => new Map(operators.map((o) => [o.id, o])), [operators]);
   const driverById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
