@@ -25,7 +25,7 @@ shaping: true
 - **Scope:** absorb & extend — one channel-aware effort; this supersedes the SMS-only doc.
 - **Provider:** Resend (used via its REST API + manual Svix webhook verification — **no new npm dependency**, same `fetch` style as the Twilio adapter).
 - **"Successfully sent":** true delivery via **provider webhooks** (delivered / bounced / failed), not just provider-accepted — this is what actually catches the silent failures.
-- **Channel switch:** a single **code-level constant** (`EXEC_NOTIFICATION_CHANNEL`), flipped by editing code on request. Not runtime-configurable, no operator UI, no per-booking choice.
+- **Channel switch:** a single switch (`EXEC_NOTIFICATION_CHANNEL`), no operator UI, no per-booking choice. 🟡 Implemented env-driven (`NEXT_PUBLIC_EXEC_NOTIFICATION_CHANNEL`, default `sms`) so the test suite stays on SMS by default; flip to `email` in the deploy env to switch. See Decisions.
 
 ---
 
@@ -165,7 +165,7 @@ No flagged unknowns: the Resend send API (`POST /emails` → `{id}`) and the Svi
 
 ## Decisions locked
 
-1. ✅ **Channel switch** — single code-level `EXEC_NOTIFICATION_CHANNEL` constant, default `sms`, flipped by editing code. No runtime config, no operator UI.
+1. ✅ **Channel switch** — single `EXEC_NOTIFICATION_CHANNEL` switch, default `sms`, no operator UI/per-booking choice. 🟡 **Implemented as `NEXT_PUBLIC_EXEC_NOTIFICATION_CHANNEL` (env, default `sms`)** rather than a hardcoded constant: the value still lives in one place, but env-driving it keeps the whole test suite on SMS by default (a hardcoded `email` would break every SMS-asserting test, since the call-site services read the switch directly) and lets prod flip without a code edit. Set it to `email` in the deploy env + redeploy to switch; unset to revert.
 2. ✅ **Provider** — Resend via REST + manual Svix verification; **no npm dependency added**.
 3. ✅ **"Sent" = delivered** for email, confirmed by webhook; SMS stays accepted-only (unchanged).
 4. ✅ **No fallback** — global flag only; an unreachable exec on the active channel is a loud `failed` row, surfaced on the tile.
