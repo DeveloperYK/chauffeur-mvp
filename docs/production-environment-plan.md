@@ -174,40 +174,42 @@ Doing **pre-prod first** is what makes this clean.
 
 ## 7. CI/CD & promotion model
 
-**Continuous integration (unchanged).** `.github/workflows/ci.yml` runs on every
-push/PR: typecheck → lint → test (<60s) → build → e2e → `pnpm audit`. This stays
-as the merge gate.
+**Decided model: `main` is the integration branch; `production` is the release
+branch.** This preserves the existing "branch off `main`, PR into `main`"
+workflow (and the worktree process) unchanged.
 
-**Continuous deployment (new — Vercel native Git, no deploy Action needed):**
+- `main` → auto-deploys **chauffeur-staging** (London). Every merged PR lands on
+  staging.
+- `production` → auto-deploys **chauffeur-prod** (London; created in Stage B).
+- **Promotion is manual and gated:** open a `main → production` PR; it merges
+  only when CI is green and the lifecycle-E2E gate passes. Prod releases are
+  deliberate.
 
-- Each Vercel project auto-deploys from its Production Branch:
-  - `chauffeur-staging` ← `staging` branch
-  - `chauffeur-prod` ← `main` branch
-- **Promotion flow (code moves staging → prod):**
-  1. Feature branch → PR into **`staging`** → CI runs + staging preview deploy.
-  2. Squash-merge → staging project auto-deploys; migrations run against the
-     staging DB (gated by `VERCEL_ENV=production` for that project).
-  3. Validate on staging (lifecycle smoke).
-  4. PR **`staging` → `main`** → merge → prod project auto-deploys; migrations
-     run against the prod DB.
-- **Branch protection:** `main` protected (PR required, CI green, no direct
-  push); `staging` lighter but still PR-based.
-- **Migrations:** each project migrates **its own** DB via its own
-  `MIGRATE_DATABASE_URL`; the existing `decideDeployMigration` gate already
-  scopes this to production deploys. Migrations MUST stay backward-compatible so
-  a code rollback never breaks against a newer schema.
-- **Rollback:** Vercel **Instant Rollback** to the previous prod deployment;
-  safe because migrations are backward-compatible.
+**Continuous integration (unchanged):** `.github/workflows/ci.yml` runs on
+push/PR — `Typecheck · Lint · Test` (<60s), `E2E smoke`, `E2E lifecycle`, build,
+audit.
 
-**Decisions to finalise when we set up the `staging` branch (Stage A4):**
-- **Auto vs. manual promotion** to prod — recommend **manual** (an approved
-  `staging → main` PR) so prod releases are deliberate.
-- **Promotion gate** — optionally require the **lifecycle E2E against the staging
-  URL** to pass before a `staging → main` merge is allowed.
-- **Preview database** — at this scale, point PR previews at the **staging DB**
-  rather than provisioning ephemeral DBs.
+**Branch protection (live):**
+- `main`: PR required, `Typecheck · Lint · Test` must be green, no
+  force-push/deletion.
+- `production`: same now; the lifecycle-E2E-vs-staging gate is added as a
+  required check in Stage B.
 
----
+**Migrations:** each project migrates its own DB on its production deploy
+(`decideDeployMigration` gates on `VERCEL_ENV=production`). The staging project's
+`main` deploy migrates the staging DB; the prod project's `production` deploy
+migrates the prod DB. Migrations stay backward-compatible so a code rollback
+never breaks against a newer schema.
+
+**Rollback:** Vercel Instant Rollback to the previous prod deployment.
+
+**Stage B wiring (when the prod project exists):**
+- Prod project Production Branch = `production`, region `lhr1`, env + fresh secrets.
+- Per-project **Ignored Build Steps** (staging builds `main` + its PRs; prod
+  builds only `production`) to avoid cross-project preview noise.
+- Purpose-built **promotion-gate workflow**: lifecycle E2E against the staging
+  URL on `production` PRs → required check.
+- PR previews (into `main`) point at the staging DB.
 
 ## 8. Secrets to generate fresh for prod (and rotate where exposed)
 
