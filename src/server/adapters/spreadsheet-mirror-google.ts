@@ -106,12 +106,22 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
     }
   }
 
+  /**
+   * Build a Sheets `values` endpoint URL from a *plain* (unencoded) A1 range
+   * like `Main Data!A1:AA1`. The range is percent-encoded for the URL path only;
+   * callers must send the same plain range in the request body, because Google
+   * rejects a write whose body `range` doesn't match the decoded URL range
+   * (e.g. a tab name with a space — `Main Data` — fails if the body keeps `%20`).
+   */
+  private valuesUrl(plainRange: string, suffix: string): string {
+    return `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      this.cfg.spreadsheetId,
+    )}/values/${encodeURIComponent(plainRange)}${suffix}`;
+  }
+
   /** Read column A (Job #) so we can locate the row for a given booking. */
   private async readColumnA(token: string): Promise<string[][]> {
-    const range = `${encodeURIComponent(this.sheetName)}!A:A`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      this.cfg.spreadsheetId,
-    )}/values/${range}?majorDimension=ROWS`;
+    const url = this.valuesUrl(`${this.sheetName}!A:A`, '?majorDimension=ROWS');
     const res = await this.withTimeout((signal) =>
       this.fetchImpl(url, {
         method: 'GET',
@@ -144,10 +154,8 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
     a1Range: string,
     values: string[],
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const range = `${encodeURIComponent(this.sheetName)}!${a1Range}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      this.cfg.spreadsheetId,
-    )}/values/${range}?valueInputOption=USER_ENTERED`;
+    const range = `${this.sheetName}!${a1Range}`;
+    const url = this.valuesUrl(range, '?valueInputOption=USER_ENTERED');
     const res = await this.withTimeout((signal) =>
       this.fetchImpl(url, {
         method: 'PUT',
@@ -172,10 +180,11 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
     token: string,
     row: string[],
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const range = `${encodeURIComponent(this.sheetName)}!A:${SHEET_LAST_COLUMN}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      this.cfg.spreadsheetId,
-    )}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    const range = `${this.sheetName}!A:${SHEET_LAST_COLUMN}`;
+    const url = this.valuesUrl(
+      range,
+      ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
+    );
     const res = await this.withTimeout((signal) =>
       this.fetchImpl(url, {
         method: 'POST',

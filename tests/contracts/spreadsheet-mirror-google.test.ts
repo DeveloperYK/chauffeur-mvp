@@ -70,6 +70,14 @@ function makeFakeSheet(): FakeSheet {
     }
     if (method === 'PUT') {
       const body = JSON.parse(String(init?.body)) as { range: string; values: string[][] };
+      // Google rejects a write whose body `range` is percent-encoded while the
+      // URL range decodes to plain text — guard against that regression here.
+      if (body.range.includes('%')) {
+        return jsonResponse(
+          { error: { code: 400, message: `body range must be plain, got ${body.range}` } },
+          400,
+        );
+      }
       const match = /!A(\d+):/.exec(body.range);
       const rowNumber = match ? Number(match[1]) : 1;
       setRow(rowNumber, body.values[0] ?? []);
