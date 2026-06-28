@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import {
   type MirrorRowInput,
   SHEET_HEADERS,
+  SHEET_LAST_COLUMN,
   type SpreadsheetMirrorPort,
   rowFromBooking,
 } from '@/server/ports/spreadsheet-mirror';
@@ -13,7 +14,7 @@ export interface GoogleSheetsConfig {
   serviceAccountJson: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
-  sheetName?: string; // tab name, defaults to "Bookings"
+  sheetName?: string; // tab name, defaults to "Main Data" (the JJ table)
 }
 
 interface ServiceAccount {
@@ -49,78 +50,159 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
       throw new Error('serviceAccountJson missing client_email or private_key');
     }
     this.sa = parsed;
-    this.sheetName = cfg.sheetName ?? 'Bookings';
+    this.sheetName = cfg.sheetName ?? 'Main Data';
     this.fetchImpl = cfg.fetchImpl ?? fetch;
     this.timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  /** Append a row representing this booking. Idempotency note: at MVP scale
-   * "always append" is acceptable. For true upsert we'd query by job number. */
+  /**
+   * Upsert exactly one row per booking, keyed by Job # (column A). The sheet is
+   * a revertible backup, so each booking must be a single, current row rather
+   * than an append log. We read column A to find an existing row for this Job #:
+   * found → overwrite it in place; not found → append. The header row is written
+   * on first use so a brand-new empty sheet self-initialises.
+   *
+   * At MVP volume the extra read per write is negligible. If write throughput
+   * ever matters, batch or cache the Job#→row index.
+   */
   async upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
       const token = await this.getAccessToken();
-      const range = `${encodeURIComponent(this.sheetName)}!A:AD`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-        this.cfg.spreadsheetId,
-      )}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const row = rowFromBooking(input);
-      const res = await this.withTimeout((signal) =>
-        this.fetchImpl(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({ values: [row] }),
-          signal,
-        }),
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        logger.warn(
-          { status: res.status, sheetsError: text.slice(0, 500) },
-          'sheets append non-2xx',
-        );
-        return { ok: false, reason: `http_${res.status}` };
+      const jobNumber = row[0] ?? '';
+
+      const columnA = await this.readColumnA(token);
+      const headerPresent = columnA[0]?.[0] === SHEET_HEADERS[0];
+      if (!headerPresent) {
+        const headerResult = await this.writeHeaders(token);
+        if (!headerResult.ok) return headerResult;
       }
-      return { ok: true };
+
+      // 1-based row number of the existing entry for this Job #, if any.
+      const existingRowNumber = columnA.findIndex((cells) => cells[0] === jobNumber) + 1;
+      if (existingRowNumber > 0) {
+        return await this.updateRow(token, existingRowNumber, row);
+      }
+      return await this.appendRow(token, row);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return { ok: false, reason: 'timeout' };
       }
-      logger.error({ err }, 'sheets append failed');
+      logger.error({ err }, 'sheets upsert failed');
       return { ok: false, reason: 'network_error' };
     }
   }
 
-  /** Idempotently ensure the header row exists. Called once at deploy. */
+  /** Idempotently ensure the header row exists. Safe to call at deploy. */
   async ensureHeaders(): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
       const token = await this.getAccessToken();
-      const range = `${encodeURIComponent(this.sheetName)}!A1:AD1`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-        this.cfg.spreadsheetId,
-      )}/values/${range}?valueInputOption=USER_ENTERED`;
-      const res = await this.withTimeout((signal) =>
-        this.fetchImpl(url, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ range, values: [Array.from(SHEET_HEADERS)] }),
-          signal,
-        }),
-      );
-      if (!res.ok) return { ok: false, reason: `http_${res.status}` };
-      return { ok: true };
+      return await this.writeHeaders(token);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return { ok: false, reason: 'timeout' };
       }
       return { ok: false, reason: 'network_error' };
     }
+  }
+
+  /**
+   * Build a Sheets `values` endpoint URL from a *plain* (unencoded) A1 range
+   * like `Main Data!A1:AA1`. The range is percent-encoded for the URL path only;
+   * callers must send the same plain range in the request body, because Google
+   * rejects a write whose body `range` doesn't match the decoded URL range
+   * (e.g. a tab name with a space — `Main Data` — fails if the body keeps `%20`).
+   */
+  private valuesUrl(plainRange: string, suffix: string): string {
+    return `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      this.cfg.spreadsheetId,
+    )}/values/${encodeURIComponent(plainRange)}${suffix}`;
+  }
+
+  /** Read column A (Job #) so we can locate the row for a given booking. */
+  private async readColumnA(token: string): Promise<string[][]> {
+    const url = this.valuesUrl(`${this.sheetName}!A:A`, '?majorDimension=ROWS');
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        signal,
+      }),
+    );
+    if (!res.ok) {
+      throw new Error(`sheets read column A failed: ${res.status}`);
+    }
+    const json = (await res.json()) as { values?: string[][] };
+    return json.values ?? [];
+  }
+
+  private async writeHeaders(token: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+    return this.putValues(token, `A1:${SHEET_LAST_COLUMN}1`, Array.from(SHEET_HEADERS));
+  }
+
+  /** Overwrite the row at the given 1-based row number. */
+  private async updateRow(
+    token: string,
+    rowNumber: number,
+    row: string[],
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    return this.putValues(token, `A${rowNumber}:${SHEET_LAST_COLUMN}${rowNumber}`, row);
+  }
+
+  private async putValues(
+    token: string,
+    a1Range: string,
+    values: string[],
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const range = `${this.sheetName}!${a1Range}`;
+    const url = this.valuesUrl(range, '?valueInputOption=USER_ENTERED');
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ range, values: [values] }),
+        signal,
+      }),
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets write non-2xx');
+      return { ok: false, reason: `http_${res.status}` };
+    }
+    return { ok: true };
+  }
+
+  private async appendRow(
+    token: string,
+    row: string[],
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const range = `${this.sheetName}!A:${SHEET_LAST_COLUMN}`;
+    const url = this.valuesUrl(
+      range,
+      ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
+    );
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ values: [row] }),
+        signal,
+      }),
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets append non-2xx');
+      return { ok: false, reason: `http_${res.status}` };
+    }
+    return { ok: true };
   }
 
   private async withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {

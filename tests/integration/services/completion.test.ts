@@ -348,7 +348,8 @@ describe('services/completion (integration)', () => {
       );
       expect(event?.actorType).toBe('operator');
       expect(event?.actorId).toBe(operatorId);
-      expect(mirror.rows.get(bookingId)?.[18]).toBe('Yes'); // column S — Raise an invoice?? when completed
+      // Completion data is mirrored — Car Park (column P) reflects the submitted £7.50.
+      expect(mirror.rows.get(bookingId)?.[15]).toBe('7.50');
     });
 
     it('refuses a stale driver link submit after the operator has completed (no double submit)', async () => {
