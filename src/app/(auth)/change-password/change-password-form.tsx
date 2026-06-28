@@ -11,7 +11,7 @@ const errorMessages: Record<string, string> = {
   validation: 'Please fill out every field.',
   mismatch: 'The new passwords do not match.',
   current: 'Your current password is incorrect.',
-  weak: 'Your new password must be at least 12 characters.',
+  weak: 'Your new password must be at least 8 characters.',
   same: 'Your new password must be different from the current one.',
   config: 'Server not configured. Contact your administrator.',
   notfound: 'Account not found. Please sign in again.',
@@ -38,7 +38,7 @@ export function ChangePasswordForm({
   const confirmId = useId();
 
   const mismatch = confirm.length > 0 && next !== confirm;
-  const valid = next.length >= 12 && next === confirm;
+  const valid = next.length >= 8 && next === confirm;
   const type = show ? 'text' : 'password';
 
   return (
@@ -56,14 +56,14 @@ export function ChangePasswordForm({
         />
       </Field>
 
-      <Field label="New password" htmlFor={newId} required helper="At least 12 characters.">
+      <Field label="New password" htmlFor={newId} required helper="At least 8 characters.">
         <input
           id={newId}
           type={type}
           name="newPassword"
           autoComplete="new-password"
           required
-          minLength={12}
+          minLength={8}
           value={next}
           onChange={(e) => setNext(e.target.value)}
           className={inputClass}
@@ -82,7 +82,7 @@ export function ChangePasswordForm({
           name="confirmPassword"
           autoComplete="new-password"
           required
-          minLength={12}
+          minLength={8}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           className={cn(inputClass, mismatch && 'ring-1 ring-danger')}
