@@ -15,6 +15,7 @@ import {
   offsetMonth,
   parseDayString,
   parseMonthString,
+  parsePickupInput,
 } from '@/lib/dates';
 import { describe, expect, it } from 'vitest';
 
@@ -212,5 +213,50 @@ describe('calendarGrid', () => {
     const days = calendarGrid('2026-01');
     expect(days[0]).toBe('2025-12-29');
     expect(days[3]).toBe('2026-01-01');
+  });
+});
+
+describe('parsePickupInput', () => {
+  // The booking form's datetime-local input yields a bare wall-clock string with
+  // no timezone. Operators mean Europe/London — these assertions are independent
+  // of the runtime timezone (the whole point of the fix), so they hold whether
+  // CI runs in UTC or the dev box runs in Europe/London.
+  it('treats a bare summer (BST) datetime-local as Europe/London → UTC -1h', () => {
+    expect(parsePickupInput('2026-07-01T10:30')?.toISOString()).toBe('2026-07-01T09:30:00.000Z');
+  });
+
+  it('treats a bare winter (GMT) datetime-local as Europe/London → UTC unchanged', () => {
+    expect(parsePickupInput('2026-01-01T10:30')?.toISOString()).toBe('2026-01-01T10:30:00.000Z');
+  });
+
+  it('accepts a bare datetime-local with seconds', () => {
+    expect(parsePickupInput('2026-07-01T10:30:00')?.toISOString()).toBe('2026-07-01T09:30:00.000Z');
+  });
+
+  it('honours an absolute instant with a Z designator (already UTC)', () => {
+    expect(parsePickupInput('2026-06-01T10:00:00.000Z')?.toISOString()).toBe(
+      '2026-06-01T10:00:00.000Z',
+    );
+  });
+
+  it('honours an absolute instant with a numeric offset', () => {
+    expect(parsePickupInput('2026-07-01T10:30:00+01:00')?.toISOString()).toBe(
+      '2026-07-01T09:30:00.000Z',
+    );
+  });
+
+  it('passes a Date through unchanged', () => {
+    const d = new Date('2026-06-01T10:00:00.000Z');
+    expect(parsePickupInput(d)).toBe(d);
+  });
+
+  it('returns null for an empty or unparseable string', () => {
+    expect(parsePickupInput('')).toBeNull();
+    expect(parsePickupInput('not-a-date')).toBeNull();
+    expect(parsePickupInput('2026-07-01')).toBeNull();
+  });
+
+  it('returns null for an out-of-range wall-clock time', () => {
+    expect(parsePickupInput('2026-07-01T25:00')).toBeNull();
   });
 });

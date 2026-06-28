@@ -69,6 +69,20 @@ describe('services/bookings (integration)', () => {
     expect(events[0]?.actorId).toBe(operatorId);
   });
 
+  it('parses a bare datetime-local pickup as Europe/London (BST), not server-local', async () => {
+    // The booking form sends a bare wall-clock string with no timezone. 10:30
+    // London in BST is 09:30 UTC — this assertion is timezone-independent, so it
+    // fails under UTC CI if the schema ever regresses to `new Date(string)`.
+    const result = await createBooking(validInput({ pickupAt: '2026-07-01T10:30' }), {
+      db,
+      clock,
+      operatorId,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.pickupAt.toISOString()).toBe('2026-07-01T09:30:00.000Z');
+  });
+
   it('persists driver-facing and operator-only notes separately', async () => {
     const result = await createBooking(
       validInput({

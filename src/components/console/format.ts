@@ -62,18 +62,40 @@ export function passengerName(
   return `${b.passengerFirstName}${b.passengerLastName ? ` ${b.passengerLastName}` : ''}`;
 }
 
-/** Convert a UTC ISO timestamp to the value a datetime-local input expects. */
-export function toLocalDateTimeInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/**
+ * Europe/London wall-clock parts of an instant. Explicitly TZ'd (not the
+ * browser's local zone) so edit/completion pre-fills are correct wherever the
+ * operator is, and round-trip cleanly with the server's Europe/London pickup
+ * parse (lib/dates.parsePickupInput).
+ */
+function londonInputParts(iso: string): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const get = (t: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === t)?.value ?? '';
+  // `hour12: false` can render midnight as "24"; a datetime-local needs 00–23.
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${hour}:${get('minute')}`,
+  };
 }
 
-/** Format an ISO instant as "HH:MM" in the operator's local (UK) time. */
+/** Convert a UTC ISO timestamp to the value a datetime-local input expects (Europe/London). */
+export function toLocalDateTimeInput(iso: string): string {
+  const { date, time } = londonInputParts(iso);
+  return `${date}T${time}`;
+}
+
+/** Format an ISO instant as "HH:MM" in Europe/London (BST-aware). */
 export function toLocalTimeInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return londonInputParts(iso).time;
 }
 
 export const VEHICLE_SUGGESTIONS = [

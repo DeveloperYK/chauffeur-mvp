@@ -1,3 +1,4 @@
+import { parsePickupInput } from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
@@ -23,11 +24,23 @@ const phoneSchema = z
     return parsed.format('E.164');
   });
 
+// See bookings.ts: parse the form's bare `datetime-local` as Europe/London
+// wall-clock, not as the server's local zone. Without this, every edit that
+// re-sends the pre-filled pickup string would push the booking +1h in BST.
+const pickupAtSchema = z.union([z.string(), z.date()]).transform((value, ctx) => {
+  const parsed = parsePickupInput(value);
+  if (!parsed) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid pickup date/time' });
+    return z.NEVER;
+  }
+  return parsed;
+});
+
 export const editBookingSchema = z
   .object({
     bookingId: z.string().uuid(),
     serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
-    pickupAt: z.coerce.date(),
+    pickupAt: pickupAtSchema,
     expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3).max(500),

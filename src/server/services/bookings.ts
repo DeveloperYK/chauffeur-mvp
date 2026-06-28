@@ -1,3 +1,4 @@
+import { parsePickupInput } from '@/lib/dates';
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
@@ -22,11 +23,25 @@ const phoneSchema = z
     return parsed.format('E.164');
   });
 
+// A `datetime-local` value from the booking form is a bare Europe/London
+// wall-clock string (no offset). `parsePickupInput` resolves it BST-aware rather
+// than via `new Date(string)`, which would parse it in the server's zone (UTC on
+// Vercel) and silently store the pickup +1h off in summer. Absolute instants
+// (ISO with Z/offset) and Date objects pass through unchanged.
+const pickupAtSchema = z.union([z.string(), z.date()]).transform((value, ctx) => {
+  const parsed = parsePickupInput(value);
+  if (!parsed) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid pickup date/time' });
+    return z.NEVER;
+  }
+  return parsed;
+});
+
 export const createBookingSchema = z
   .object({
     // Point-to-point `transfer` (default) or `hourly` as-directed hire.
     serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
-    pickupAt: z.coerce.date(),
+    pickupAt: pickupAtSchema,
     expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
     // Route distance for transfers (metres); ignored/cleared for hourly.
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
