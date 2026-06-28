@@ -272,7 +272,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
   await page.locator('#arrivalTime').fill('11:00');
-  await page.locator('#passengerOnBoardTime').fill('11:10');
+  await page.locator('#waitingMinutes').fill('10');
   await page.locator('#completionTime').fill('12:30');
   await page.locator('#parkingFeePounds').fill('5');
   await Promise.all([
@@ -326,8 +326,10 @@ test('operator completes the form on the driver behalf → completed, skipping r
     .click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
-  // The three times are pre-filled from the booking; set the parking fee.
-  await modal.locator('input[type="number"]').first().fill('4.50');
+  // Times are pre-filled from the booking. Two number inputs: waiting minutes
+  // (first) then the parking fee (second).
+  await modal.locator('input[type="number"]').first().fill('5');
+  await modal.locator('input[type="number"]').nth(1).fill('4.50');
   await modal.getByRole('button', { name: 'Complete booking' }).click();
   await expect(page.locator('.toast')).toContainText(/behalf/i);
 

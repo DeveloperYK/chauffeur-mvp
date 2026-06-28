@@ -125,7 +125,9 @@ export const completionFormSchema = z
     token: z.string().min(20).max(4096),
     carParkPence: z.coerce.number().int().min(0).max(1_000_00),
     arrivalTime: timeOfDay,
-    passengerOnBoardTime: timeOfDay,
+    // Minutes waited at the pickup, entered directly by the driver (0 = arrived
+    // on time). Drives the £1/min waiting charge.
+    waitingMinutes: z.coerce.number().int().min(0).max(720),
     completionTime: timeOfDay,
   })
   .strict();
