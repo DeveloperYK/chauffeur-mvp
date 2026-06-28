@@ -769,12 +769,11 @@ export function DetailPanel({
                       <>
                         {fmtPrice(booking.waitingFee.customerFeePence)}{' '}
                         <span className="muted">
-                          ({booking.waitingFee.chargeableMinutes} chargeable min · driver gets{' '}
-                          {fmtPrice(booking.waitingFee.driverPayPence)})
+                          ({booking.waitingFee.chargeableMinutes} min × £1/min)
                         </span>
                       </>
                     ) : (
-                      <span className="muted">None — within free period</span>
+                      <span className="muted">None — arrived on time</span>
                     )}
                   </div>
                 </div>
