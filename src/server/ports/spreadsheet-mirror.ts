@@ -37,6 +37,14 @@ export const SHEET_HEADERS = [
 /** Last spreadsheet column the mirror writes (18 input columns → R). */
 export const SHEET_LAST_COLUMN = 'R';
 
+/**
+ * Zero-based indices of the money columns — Contract Price (L), Driver Cost (O)
+ * and Car Park (P). The Google adapter sets a currency number format on these so
+ * they read as "£275.50" (2dp, no dropped trailing zero) while staying real
+ * numbers the operators can total in the sheet.
+ */
+export const MONEY_COLUMN_INDICES = [11, 14, 15] as const;
+
 export interface MirrorRowInput {
   booking: Booking;
   driver?: Driver | null;
