@@ -98,6 +98,21 @@ describe('services/edit-booking (integration)', () => {
     expect(result.changedFields).toContain('price');
   });
 
+  it('parses a bare datetime-local pickup edit as Europe/London (BST), not server-local', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { pickupAt: '2026-07-01T10:30' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 10:30 London in BST is 09:30 UTC — timezone-independent, so this holds in
+    // UTC CI as well as on a Europe/London dev box. Guards the +1h edit bug.
+    expect(result.booking.pickupAt.toISOString()).toBe('2026-07-01T09:30:00.000Z');
+    expect(result.changedFields).toContain('pickup time');
+  });
+
   it('amends multiple fields at once', async () => {
     const seeded = await seed('unassigned');
     const result = await editBooking(

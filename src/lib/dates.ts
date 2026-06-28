@@ -50,6 +50,34 @@ export function londonWallClockToUtc(dayStr: string, hours: number, minutes: num
   return new Date(guess.getTime() - londonOffsetMs(guess));
 }
 
+/**
+ * Resolve an operator-entered pickup value into a UTC instant.
+ *
+ * The booking form's `datetime-local` input yields a *bare* wall-clock string
+ * with no timezone designator (e.g. "2026-07-01T10:30"). Operators mean that as
+ * Europe/London time, so we resolve it against the London offset (BST-aware) —
+ * NOT `new Date(string)`, which parses a bare datetime in the *runtime's* local
+ * zone: Europe/London on a dev Mac, but UTC on Vercel — a silent +1h shift in
+ * BST that the local test suite can't see. This helper is timezone-independent.
+ *
+ * A string that already carries a designator ("…Z" or "…+01:00") is an absolute
+ * instant and is honoured as-is. A `Date` passes through unchanged. Returns null
+ * for anything unparseable.
+ */
+export function parsePickupInput(input: string | Date): Date | null {
+  if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : input;
+  const s = input.trim();
+  // Absolute instant: already carries a timezone designator (Z or ±hh:mm).
+  if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  // Bare datetime-local "YYYY-MM-DDTHH:mm[:ss]" → Europe/London wall-clock.
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/.exec(s);
+  if (!m || m[1] === undefined || m[2] === undefined || m[3] === undefined) return null;
+  return londonWallClockToUtc(m[1], Number(m[2]), Number(m[3]));
+}
+
 /** Shift a "YYYY-MM-DD" day string by ±n calendar days. Pure UTC arithmetic. */
 export function addDaysToDayString(dayStr: string, n: number): string | null {
   const parsed = parseDayString(dayStr);
