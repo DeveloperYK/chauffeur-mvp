@@ -5,8 +5,8 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from './password';
 
-/** New passwords must be at least 12 characters (matches `hashPassword`). */
-const newPasswordSchema = z.string().min(12).max(200);
+/** New passwords must be at least 8 characters (matches `hashPassword`). */
+const newPasswordSchema = z.string().min(8).max(200);
 
 export interface ChangePasswordInput {
   currentPassword: string;
