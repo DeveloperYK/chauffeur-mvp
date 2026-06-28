@@ -85,10 +85,12 @@ function toConsoleBooking(
       const f = waitingFee(b.waitingTimeMinutes);
       return {
         chargeableMinutes: f.chargeableMinutes,
-        customerFeePence: f.customerFeePence,
+        // Effective charge: operator override if set, else the computed £1/min fee.
+        customerFeePence: b.waitingChargePence ?? f.customerFeePence,
         driverPayPence: f.driverPayPence,
       };
     })(),
+    waitingChargePence: b.waitingChargePence,
     dropoffAt: b.dropoffAt ? b.dropoffAt.toISOString() : null,
     cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
     cancellationReason: b.cancellationReason,

@@ -322,17 +322,24 @@ async function CompletionPage({
           <div className="hint">When you arrived at the pickup.</div>
         </div>
         <div className="field">
-          <label htmlFor="passengerOnBoardTime">
-            Passenger on board time <span className="req">*</span>
+          <label htmlFor="waitingMinutes">
+            Waiting time (minutes) <span className="req">*</span>
           </label>
           <input
-            id="passengerOnBoardTime"
+            id="waitingMinutes"
             className="input"
-            type="time"
-            name="passengerOnBoardTime"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={720}
+            step={1}
+            name="waitingMinutes"
+            defaultValue={0}
             required
           />
-          <div className="hint">When the passenger got in.</div>
+          <div className="hint">
+            How long you waited at the pickup. Enter 0 if you arrived on time.
+          </div>
         </div>
         <div className="field">
           <label htmlFor="completionTime">

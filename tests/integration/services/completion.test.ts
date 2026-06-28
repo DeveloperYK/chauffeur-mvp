@@ -84,7 +84,7 @@ describe('services/completion (integration)', () => {
   // arrival 09:50Z, on-board 10:02Z (→ 12 min wait), completion 11:25Z.
   const FORM_TIMES = {
     arrivalTime: '10:50',
-    passengerOnBoardTime: '11:02',
+    waitingMinutes: 12,
     completionTime: '12:25',
   } as const;
 
@@ -156,7 +156,7 @@ describe('services/completion (integration)', () => {
         token,
         carParkPence: 0,
         arrivalTime: '23:05',
-        passengerOnBoardTime: '23:20',
+        waitingMinutes: 15,
         completionTime: '01:30', // before on-board → next London day
       },
       deps(),
@@ -402,16 +402,16 @@ describe('services/completion (integration)', () => {
       if (!r.ok) expect(r.reason).toBe('validation');
     });
 
-    it('rejects an implausibly long derived wait (times_invalid)', async () => {
+    it('rejects an implausibly long wait beyond the 12h cap (validation)', async () => {
       const r = await completeFormOnBehalf(
         bookingId,
-        // 08:00 → 21:00 is a 13h wait, past the 12h cap.
-        { ...input, arrivalTime: '08:00', passengerOnBoardTime: '21:00', completionTime: '21:30' },
+        // A 13h wait (780 min) is past the 720-min schema cap.
+        { ...input, arrivalTime: '08:00', waitingMinutes: 13 * 60, completionTime: '21:30' },
         operatorId,
         onBehalfDeps(),
       );
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe('times_invalid');
+      if (!r.ok) expect(r.reason).toBe('validation');
     });
   });
 });

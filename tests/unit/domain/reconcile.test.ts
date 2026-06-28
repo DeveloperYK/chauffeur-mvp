@@ -15,6 +15,7 @@ function bk(overrides: Partial<BillableBooking> = {}): BillableBooking {
     contractPricePence: 30000,
     carParkPence: 500,
     waitingTimeMinutes: null,
+    waitingChargePence: null,
     ...overrides,
   };
 }
@@ -58,6 +59,33 @@ describe('reconcile', () => {
       bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: null }),
     ]);
     expect(unrecorded.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
+  });
+
+  it('uses the operator override for the waiting charge when set', () => {
+    // Driver recorded 5 min (computes £5.00), but the operator waived it to £3.00.
+    const r = reconcile([
+      bk({
+        contractPricePence: 30000,
+        carParkPence: 0,
+        waitingTimeMinutes: 5,
+        waitingChargePence: 300,
+      }),
+    ]);
+    const line = r.accounts[0]?.caseCodes[0]?.lines[0];
+    expect(line?.waitingFeePence).toBe(300); // override, not the computed 500
+    expect(line?.totalPence).toBe(30300); // 30000 + 0 + 300
+  });
+
+  it('treats an override of 0 as a genuine £0 charge (not "use computed")', () => {
+    const r = reconcile([
+      bk({
+        contractPricePence: 30000,
+        carParkPence: 0,
+        waitingTimeMinutes: 5,
+        waitingChargePence: 0,
+      }),
+    ]);
+    expect(r.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
   });
 
   it('groups by account then case code, with subtotals and trip counts', () => {

@@ -13,6 +13,7 @@ import {
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
+  setWaitingChargeAction,
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
@@ -62,6 +63,8 @@ export function DetailPanel({
   const [changeLink, setChangeLink] = useState<CompletionLink | null>(null);
   const [editingPay, setEditingPay] = useState(false);
   const [payDraft, setPayDraft] = useState('');
+  const [editingCharge, setEditingCharge] = useState(false);
+  const [chargeDraft, setChargeDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExec, setShowExec] = useState(false);
   const [execMessages, setExecMessages] = useState<ExecMessageEntry[] | null>(null);
@@ -201,6 +204,44 @@ export function DetailPanel({
       }
       setEditingPay(false);
       onMutated('Backfill driver pay updated.');
+    });
+  };
+  const startEditCharge = () => {
+    setChargeDraft(
+      booking.waitingChargePence != null
+        ? String(booking.waitingChargePence / 100)
+        : String(booking.waitingFee.customerFeePence / 100),
+    );
+    setError(null);
+    setEditingCharge(true);
+  };
+  const saveCharge = () => {
+    const pounds = Number.parseFloat(chargeDraft);
+    if (!Number.isFinite(pounds) || pounds < 0) {
+      setError('Enter a valid waiting charge (£0 or more).');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await setWaitingChargeAction(booking.id, Math.round(pounds * 100));
+      if (!result.ok) {
+        setError(result.error ?? 'Could not update the waiting charge.');
+        return;
+      }
+      setEditingCharge(false);
+      onMutated('Waiting charge updated.');
+    });
+  };
+  const clearChargeOverride = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await setWaitingChargeAction(booking.id, null);
+      if (!result.ok) {
+        setError(result.error ?? 'Could not reset the waiting charge.');
+        return;
+      }
+      setEditingCharge(false);
+      onMutated('Waiting charge reset to auto (£1/min).');
     });
   };
   const approve = () => run(() => approveBookingAction(booking.id), 'Trip approved & completed.');
@@ -765,15 +806,76 @@ export function DetailPanel({
                 <div className="ir">
                   <div className="ir__k">Waiting charge</div>
                   <div className="ir__v">
-                    {booking.waitingFee.customerFeePence > 0 ? (
-                      <>
-                        {fmtPrice(booking.waitingFee.customerFeePence)}{' '}
-                        <span className="muted">
-                          ({booking.waitingFee.chargeableMinutes} min × £1/min)
-                        </span>
-                      </>
+                    {editingCharge ? (
+                      <div className="ir__row">
+                        <div className="money" style={{ maxWidth: 140 }}>
+                          <div className="pfx">£</div>
+                          <input
+                            type="number"
+                            step="1"
+                            min={0}
+                            value={chargeDraft}
+                            onChange={(e) => setChargeDraft(e.target.value)}
+                            // biome-ignore lint/a11y/noAutofocus: focus the field when the inline editor opens
+                            autoFocus
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={saveCharge}
+                          disabled={isPending}
+                        >
+                          Save
+                        </button>
+                        {booking.waitingChargePence != null ? (
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={clearChargeOverride}
+                            disabled={isPending}
+                          >
+                            Auto
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => setEditingCharge(false)}
+                          disabled={isPending}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     ) : (
-                      <span className="muted">None — arrived on time</span>
+                      <div className="ir__row">
+                        <span>
+                          {booking.waitingFee.customerFeePence > 0 ? (
+                            <>
+                              {fmtPrice(booking.waitingFee.customerFeePence)}{' '}
+                              <span className="muted">
+                                {booking.waitingChargePence != null
+                                  ? '(overridden)'
+                                  : `(${booking.waitingFee.chargeableMinutes} min × £1/min)`}
+                              </span>
+                            </>
+                          ) : booking.waitingChargePence != null ? (
+                            <>
+                              {fmtPrice(0)} <span className="muted">(overridden)</span>
+                            </>
+                          ) : (
+                            <span className="muted">None — arrived on time</span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={startEditCharge}
+                          disabled={isPending}
+                        >
+                          {booking.waitingChargePence != null ? 'Edit' : 'Override'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

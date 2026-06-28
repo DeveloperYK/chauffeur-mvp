@@ -36,6 +36,7 @@ import {
   resendExecNotification,
 } from '@/server/services/exec-notifications';
 import { assignOperator } from '@/server/services/operators';
+import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { revalidatePath } from 'next/cache';
 
 // All console actions return a typed result so client overlays can react in
@@ -106,7 +107,7 @@ export async function completeFormOnBehalfAction(
   bookingId: string,
   input: {
     arrivalTime: string;
-    passengerOnBoardTime: string;
+    waitingMinutes: number;
     completionTime: string;
     carParkPence: number;
   },
@@ -119,7 +120,7 @@ export async function completeFormOnBehalfAction(
     bookingId,
     {
       arrivalTime: input.arrivalTime,
-      passengerOnBoardTime: input.passengerOnBoardTime,
+      waitingMinutes: input.waitingMinutes,
       completionTime: input.completionTime,
       carParkPence: input.carParkPence,
     },
@@ -574,4 +575,30 @@ export async function dayCountsAction(month: string): Promise<Record<string, Day
   const out: Record<string, DayCounts> = {};
   for (const [day, c] of map.entries()) out[day] = c;
   return out;
+}
+
+/**
+ * Operator override of the waiting charge (in pence), or `null` to clear the
+ * override and fall back to the computed £1/min fee.
+ */
+export async function setWaitingChargeAction(
+  bookingId: string,
+  chargePence: number | null,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await setWaitingCharge(bookingId, chargePence, op.id, { db: db() });
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        result.reason === 'booking_not_found'
+          ? 'Booking not found.'
+          : 'Enter a valid charge between £0 and £10,000.',
+    };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }

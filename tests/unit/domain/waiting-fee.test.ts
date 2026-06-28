@@ -1,4 +1,9 @@
-import { WAITING_FEE_RULES, type WaitingFeeRules, waitingFee } from '@/server/domain/waiting-fee';
+import {
+  WAITING_FEE_RULES,
+  type WaitingFeeRules,
+  effectiveWaitingChargePence,
+  waitingFee,
+} from '@/server/domain/waiting-fee';
 import { describe, expect, it } from 'vitest';
 
 // A deterministic rule set for arithmetic assertions, independent of the
@@ -89,5 +94,28 @@ describe('waitingFee', () => {
     expect(waitingFee(5).chargeableMinutes).toBe(5);
     expect(waitingFee(5).driverPayPence).toBe(0);
     expect(waitingFee(0).customerFeePence).toBe(0); // arrived on time → no charge
+  });
+});
+
+describe('effectiveWaitingChargePence', () => {
+  it('uses the computed £1/min charge when there is no override', () => {
+    expect(effectiveWaitingChargePence(5, null)).toBe(500); // 5 min → £5.00
+    expect(effectiveWaitingChargePence(0, null)).toBe(0);
+    expect(effectiveWaitingChargePence(null, null)).toBe(0);
+  });
+
+  it('uses the operator override when set, ignoring the computed charge', () => {
+    // 5 min would compute to £5.00, but the operator pinned £3.00.
+    expect(effectiveWaitingChargePence(5, 300)).toBe(300);
+  });
+
+  it('honours an explicit £0 override (goodwill waiver) over a non-zero computed charge', () => {
+    // 0 is a genuine override, not "unset" — the charge is waived even though
+    // the driver recorded 10 min of waiting.
+    expect(effectiveWaitingChargePence(10, 0)).toBe(0);
+  });
+
+  it('applies an override even when no waiting minutes were recorded', () => {
+    expect(effectiveWaitingChargePence(null, 250)).toBe(250);
   });
 });
