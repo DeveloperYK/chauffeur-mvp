@@ -33,7 +33,6 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
           type="email"
           name="email"
           autoComplete="username"
-          placeholder="you@jjchauffeuring.co.uk"
           required
           // biome-ignore lint/a11y/noAutofocus: sign-in is the sole purpose of this screen
           autoFocus
@@ -48,7 +47,6 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
             type={showPassword ? 'text' : 'password'}
             name="password"
             autoComplete="current-password"
-            placeholder="••••••••••••"
             required
             minLength={12}
             className={cn(inputClass, 'pr-11')}
