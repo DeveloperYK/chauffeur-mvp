@@ -157,7 +157,7 @@ describe('spreadsheet mirror integration', () => {
     expect(finalRow).toBeDefined();
     expect(finalRow?.[11]).toBe('300.00'); // contract price (L)
     expect(finalRow?.[15]).toBe('7.50'); // car park (P)
-    expect(finalRow?.[17]).toBe('Eric French'); // passenger name (R)
+    expect(finalRow?.[17]).toMatch(/^\d{2}:\d{2}$/); // drop-off time (R), London hh:mm
     expect(finalRow?.[12]).toBe('Tom'); // driver name (M)
   });
 

@@ -149,6 +149,28 @@ describe('GoogleSheetsSpreadsheetMirror upsert semantics', () => {
     expect(sheet.rows[2]?.[0]).toBe(bookingRef(2));
   });
 
+  it('writes booking rows beneath a mid-sheet template header, leaving it untouched', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    // Simulate the JJ template: reference rows + group bands occupy rows 1–12,
+    // then the "Job #" header sits at row 13 with the data area beneath it.
+    for (let i = 0; i < 12; i++) sheet.rows.push([`ref-${i}`]);
+    sheet.rows.push([...SHEET_HEADERS]); // row 13 = header
+    const headerRowRef = sheet.rows[12];
+
+    const first = await adapter.upsertRow(createValidMirrorInput());
+    expect(first.ok).toBe(true);
+    expect(sheet.rows).toHaveLength(14); // 13 template rows + one booking
+    expect(sheet.rows[12]).toBe(headerRowRef); // header row untouched (same ref)
+    expect(sheet.rows[13]?.[0]).toBe(bookingRef(base.seq)); // booking lands at row 14
+
+    // Re-upserting the same booking updates row 14 in place — no duplicate row.
+    await adapter.upsertRow(
+      createValidMirrorInput({ booking: { ...base, contractPricePence: 99900 } }),
+    );
+    expect(sheet.rows).toHaveLength(14);
+    expect(sheet.rows[13]?.[11]).toBe('999.00'); // Contract Price (L) reflects the update
+  });
+
   it('does not rewrite the header row once it exists', async () => {
     const { adapter, sheet } = createAdapterWithFakeSheet();
 
