@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Chauffeur Dispatch',
-  description: 'Operator dashboard',
+  title: 'JJ Chauffeuring',
+  description: 'JJ Chauffeuring — Operator Console',
   robots: { index: false, follow: false },
 };
 
