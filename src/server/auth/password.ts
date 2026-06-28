@@ -9,8 +9,8 @@ const PARAMS = {
 } as const;
 
 export async function hashPassword(plain: string): Promise<string> {
-  if (plain.length < 12) {
-    throw new Error('password must be at least 12 characters');
+  if (plain.length < 8) {
+    throw new Error('password must be at least 8 characters');
   }
   return hash(plain, PARAMS);
 }

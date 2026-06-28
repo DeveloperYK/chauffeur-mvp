@@ -40,7 +40,7 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor={passwordId} required helper="At least 12 characters.">
+      <Field label="Password" htmlFor={passwordId} required helper="At least 8 characters.">
         <div className="relative">
           <input
             id={passwordId}
@@ -48,7 +48,7 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
             name="password"
             autoComplete="current-password"
             required
-            minLength={12}
+            minLength={8}
             className={cn(inputClass, 'pr-11')}
           />
           <button

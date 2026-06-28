@@ -79,11 +79,17 @@ describe('auth/changePassword (integration)', () => {
     expect(op?.mustChangePassword).toBe(true);
   });
 
-  it('rejects a new password under 12 characters', async () => {
+  it('rejects a new password under 8 characters', async () => {
     const id = await seedTempAccount();
     const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: 'short' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('weak_password');
+  });
+
+  it('accepts an 8-character new password (the new minimum)', async () => {
+    const id = await seedTempAccount();
+    const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: 'eightchr' });
+    expect(r.ok).toBe(true);
   });
 
   it('rejects reusing the current password', async () => {

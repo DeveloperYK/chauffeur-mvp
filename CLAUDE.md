@@ -203,7 +203,7 @@ All tests use typed factory functions in `tests/fixtures/seed-data.ts`:
 
 - **Operators only.** No public write endpoints except the signed driver-link routes.
 - Sessions in HTTP-only, Secure, SameSite=Lax cookies. 14-day expiry, sliding.
-- Argon2id for password hashing. No password less than 12 chars.
+- Argon2id for password hashing. No password less than 8 chars.
 - Brute-force protection: per-account rate limit on login, exponential backoff.
 
 ### Driver link signing
