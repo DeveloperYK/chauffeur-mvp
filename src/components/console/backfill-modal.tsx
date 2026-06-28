@@ -99,9 +99,9 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
             </label>
             <div className="ctrl">
               <input
+                name="backfillDriverName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Dave Smith"
                 // biome-ignore lint/a11y/noAutofocus: focus the first field on open
                 autoFocus
               />
@@ -115,9 +115,9 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
             </label>
             <div className="ctrl">
               <input
+                name="backfillDriverPhone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. +44 7911 123456"
               />
             </div>
           </div>
@@ -128,11 +128,7 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
               Car<span className="req">*</span>
             </label>
             <div className="ctrl">
-              <input
-                value={car}
-                onChange={(e) => setCar(e.target.value)}
-                placeholder="e.g. BMW 5 Series"
-              />
+              <input name="backfillCar" value={car} onChange={(e) => setCar(e.target.value)} />
             </div>
           </div>
 
@@ -145,12 +141,12 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
               <div className="money">
                 <div className="pfx">£</div>
                 <input
+                  name="backfillDriverPay"
                   type="number"
                   step="1"
                   min={0}
                   value={pay}
                   onChange={(e) => setPay(e.target.value)}
-                  placeholder="120"
                 />
               </div>
             </div>

@@ -31,8 +31,16 @@ const SERVICE_ACCOUNT_JSON = JSON.stringify({
   token_uri: 'https://oauth2.googleapis.com/token',
 });
 
+interface ColumnFormat {
+  columnIndex: number;
+  type: string;
+  pattern: string;
+}
+
 interface FakeSheet {
   rows: string[][];
+  /** Currency formats applied via repeatCell, captured per money column. */
+  formats: ColumnFormat[];
   fetch: typeof fetch;
 }
 
@@ -46,6 +54,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 /** An in-memory Google Sheet that understands the four calls the adapter makes. */
 function makeFakeSheet(): FakeSheet {
   const rows: string[][] = [];
+  const formats: ColumnFormat[] = [];
 
   const setRow = (rowNumber: number, values: string[]): void => {
     while (rows.length < rowNumber) rows.push([]);
@@ -65,12 +74,31 @@ function makeFakeSheet(): FakeSheet {
       return jsonResponse({});
     }
     if (url.includes(':batchUpdate')) {
-      // deleteDimension — remove the given 0-based row range (rows below shift up).
+      // Two batchUpdate shapes: deleteDimension (remove a row range) and
+      // repeatCell (apply a number format to the money columns).
       const body = JSON.parse(String(init?.body)) as {
-        requests: { deleteDimension?: { range: { startIndex: number; endIndex: number } } }[];
+        requests: {
+          deleteDimension?: { range: { startIndex: number; endIndex: number } };
+          repeatCell?: {
+            range: { startColumnIndex: number };
+            cell: { userEnteredFormat: { numberFormat: { type: string; pattern: string } } };
+          };
+        }[];
       };
-      const range = body.requests[0]?.deleteDimension?.range;
-      if (range) rows.splice(range.startIndex, range.endIndex - range.startIndex);
+      for (const req of body.requests) {
+        if (req.deleteDimension) {
+          const { startIndex, endIndex } = req.deleteDimension.range;
+          rows.splice(startIndex, endIndex - startIndex);
+        }
+        if (req.repeatCell) {
+          const nf = req.repeatCell.cell.userEnteredFormat.numberFormat;
+          formats.push({
+            columnIndex: req.repeatCell.range.startColumnIndex,
+            type: nf.type,
+            pattern: nf.pattern,
+          });
+        }
+      }
       return jsonResponse({});
     }
     if (method === 'GET' && url.includes('fields=sheets.properties')) {
@@ -99,7 +127,7 @@ function makeFakeSheet(): FakeSheet {
     return jsonResponse({ error: 'unexpected request' }, 400);
   }) as typeof fetch;
 
-  return { rows, fetch: fetchImpl };
+  return { rows, formats, fetch: fetchImpl };
 }
 
 function createAdapterWithFakeSheet(): {
@@ -130,6 +158,30 @@ describe('GoogleSheetsSpreadsheetMirror upsert semantics', () => {
     expect(sheet.rows).toHaveLength(2); // header + one booking
     expect(sheet.rows[0]).toEqual([...SHEET_HEADERS]);
     expect(sheet.rows[1]?.[0]).toBe(bookingRef(base.seq));
+  });
+
+  it('sets a currency format on the money columns (Contract Price L, Driver Cost O, Car Park P)', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+
+    await adapter.upsertRow(createValidMirrorInput());
+
+    const formattedColumns = sheet.formats.map((f) => f.columnIndex).sort((a, b) => a - b);
+    expect(formattedColumns).toEqual([11, 14, 15]);
+    for (const f of sheet.formats) {
+      expect(f.type).toBe('CURRENCY');
+      expect(f.pattern).toBe('£#,##0.00');
+    }
+  });
+
+  it('applies the currency format only once across many upserts', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+
+    await adapter.upsertRow(createValidMirrorInput());
+    await adapter.upsertRow(createValidMirrorInput({ booking: { ...base, state: 'assigned' } }));
+    await adapter.upsertRow(createValidMirrorInput({ booking: { ...base, state: 'completed' } }));
+
+    // 3 money columns formatted exactly once, not re-sent on every write.
+    expect(sheet.formats).toHaveLength(3);
   });
 
   it('updates the same booking in place instead of appending a duplicate', async () => {

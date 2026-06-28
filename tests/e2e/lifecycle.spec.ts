@@ -227,11 +227,11 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await page.locator('.panel.is-open').getByRole('button', { name: 'Hand to backfill' }).click();
   const bfModal = page.locator('.modal.is-open');
   await expect(bfModal).toBeVisible();
-  await bfModal.getByPlaceholder('e.g. Dave Smith').fill('Dave Smith');
-  await bfModal.getByPlaceholder('e.g. +44 7911 123456').fill('+44 7911 123456');
-  await bfModal.getByPlaceholder('e.g. BMW 5 Series').fill('BMW 5 Series');
+  await bfModal.locator('input[name="backfillDriverName"]').fill('Dave Smith');
+  await bfModal.locator('input[name="backfillDriverPhone"]').fill('+44 7911 123456');
+  await bfModal.locator('input[name="backfillCar"]').fill('BMW 5 Series');
   // Backfill drivers are paid per job (internal drivers are salaried) — pay is required.
-  await bfModal.getByPlaceholder('120').fill('120');
+  await bfModal.locator('input[name="backfillDriverPay"]').fill('120');
   await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
   await expect(page.locator('.toast')).toContainText(/backfill/i);
 
@@ -444,4 +444,23 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
 
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
+});
+
+test('standalone create + detail routes redirect into the board surfaces', async ({ page }) => {
+  // #8 — the legacy /dashboard/new page now opens the board's create slide-over.
+  await page.goto('/dashboard/new', { waitUntil: 'networkidle' });
+  await expect(page).toHaveURL(/\/dashboard\?new=1/);
+  await expect(page.locator('.modal.is-open .modal__title')).toHaveText('Create booking');
+
+  // #9 — the legacy /dashboard/bookings/<id> page now opens that booking's
+  // detail panel on the board (resolving the booking's day from its pickup).
+  await gotoSimulator(page);
+  const href = await row(page, LEGO).getByRole('link', { name: LEGO }).getAttribute('href');
+  const id = href?.split('/').pop() ?? '';
+  expect(id).toBeTruthy();
+
+  await page.goto(`/dashboard/bookings/${id}`, { waitUntil: 'networkidle' });
+  await expect(page).toHaveURL(new RegExp(`booking=${id}`));
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await expect(page.locator('.panel.is-open')).toContainText('LEGO Group');
 });

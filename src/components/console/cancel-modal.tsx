@@ -79,7 +79,6 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. PA called to cancel — meeting rescheduled to next Tuesday."
                 // biome-ignore lint/a11y/noAutofocus: focus the only field on open
                 autoFocus
               />

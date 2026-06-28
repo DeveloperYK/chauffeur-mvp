@@ -316,7 +316,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 <AddressAutocomplete
                   value={form.pickupAddress}
                   onChange={(v) => set('pickupAddress', v)}
-                  placeholder="e.g. Claridge's, Brook Street, Mayfair, W1K 4HR"
+                  placeholder="Start typing an address…"
                   ariaLabel="Pickup address"
                 />
               </div>
@@ -333,7 +333,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     <AddressAutocomplete
                       value={form.dropoffAddress}
                       onChange={(v) => set('dropoffAddress', v)}
-                      placeholder="e.g. Heathrow Terminal 5, Departures"
+                      placeholder="Start typing an address…"
                       ariaLabel="Dropoff address"
                     />
                     <div className="hint">
@@ -395,7 +395,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   value={form.customerAccount}
                   onChange={(v) => set('customerAccount', v)}
                   month={monthOf(form.pickupAt)}
-                  placeholder="e.g. LEGO Group, Mercedes-Benz UK"
                   ariaLabel="Customer account"
                 />
               </div>
@@ -410,7 +409,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   type="text"
                   value={form.caseCode}
                   onChange={(e) => set('caseCode', e.target.value)}
-                  placeholder="e.g. LEGO-2026-0142"
                 />
               </div>
             </div>
@@ -446,7 +444,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   type="tel"
                   value={form.execMobile}
                   onChange={(e) => set('execMobile', e.target.value)}
-                  placeholder="+44 7911 123 456"
                 />
               </div>
             </div>
@@ -461,7 +458,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   type="email"
                   value={form.execEmail ?? ''}
                   onChange={(e) => set('execEmail', e.target.value)}
-                  placeholder="exec@example.com"
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
               </div>
@@ -483,7 +479,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     step="1"
                     value={form.contractPricePounds}
                     onChange={(e) => set('contractPricePounds', e.target.value)}
-                    placeholder="145"
                   />
                 </div>
               </div>
@@ -504,11 +499,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   rows={3}
                   value={form.notes}
                   onChange={(e) => set('notes', e.target.value)}
-                  placeholder={
-                    form.serviceType === 'hourly'
-                      ? 'e.g. around central London for meetings, then back to the hotel'
-                      : 'Flight number, terminal, meet-and-greet sign, quiet driver request…'
-                  }
                 />
               </div>
             </div>
@@ -520,7 +510,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   rows={3}
                   value={form.operatorNotes}
                   onChange={(e) => set('operatorNotes', e.target.value)}
-                  placeholder="e.g. difficult client, account on stop, billing quirk…"
                 />
               </div>
             </div>

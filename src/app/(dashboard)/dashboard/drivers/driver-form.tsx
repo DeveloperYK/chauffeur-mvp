@@ -22,7 +22,6 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
           minLength={2}
           maxLength={120}
           defaultValue={driver?.name ?? ''}
-          placeholder="e.g. Tom Smith"
         />
       </Field>
 
@@ -37,14 +36,7 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
 
       <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Field label="Car" required helper="The make and model the exec will look for.">
-          <Input
-            type="text"
-            name="car"
-            required
-            maxLength={80}
-            placeholder="e.g. Mercedes S-Class, BMW X5"
-            defaultValue={driver?.car ?? ''}
-          />
+          <Input type="text" name="car" required maxLength={80} defaultValue={driver?.car ?? ''} />
         </Field>
 
         <Field label="Car colour" required>
@@ -53,7 +45,6 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
             name="carColour"
             required
             maxLength={40}
-            placeholder="e.g. Black"
             defaultValue={driver?.carColour ?? ''}
           />
         </Field>
@@ -68,7 +59,6 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
           type="text"
           name="numberPlate"
           maxLength={15}
-          placeholder="e.g. AB12 CDE"
           defaultValue={driver?.numberPlate ?? ''}
         />
       </Field>
@@ -83,7 +73,6 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
           type="tel"
           name="whatsappNumber"
           required
-          placeholder="+44 7911 123 456"
           defaultValue={driver?.whatsappNumber ?? ''}
         />
       </Field>

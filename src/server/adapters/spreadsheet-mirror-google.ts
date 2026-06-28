@@ -2,6 +2,7 @@ import { bookingRef } from '@/lib/booking-ref';
 import { logger } from '@/lib/logger';
 import type { Booking } from '@/server/db/schema';
 import {
+  MONEY_COLUMN_INDICES,
   type MirrorRowInput,
   SHEET_HEADERS,
   SHEET_LAST_COLUMN,
@@ -40,6 +41,8 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
   private accessTokenExpiresAt = 0;
   /** Numeric gid of the target tab, resolved once and cached (needed to delete rows). */
   private sheetId: number | undefined;
+  /** Currency number format applied to the money columns once per process. */
+  private currencyFormatApplied = false;
 
   constructor(private readonly cfg: GoogleSheetsConfig) {
     if (!cfg.spreadsheetId) throw new Error('spreadsheetId required');
@@ -92,6 +95,10 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
         columnA = [[SHEET_HEADERS[0]]];
         headerRowIndex = 0;
       }
+
+      // Make the money columns read as currency (£275.50). Best-effort and once
+      // per process — a formatting hiccup must never block the row write.
+      await this.ensureCurrencyFormat(token, headerRowIndex);
 
       // Existing entry for this Job # — only the data area below the header.
       const existingIndex = columnA.findIndex(
@@ -285,6 +292,59 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
       return { ok: false, reason: `http_${res.status}` };
     }
     return { ok: true };
+  }
+
+  /**
+   * Set a currency number format (£#,##0.00) on the money columns from the
+   * header row down, so Contract Price / Driver Cost / Car Park read as
+   * "£275.50" instead of a bare "275.5". The values stay real numbers, so the
+   * operators' own total formulas keep working. Runs once per process and is
+   * best-effort: a formatting failure is logged, never surfaced to the caller,
+   * so it can't block a booking from being mirrored.
+   */
+  private async ensureCurrencyFormat(token: string, headerRowIndex: number): Promise<void> {
+    if (this.currencyFormatApplied) return;
+    try {
+      const sheetId = await this.getSheetId(token);
+      const requests = MONEY_COLUMN_INDICES.map((columnIndex) => ({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: headerRowIndex,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1,
+          },
+          cell: {
+            userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '£#,##0.00' } },
+          },
+          fields: 'userEnteredFormat.numberFormat',
+        },
+      }));
+      await this.batchUpdate(token, requests);
+      this.currencyFormatApplied = true;
+    } catch (err) {
+      logger.warn({ err }, 'sheets currency format failed (non-fatal)');
+    }
+  }
+
+  /** POST a batchUpdate with the given requests; throws on a non-2xx response. */
+  private async batchUpdate(token: string, requests: unknown[]): Promise<void> {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      this.cfg.spreadsheetId,
+    )}:batchUpdate`;
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ requests }),
+        signal,
+      }),
+    );
+    if (!res.ok) throw new Error(`batchUpdate failed: ${res.status}`);
   }
 
   private async withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
