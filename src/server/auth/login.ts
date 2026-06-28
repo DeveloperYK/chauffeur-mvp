@@ -58,7 +58,7 @@ export async function logout(db: Database, token: string): Promise<void> {
 
 export async function createOperator(
   db: Database,
-  input: { email: string; password: string; name: string },
+  input: { email: string; password: string; name: string; mustChangePassword?: boolean },
 ): Promise<{ id: string }> {
   const { hashPassword } = await import('./password');
   const passwordHash = await hashPassword(input.password);
@@ -68,6 +68,7 @@ export async function createOperator(
       email: input.email.trim().toLowerCase(),
       passwordHash,
       name: input.name,
+      mustChangePassword: input.mustChangePassword ?? false,
     })
     .returning();
   if (!op) throw new Error('failed to create operator');

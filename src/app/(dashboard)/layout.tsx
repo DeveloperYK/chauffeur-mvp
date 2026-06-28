@@ -20,6 +20,9 @@ const SAVED_VIEWS: SavedView[] = [
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await currentSession();
   if (!session) redirect('/login');
+  // A seeded account with a one-time temp password must set a real one before
+  // it can reach any console page.
+  if (session.operator.mustChangePassword) redirect('/change-password');
 
   const counts: Record<string, number> = { unassigned: 0, needs_review: 0 };
   const url = env().DATABASE_URL;
