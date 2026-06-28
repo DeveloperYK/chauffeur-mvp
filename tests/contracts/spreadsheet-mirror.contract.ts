@@ -230,5 +230,24 @@ export function spreadsheetMirrorContractTests(
         expect(result2.ok).toBe(true);
       });
     });
+
+    // ─── deleteRow ────────────────────────────────────────────────────────────
+
+    describe('deleteRow', () => {
+      it('returns ok:true after removing a booking that was written', async () => {
+        const input = createValidMirrorInput();
+        await adapter.upsertRow(input);
+
+        const result = await adapter.deleteRow(input.booking);
+
+        expect(result.ok).toBe(true);
+      });
+
+      it('is idempotent — deleting a booking never written still succeeds', async () => {
+        const result = await adapter.deleteRow(createValidMirrorInput().booking);
+
+        expect(result.ok).toBe(true);
+      });
+    });
   });
 }

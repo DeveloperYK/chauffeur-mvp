@@ -21,7 +21,7 @@ export function emailContractTests(createAdapter: () => EmailPort, cleanup?: () 
     it('returns ok:true with a non-empty id for a valid email', async () => {
       const result = await adapter.sendEmail({
         to: 'exec@example.com',
-        subject: 'Chauffeur MVP - BKNG-00001',
+        subject: 'JJ Chauffeuring - BKNG-00001',
         text: 'Your driver is confirmed.',
       });
       expect(result.ok).toBe(true);

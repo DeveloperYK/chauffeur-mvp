@@ -84,7 +84,8 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
                 autoFocus
               />
               <div className="hint">
-                Min. 5 chars. Visible in the audit log and on the Sheets mirror.
+                Min. 5 chars. Recorded in the audit log. The booking is removed from the backup
+                sheet on cancellation.
               </div>
             </div>
           </div>

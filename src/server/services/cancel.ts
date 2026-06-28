@@ -7,7 +7,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
-import { mirrorBooking } from './mirror';
+import { removeBookingFromMirror } from './mirror';
 import { lapseOpenOffers } from './offers';
 
 export const cancelBookingSchema = z
@@ -89,7 +89,9 @@ export async function cancelBooking(
   // so they stop showing as "awaiting" in the console.
   await lapseOpenOffers(deps.db, bookingId, now);
 
-  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
+  // Remove the row from the JJ backup sheet — a cancelled job shouldn't linger
+  // there looking live (the slim layout has no "cancelled" marker).
+  if (deps.mirror) await removeBookingFromMirror(deps.mirror, updated);
 
   return { ok: true, booking: updated };
 }

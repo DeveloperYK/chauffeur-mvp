@@ -1,3 +1,4 @@
+import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import { auditEvents, bookings, drivers, operators } from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
 import { cancelBooking } from '@/server/services/cancel';
@@ -89,6 +90,20 @@ describe('services/cancel (integration)', () => {
       deps(),
     );
     expect(r.ok).toBe(true);
+  });
+
+  it('removes the booking row from the spreadsheet mirror on cancellation', async () => {
+    const id = await seed('assigned');
+    const mirror = new FakeSpreadsheetMirror();
+    mirror.rows.set(id, ['BKNG-00001']); // pretend the live booking was mirrored
+    const r = await cancelBooking(
+      { bookingId: id, reason: 'Meeting rescheduled — no longer needed' },
+      operatorId,
+      { db, clock, mirror },
+    );
+    expect(r.ok).toBe(true);
+    // A cancelled job must not linger in the JJ backup sheet.
+    expect(mirror.rows.has(id)).toBe(false);
   });
 
   it('cancels an in_progress booking', async () => {
