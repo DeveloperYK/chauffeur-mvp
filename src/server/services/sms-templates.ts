@@ -11,11 +11,11 @@ import type { Booking } from '@/server/db/schema';
 type NamedDriver = { name: string };
 
 /**
- * Brand name on every customer-facing SMS so recipients can see at a glance
- * who the message is from. Placeholder until the official trading name is set —
- * change this single constant (and update the test) when it is.
+ * Trading name shown on every customer-facing message (SMS, WhatsApp, and email
+ * header/subject) so recipients can see at a glance who it is from. This single
+ * constant is the source of truth — change it here (and the test) to rebrand.
  */
-export const SMS_BRAND_NAME = 'Chauffeur MVP';
+export const SMS_BRAND_NAME = 'JJ Chauffeuring';
 
 /** Transfer fallback if a dropoff is somehow missing. */
 function destination(booking: Booking): string {

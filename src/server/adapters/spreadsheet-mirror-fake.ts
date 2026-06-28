@@ -1,3 +1,4 @@
+import type { Booking } from '@/server/db/schema';
 import {
   type MirrorRowInput,
   type SpreadsheetMirrorPort,
@@ -10,6 +11,11 @@ export class FakeSpreadsheetMirror implements SpreadsheetMirrorPort {
 
   async upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }> {
     this.rows.set(input.booking.id, rowFromBooking(input));
+    return { ok: true };
+  }
+
+  async deleteRow(booking: Booking): Promise<{ ok: true } | { ok: false; reason: string }> {
+    this.rows.delete(booking.id);
     return { ok: true };
   }
 

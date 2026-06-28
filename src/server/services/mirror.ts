@@ -45,3 +45,20 @@ export async function mirrorBooking(
     logger.error({ err, bookingId: booking.id }, 'mirror threw');
   }
 }
+
+/** Fire-and-forget removal of a booking's row from the spreadsheet mirror (e.g.
+ * on cancellation, so it doesn't linger in the JJ backup). Failures log but
+ * never throw — the dashboard must stay available even when the mirror is down. */
+export async function removeBookingFromMirror(
+  mirror: SpreadsheetMirrorPort,
+  booking: Booking,
+): Promise<void> {
+  try {
+    const result = await mirror.deleteRow(booking);
+    if (!result.ok) {
+      logger.warn({ bookingId: booking.id, reason: result.reason }, 'mirror delete failed');
+    }
+  } catch (err) {
+    logger.error({ err, bookingId: booking.id }, 'mirror delete threw');
+  }
+}

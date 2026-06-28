@@ -164,6 +164,7 @@ describe('spreadsheet mirror integration', () => {
   it('mirror failure does not break the operation', async () => {
     const brokenMirror = {
       upsertRow: async () => ({ ok: false as const, reason: 'simulated' }),
+      deleteRow: async () => ({ ok: false as const, reason: 'simulated' }),
     };
     const clock = fixedClock('2026-05-18T10:00:00.000Z');
     const r = await createBooking(
@@ -188,6 +189,9 @@ describe('spreadsheet mirror integration', () => {
   it('mirror thrown error is caught (still ok)', async () => {
     const throwingMirror = {
       upsertRow: async () => {
+        throw new Error('boom');
+      },
+      deleteRow: async () => {
         throw new Error('boom');
       },
     };

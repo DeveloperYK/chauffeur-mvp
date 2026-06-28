@@ -64,6 +64,19 @@ function makeFakeSheet(): FakeSheet {
       rows.push(body.values[0] ?? []);
       return jsonResponse({});
     }
+    if (url.includes(':batchUpdate')) {
+      // deleteDimension — remove the given 0-based row range (rows below shift up).
+      const body = JSON.parse(String(init?.body)) as {
+        requests: { deleteDimension?: { range: { startIndex: number; endIndex: number } } }[];
+      };
+      const range = body.requests[0]?.deleteDimension?.range;
+      if (range) rows.splice(range.startIndex, range.endIndex - range.startIndex);
+      return jsonResponse({});
+    }
+    if (method === 'GET' && url.includes('fields=sheets.properties')) {
+      // Spreadsheet metadata — the adapter resolves the tab's numeric gid here.
+      return jsonResponse({ sheets: [{ properties: { sheetId: 0, title: 'Main Data' } }] });
+    }
     if (method === 'GET') {
       // readColumnA — only column A is returned by Sheets for an A:A range.
       return jsonResponse({ values: rows.map((r) => [r[0] ?? '']) });
@@ -147,6 +160,37 @@ describe('GoogleSheetsSpreadsheetMirror upsert semantics', () => {
     expect(sheet.rows).toHaveLength(3); // header + two bookings
     expect(sheet.rows[1]?.[0]).toBe(bookingRef(base.seq));
     expect(sheet.rows[2]?.[0]).toBe(bookingRef(2));
+  });
+
+  it('deleteRow removes the booking row entirely, closing the gap', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    const second = createValidMirrorInput({
+      booking: { ...base, id: '00000000-0000-0000-0000-000000000002', seq: 2 },
+    });
+    await adapter.upsertRow(createValidMirrorInput());
+    await adapter.upsertRow(second);
+    expect(sheet.rows).toHaveLength(3); // header + two bookings
+
+    const result = await adapter.deleteRow(base);
+
+    expect(result.ok).toBe(true);
+    expect(sheet.rows).toHaveLength(2); // header + remaining booking — no blank gap
+    expect(sheet.rows[0]).toEqual([...SHEET_HEADERS]);
+    expect(sheet.rows[1]?.[0]).toBe(bookingRef(2)); // booking #2 shifted up into row 2
+  });
+
+  it('deleteRow is a no-op success when the booking is not in the sheet', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    await adapter.upsertRow(createValidMirrorInput()); // header + booking #1
+
+    const result = await adapter.deleteRow({
+      ...base,
+      id: '00000000-0000-0000-0000-000000000099',
+      seq: 99,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(sheet.rows).toHaveLength(2); // unchanged
   });
 
   it('writes booking rows beneath a mid-sheet template header, leaving it untouched', async () => {

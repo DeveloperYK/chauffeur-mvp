@@ -34,7 +34,7 @@ const time = formatLondonTimeOfDay(booking.pickupAt);
 
 describe('SMS templates — brand, reference, structured format', () => {
   it('exposes the brand constant', () => {
-    expect(SMS_BRAND_NAME).toBe('Chauffeur MVP');
+    expect(SMS_BRAND_NAME).toBe('JJ Chauffeuring');
   });
 
   it('formats the assigned-confirmation SMS for the exec with the car + colour', () => {
