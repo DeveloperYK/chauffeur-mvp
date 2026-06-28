@@ -249,14 +249,17 @@ export const bookings = pgTable(
     // so this is null for internal jobs and operator-entered at handoff.
     backfillDriverPayPence: integer('backfill_driver_pay_pence'),
 
-    // Completion form (filled by driver). The driver reports three wall-clock
-    // times — arrival, passenger-on-board and completion — plus a parking fee.
-    // `waitingTimeMinutes` is derived (on-board − arrival) and still drives the
-    // waiting charge; `dropoffAt` is the completion (trip-end) time.
+    // Completion form. The driver reports arrival + completion wall-clock times,
+    // the minutes they waited (entered directly; 0 = arrived on time), and a
+    // parking fee. `passengerOnBoardAt` = arrival + waiting; `dropoffAt` is the
+    // completion (trip-end) time; `waitingTimeMinutes` drives the £1/min charge.
     carParkPence: integer('car_park_pence'),
     arrivalAt: timestamp('arrival_at', { withTimezone: true }),
     passengerOnBoardAt: timestamp('passenger_on_board_at', { withTimezone: true }),
     waitingTimeMinutes: integer('waiting_time_minutes'),
+    // Operator override of the waiting charge (pence). Null → use the computed
+    // £1/min × waitingTimeMinutes; non-null → the operator's adjusted amount.
+    waitingChargePence: integer('waiting_charge_pence'),
     dropoffAt: timestamp('dropoff_at', { withTimezone: true }),
     completionSubmittedAt: timestamp('completion_submitted_at', { withTimezone: true }),
     // True when the operator entered the completion form on the driver's behalf

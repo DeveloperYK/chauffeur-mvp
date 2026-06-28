@@ -65,15 +65,17 @@ export interface ConsoleBooking {
   passengerOnBoardAt: string | null;
   waitingTimeMinutes: number | null;
   /**
-   * Waiting charge computed live (server-side) from `waitingTimeMinutes`.
-   * Always present; all-zero when no chargeable waiting. Lets the panel show
-   * the customer fee and the driver's share without importing server domain.
+   * Waiting charge resolved server-side: `customerFeePence` is the *effective*
+   * charge (operator override if set, else the computed £1/min fee). Always
+   * present; zero when there's no chargeable waiting.
    */
   waitingFee: {
     chargeableMinutes: number;
     customerFeePence: number;
     driverPayPence: number;
   };
+  /** Operator override of the waiting charge (pence), or null when auto (£1/min). */
+  waitingChargePence: number | null;
   dropoffAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;

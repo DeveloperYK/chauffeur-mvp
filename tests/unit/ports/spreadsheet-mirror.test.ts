@@ -32,6 +32,7 @@ const baseBooking: Booking = {
   arrivalAt: new Date('2026-06-01T09:50:00.000Z'),
   passengerOnBoardAt: new Date('2026-06-01T10:02:00.000Z'),
   waitingTimeMinutes: 12,
+  waitingChargePence: null,
   dropoffAt: new Date('2026-06-01T10:05:00.000Z'),
   completionSubmittedAt: new Date('2026-06-01T10:10:00.000Z'),
   approvedAt: new Date('2026-06-01T10:15:00.000Z'),

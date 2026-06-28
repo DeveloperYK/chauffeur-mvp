@@ -9,8 +9,8 @@ import { addDaysToDayString, formatLondonDay, londonWallClockToUtc } from '@/lib
 export interface CompletionTimeInput {
   /** Driver reached the pickup, "HH:MM" (24h, Europe/London). */
   arrivalTime: string;
-  /** Passenger got in / journey started, "HH:MM". */
-  passengerOnBoardTime: string;
+  /** Minutes the driver waited at the pickup (0 when they arrived on time). */
+  waitingMinutes: number;
   /** Trip finished (drop-off), "HH:MM". */
   completionTime: string;
 }
@@ -59,9 +59,13 @@ export function resolveCompletionTimes(
   input: CompletionTimeInput,
 ): ResolveCompletionTimesResult {
   const arrival = parseHhmm(input.arrivalTime);
-  const onBoard = parseHhmm(input.passengerOnBoardTime);
   const completion = parseHhmm(input.completionTime);
-  if (!arrival || !onBoard || !completion) return { ok: false, reason: 'bad_format' };
+  if (!arrival || !completion) return { ok: false, reason: 'bad_format' };
+  const waitingTimeMinutes = input.waitingMinutes;
+  if (!Number.isInteger(waitingTimeMinutes) || waitingTimeMinutes < 0) {
+    return { ok: false, reason: 'bad_format' };
+  }
+  if (waitingTimeMinutes > MAX_WAITING_MINUTES) return { ok: false, reason: 'waiting_too_long' };
 
   const pickupDay = formatLondonDay(pickupAt);
   const nextDay = addDaysToDayString(pickupDay, 1);
@@ -79,20 +83,13 @@ export function resolveCompletionTimes(
     arrivalAt = onDay(prevDay, arrival);
   }
 
-  let passengerOnBoardAt = onDay(pickupDay, onBoard);
-  if (passengerOnBoardAt.getTime() < arrivalAt.getTime()) {
-    passengerOnBoardAt = onDay(nextDay, onBoard);
-  }
+  // Passenger-on-board is arrival + the waiting the driver reported.
+  const passengerOnBoardAt = new Date(arrivalAt.getTime() + waitingTimeMinutes * 60_000);
 
   let dropoffAt = onDay(pickupDay, completion);
   if (dropoffAt.getTime() < passengerOnBoardAt.getTime()) {
     dropoffAt = onDay(nextDay, completion);
   }
-
-  const waitingTimeMinutes = Math.round(
-    (passengerOnBoardAt.getTime() - arrivalAt.getTime()) / 60_000,
-  );
-  if (waitingTimeMinutes > MAX_WAITING_MINUTES) return { ok: false, reason: 'waiting_too_long' };
 
   const journeyMinutes = Math.round((dropoffAt.getTime() - passengerOnBoardAt.getTime()) / 60_000);
   if (journeyMinutes > MAX_JOURNEY_MINUTES) return { ok: false, reason: 'journey_too_long' };

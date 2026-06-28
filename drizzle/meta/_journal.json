@@ -155,6 +155,13 @@
       "when": 1781900000000,
       "tag": "0021_add_driver_number_plate",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0022_add_waiting_charge_pence",
+      "breakpoints": true
     }
   ]
 }

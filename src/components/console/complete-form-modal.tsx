@@ -39,7 +39,7 @@ export function CompleteFormModal({
   onCompleted,
 }: CompleteFormModalProps) {
   const [arrivalTime, setArrivalTime] = useState('');
-  const [passengerOnBoardTime, setPassengerOnBoardTime] = useState('');
+  const [waitingMinutes, setWaitingMinutes] = useState('0');
   const [completionTime, setCompletionTime] = useState('');
   const [carParkPounds, setCarParkPounds] = useState('0');
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function CompleteFormModal({
     if (isOpen && booking) {
       const { atPickup, atCompletion } = defaultTimes(booking);
       setArrivalTime(atPickup);
-      setPassengerOnBoardTime(atPickup);
+      setWaitingMinutes('0');
       setCompletionTime(atCompletion);
       setCarParkPounds('0');
       setError(null);
@@ -60,9 +60,12 @@ export function CompleteFormModal({
   if (!booking) return null;
 
   const carParkPence = Math.round(Number.parseFloat(carParkPounds || '0') * 100);
+  const waitingMins = Number(waitingMinutes);
   const valid =
     HHMM.test(arrivalTime) &&
-    HHMM.test(passengerOnBoardTime) &&
+    Number.isInteger(waitingMins) &&
+    waitingMins >= 0 &&
+    waitingMins <= 720 &&
     HHMM.test(completionTime) &&
     Number.isFinite(carParkPence) &&
     carParkPence >= 0;
@@ -73,7 +76,7 @@ export function CompleteFormModal({
     startTransition(async () => {
       const result = await completeFormOnBehalfAction(booking.id, {
         arrivalTime,
-        passengerOnBoardTime,
+        waitingMinutes: waitingMins,
         completionTime,
         carParkPence,
       });
@@ -129,13 +132,16 @@ export function CompleteFormModal({
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
             <label>
-              Passenger on board time<span className="req">*</span>
+              Waiting time (minutes)<span className="req">*</span>
             </label>
             <div className="ctrl">
               <input
-                type="time"
-                value={passengerOnBoardTime}
-                onChange={(e) => setPassengerOnBoardTime(e.target.value)}
+                type="number"
+                min={0}
+                max={720}
+                step={1}
+                value={waitingMinutes}
+                onChange={(e) => setWaitingMinutes(e.target.value)}
               />
             </div>
           </div>

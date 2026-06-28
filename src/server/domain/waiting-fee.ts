@@ -84,3 +84,16 @@ export function waitingFee(
     companyMarginPence,
   };
 }
+
+/**
+ * The waiting charge actually billed for a booking: the operator's override when
+ * set (`overridePence`), otherwise the computed £1/min fee. Operators can adjust
+ * the charge by hand the way they set the contract price (e.g. a goodwill
+ * waiver), without losing the recorded waiting minutes.
+ */
+export function effectiveWaitingChargePence(
+  waitingTimeMinutes: number | null,
+  overridePence: number | null,
+): number {
+  return overridePence ?? waitingFee(waitingTimeMinutes).customerFeePence;
+}

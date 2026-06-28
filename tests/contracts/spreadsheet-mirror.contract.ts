@@ -42,6 +42,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       arrivalAt: new Date('2026-06-01T09:55:00.000Z'),
       passengerOnBoardAt: new Date('2026-06-01T10:10:00.000Z'),
       waitingTimeMinutes: 15,
+      waitingChargePence: null,
       dropoffAt: new Date('2026-06-01T11:30:00.000Z'),
       completionSubmittedAt: new Date('2026-06-01T12:00:00.000Z'),
       approvedAt: new Date('2026-06-01T14:00:00.000Z'),
