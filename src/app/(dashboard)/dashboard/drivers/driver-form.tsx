@@ -60,6 +60,20 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
       </div>
 
       <Field
+        label="Number plate"
+        helper="Optional. Shown to the exec in the email to help them spot the car."
+        className="md:col-span-2"
+      >
+        <Input
+          type="text"
+          name="numberPlate"
+          maxLength={15}
+          placeholder="e.g. AB12 CDE"
+          defaultValue={driver?.numberPlate ?? ''}
+        />
+      </Field>
+
+      <Field
         label="WhatsApp number"
         required
         helper="International format, with country code: e.g. +44 7911 123 456."

@@ -25,6 +25,8 @@ export const createDriverSchema = z
     vehicleClass: z.enum(['executive', 'luxury', 'mpv', 'coach']),
     car: z.string().trim().min(1).max(80),
     carColour: z.string().trim().min(1).max(40),
+    // Optional registration plate, shown to the exec in the email.
+    numberPlate: z.string().trim().max(15).optional().nullable(),
     whatsappNumber: phoneSchema,
   })
   .strict();
@@ -55,7 +57,13 @@ export async function createDriver(
   }
 
   try {
-    const [inserted] = await deps.db.insert(drivers).values(parsed.data).returning();
+    // Normalise the optional plate to null (not undefined) for the insert —
+    // exactOptionalPropertyTypes forbids `undefined` in Drizzle's values type.
+    const { numberPlate, ...rest } = parsed.data;
+    const [inserted] = await deps.db
+      .insert(drivers)
+      .values({ ...rest, numberPlate: numberPlate ?? null })
+      .returning();
     if (!inserted) throw new Error('insert returned no row');
     await recordAuditEvent(deps.db, {
       actorType: 'operator',
@@ -69,6 +77,7 @@ export async function createDriver(
         vehicleClass: inserted.vehicleClass,
         car: inserted.car,
         carColour: inserted.carColour,
+        numberPlate: inserted.numberPlate,
       },
     });
     return { ok: true, driver: inserted };
@@ -126,6 +135,7 @@ export async function updateDriver(
         vehicleClass: existing.vehicleClass,
         car: existing.car,
         carColour: existing.carColour,
+        numberPlate: existing.numberPlate,
         active: existing.active,
       },
       after: {
@@ -133,6 +143,7 @@ export async function updateDriver(
         vehicleClass: updated.vehicleClass,
         car: updated.car,
         carColour: updated.carColour,
+        numberPlate: updated.numberPlate,
         active: updated.active,
       },
     });

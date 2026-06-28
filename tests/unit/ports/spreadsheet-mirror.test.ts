@@ -63,6 +63,7 @@ const driver: Driver = {
   vehicleClass: 'executive',
   car: 'Mercedes S-Class',
   carColour: 'Black',
+  numberPlate: null,
   whatsappNumber: '+447911000001',
   active: true,
   createdAt: new Date(),

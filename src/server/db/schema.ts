@@ -151,6 +151,9 @@ export const drivers = pgTable(
     // no longer change the car when accepting a job — it is fixed to the driver.
     car: text('car').notNull(),
     carColour: text('car_colour').notNull(),
+    // Registration plate (e.g. "AB12 CDE"). Optional — shown to the exec in the
+    // confirmation/en-route email to help them spot the car kerbside.
+    numberPlate: text('number_plate'),
     whatsappNumber: text('whatsapp_number').notNull(),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
