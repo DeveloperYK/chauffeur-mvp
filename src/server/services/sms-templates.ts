@@ -32,7 +32,7 @@ function formatHireDuration(minutes: number): string {
 /**
  * Exec — booking confirmed once a driver accepts.
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   Confirmed: Sat 23 May, 14:00
  *   Driver: Marcus Bell (Black Mercedes S-Class)
  *   Pickup: 12 King St, London
@@ -53,7 +53,7 @@ export function assignedSms(booking: Booking, driver: NamedDriver, car: string):
 /**
  * Exec — driver is on the way (clock fires ~1h before pickup).
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   Your driver Marcus Bell is on the way for your 14:00 pickup.
  */
 export function enRouteSms(booking: Booking, driver: NamedDriver): string {
@@ -67,7 +67,7 @@ export function enRouteSms(booking: Booking, driver: NamedDriver): string {
  * Exec — their booking changed after it was confirmed; restate the current plan
  * (time, pickup, destination) so the exec's earlier confirmation isn't stale.
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   Your booking has been updated.
  *   Pickup: Sat 23 May, 14:00 - 12 King St, London
  *   To: Heathrow T5
@@ -92,7 +92,7 @@ export function changeExecSms(booking: Booking): string {
  * Transfer (point-to-point) shows the route; an as-directed hire shows the
  * pickup and the booked hire length instead:
  *
- *   Chauffeur MVP - New job BKNG-00001        Chauffeur MVP - New job BKNG-00002
+ *   JJ Chauffeuring - New job BKNG-00001        JJ Chauffeuring - New job BKNG-00002
  *   Sat 23 May, 14:00                         Sat 23 May, 14:00
  *   12 King St, London -> Heathrow T5         Pickup: 12 King St, London
  *   Accept: <url>                             As directed - 4 hours
@@ -120,7 +120,7 @@ export function dispatchSms(booking: Booking, url: string): string {
  * (operator reassigned the booking to someone else). Short and unambiguous;
  * the driver should know the job is no longer theirs.
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   This booking has been reassigned. You're no longer on it.
  */
 export function unassignedSms(booking: Booking): string {
@@ -134,7 +134,7 @@ export function unassignedSms(booking: Booking): string {
  * Driver — a booking they already accepted has changed; they tap to review the
  * new details and confirm they're across the new plan.
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   Your booking has changed. Please review the new details and confirm:
  *   <url>
  */
@@ -149,7 +149,7 @@ export function changeSms(booking: Booking, url: string): string {
 /**
  * Driver — completion-form request after the trip.
  *
- *   Chauffeur MVP - BKNG-00001
+ *   JJ Chauffeuring - BKNG-00001
  *   Please submit your trip form (arrival, on-board, completion times + parking):
  *   <url>
  */
