@@ -57,13 +57,20 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
 
   /**
    * Upsert exactly one row per booking, keyed by Job # (column A). The sheet is
-   * a revertible backup, so each booking must be a single, current row rather
-   * than an append log. We read column A to find an existing row for this Job #:
-   * found → overwrite it in place; not found → append. The header row is written
-   * on first use so a brand-new empty sheet self-initialises.
+   * a revertible backup, so each booking is a single, current row rather than an
+   * append log.
    *
-   * At MVP volume the extra read per write is negligible. If write throughput
-   * ever matters, batch or cache the Job#→row index.
+   * The mirror writes *into the operators' JJ template*: the "Job #" header sits
+   * mid-sheet (below the reference lists and the Step-1/2/3 group bands), with
+   * booking rows beneath it. We locate the header in column A, then for this
+   * Job #: found in the data area → overwrite that row in place; not found →
+   * write into the first free row after the last entry. We never use the Sheets
+   * `append` endpoint (its table-detection is unreliable with the structured
+   * rows above the data) and never write past column R, so the manual Accounting
+   * and "Auto-Calculations" columns stay untouched.
+   *
+   * A bare, un-templated sheet (no "Job #" header yet) self-initialises: the
+   * header is laid down at row 1 and data follows from row 2.
    */
   async upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
@@ -71,19 +78,26 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
       const row = rowFromBooking(input);
       const jobNumber = row[0] ?? '';
 
-      const columnA = await this.readColumnA(token);
-      const headerPresent = columnA[0]?.[0] === SHEET_HEADERS[0];
-      if (!headerPresent) {
+      let columnA = await this.readColumnA(token);
+      // The header row may be anywhere (templated sheet) — find it by its first
+      // cell. Absent → lay down a header at row 1 for a self-initialising sheet.
+      let headerRowIndex = columnA.findIndex((cells) => cells[0] === SHEET_HEADERS[0]);
+      if (headerRowIndex < 0) {
         const headerResult = await this.writeHeaders(token);
         if (!headerResult.ok) return headerResult;
+        columnA = [[SHEET_HEADERS[0]]];
+        headerRowIndex = 0;
       }
 
-      // 1-based row number of the existing entry for this Job #, if any.
-      const existingRowNumber = columnA.findIndex((cells) => cells[0] === jobNumber) + 1;
-      if (existingRowNumber > 0) {
-        return await this.updateRow(token, existingRowNumber, row);
+      // Existing entry for this Job # — only the data area below the header.
+      const existingIndex = columnA.findIndex(
+        (cells, i) => i > headerRowIndex && cells[0] === jobNumber,
+      );
+      if (existingIndex >= 0) {
+        return await this.updateRow(token, existingIndex + 1, row);
       }
-      return await this.appendRow(token, row);
+      // First free row after the last populated row in column A (1-based).
+      return await this.updateRow(token, columnA.length + 1, row);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return { ok: false, reason: 'timeout' };
@@ -171,35 +185,6 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets write non-2xx');
-      return { ok: false, reason: `http_${res.status}` };
-    }
-    return { ok: true };
-  }
-
-  private async appendRow(
-    token: string,
-    row: string[],
-  ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const range = `${this.sheetName}!A:${SHEET_LAST_COLUMN}`;
-    const url = this.valuesUrl(
-      range,
-      ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
-    );
-    const res = await this.withTimeout((signal) =>
-      this.fetchImpl(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ values: [row] }),
-        signal,
-      }),
-    );
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets append non-2xx');
       return { ok: false, reason: `http_${res.status}` };
     }
     return { ok: true };

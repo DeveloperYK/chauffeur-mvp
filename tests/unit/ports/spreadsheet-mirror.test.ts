@@ -80,33 +80,32 @@ const operator: Operator = {
 };
 
 describe('rowFromBooking', () => {
-  it('produces a 27-column row matching the JJ Main Data layout', () => {
+  it('produces an 18-column row (A–R) of JJ input columns', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(27);
+    expect(row.length).toBe(18);
   });
 
   it('formats pickup date and time of day in Europe/London (BST)', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[1]).toBe('2026-06-01'); // Date (London)
-    expect(row[2]).toBe('09:30'); // Pick Up Time — 08:30 UTC is 09:30 BST
+    expect(row[1]).toBe('2026-06-01'); // B Date (London)
+    expect(row[2]).toBe('09:30'); // C Pick Up Time — 08:30 UTC is 09:30 BST
   });
 
-  it('rolls the date, time and weekday into the next London day near midnight (BST)', () => {
+  it('rolls the date and time into the next London day near midnight (BST)', () => {
     // 2026-06-01 23:30 UTC is 2026-06-02 00:30 BST — a different calendar day.
     const row = rowFromBooking({
       booking: { ...baseBooking, pickupAt: new Date('2026-06-01T23:30:00.000Z') },
       driver,
     });
-    expect(row[1]).toBe('2026-06-02'); // Date (London)
-    expect(row[2]).toBe('00:30'); // Pick Up Time (London)
-    expect(row[26]).toBe('Tuesday'); // WeekDay (London, col AA) — 2 Jun 2026
+    expect(row[1]).toBe('2026-06-02'); // B Date (London)
+    expect(row[2]).toBe('00:30'); // C Pick Up Time (London)
   });
 
-  it('renders price in pounds with 2 decimals', () => {
+  it('renders prices in pounds with 2 decimals', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[11]).toBe('300.00'); // Contract Price (£)
-    expect(row[15]).toBe('7.50'); // Car Park (£)
+    expect(row[11]).toBe('300.00'); // L Contract Price (£)
+    expect(row[15]).toBe('7.50'); // P Car Park (£)
   });
 
   it('renders waiting minutes as hh:mm', () => {
@@ -114,10 +113,15 @@ describe('rowFromBooking', () => {
       booking: { ...baseBooking, waitingTimeMinutes: 65 },
       driver,
     });
-    expect(row[16]).toBe('01:05');
+    expect(row[16]).toBe('01:05'); // Q Waiting Time
   });
 
-  it('emits empty string when fields are null', () => {
+  it('renders the drop-off time of day in Europe/London (R)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[17]).toBe('11:05'); // R Drop Off Time — 10:05 UTC is 11:05 BST
+  });
+
+  it('emits empty string when optional fields are null', () => {
     const row = rowFromBooking({
       booking: {
         ...baseBooking,
@@ -127,40 +131,39 @@ describe('rowFromBooking', () => {
       },
       driver,
     });
-    expect(row[14]).toBe(''); // Driver Cost (O) — reserved, always blank
-    expect(row[15]).toBe(''); // Car Park (P)
-    expect(row[16]).toBe(''); // Waiting Time (Q)
-  });
-
-  it('renders the waiting charge in the Waiting (£) column (U), blank within the free period', () => {
-    // 50 min waited -> 20 chargeable min @ £0.50 = £10.00
-    const charged = rowFromBooking({
-      booking: { ...baseBooking, waitingTimeMinutes: 50 },
-      driver,
-    });
-    expect(charged[20]).toBe('10.00'); // Waiting (£)
-
-    // base booking waited 12 min -> within the free period -> blank
-    const free = rowFromBooking({ booking: baseBooking, driver });
-    expect(free[20]).toBe('');
-  });
-
-  it('renders the full passenger name in the Passenger Name column (R)', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[17]).toBe('Eric French');
+    expect(row[14]).toBe(''); // O Driver Cost — no subcontractor pay
+    expect(row[15]).toBe(''); // P Car Park
+    expect(row[16]).toBe(''); // Q Waiting Time
+    expect(row[17]).toBe(''); // R Drop Off Time
   });
 
   it("renders the assigned driver's car + colour in the Car Type column", () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[10]).toBe('Black Mercedes S-Class');
+    expect(row[10]).toBe('Black Mercedes S-Class'); // K
   });
 
-  it('renders the backfill car when the job ran on a subcontractor', () => {
+  it('renders the backfill car, driver name, Subcontractor type and cost for a subcontractor job', () => {
     const row = rowFromBooking({
-      booking: { ...baseBooking, isBackfill: true, backfillCar: 'Black Range Rover' },
+      booking: {
+        ...baseBooking,
+        isBackfill: true,
+        backfillCar: 'Black Range Rover',
+        backfillDriverName: 'Andy',
+        backfillDriverPayPence: 15000,
+      },
       driver: null,
     });
-    expect(row[10]).toBe('Black Range Rover');
+    expect(row[10]).toBe('Black Range Rover'); // K Car Type
+    expect(row[12]).toBe('Andy'); // M Driver Name (recorded on the booking)
+    expect(row[13]).toBe('Subcontractor'); // N Driver Type
+    expect(row[14]).toBe('150.00'); // O Driver Cost
+  });
+
+  it('marks an internally-assigned job as Employee with a blank Driver Cost', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[12]).toBe('Tom'); // M Driver Name
+    expect(row[13]).toBe('Employee'); // N Driver Type
+    expect(row[14]).toBe(''); // O Driver Cost — not tracked for employees
   });
 
   it('leaves the Car Type column blank when no driver is assigned', () => {
@@ -170,7 +173,7 @@ describe('rowFromBooking', () => {
 
   it('renders the operator name in the Booked By column', () => {
     const row = rowFromBooking({ booking: baseBooking, driver, operator });
-    expect(row[4]).toBe('Alice');
+    expect(row[4]).toBe('Alice'); // E
   });
 
   it('leaves Booked By blank when no operator provided', () => {
@@ -180,8 +183,8 @@ describe('rowFromBooking', () => {
 
   it('leaves driver columns blank when no driver provided', () => {
     const row = rowFromBooking({ booking: baseBooking });
-    expect(row[12]).toBe(''); // Driver Name
-    expect(row[13]).toBe(''); // Driver Type
+    expect(row[12]).toBe(''); // M Driver Name
+    expect(row[13]).toBe(''); // N Driver Type
   });
 });
 
