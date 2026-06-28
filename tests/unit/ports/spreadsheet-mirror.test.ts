@@ -77,6 +77,7 @@ const operator: Operator = {
   passwordHash: 'x',
   name: 'Alice',
   active: true,
+  mustChangePassword: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

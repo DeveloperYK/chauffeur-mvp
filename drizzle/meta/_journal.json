@@ -162,6 +162,13 @@
       "when": 1782000000000,
       "tag": "0022_add_waiting_charge_pence",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0023_add_must_change_password",
+      "breakpoints": true
     }
   ]
 }

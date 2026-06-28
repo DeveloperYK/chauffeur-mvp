@@ -120,6 +120,9 @@ export const operators = pgTable(
     passwordHash: text('password_hash').notNull(),
     name: text('name').notNull(),
     active: boolean('active').notNull().default(true),
+    // When true, the operator is forced to set a new password before they can
+    // use the console — used to seed an account with a one-time temp password.
+    mustChangePassword: boolean('must_change_password').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
