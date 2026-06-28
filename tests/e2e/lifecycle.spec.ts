@@ -227,11 +227,11 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await page.locator('.panel.is-open').getByRole('button', { name: 'Hand to backfill' }).click();
   const bfModal = page.locator('.modal.is-open');
   await expect(bfModal).toBeVisible();
-  await bfModal.getByPlaceholder('e.g. Dave Smith').fill('Dave Smith');
-  await bfModal.getByPlaceholder('e.g. +44 7911 123456').fill('+44 7911 123456');
-  await bfModal.getByPlaceholder('e.g. BMW 5 Series').fill('BMW 5 Series');
+  await bfModal.locator('input[name="backfillDriverName"]').fill('Dave Smith');
+  await bfModal.locator('input[name="backfillDriverPhone"]').fill('+44 7911 123456');
+  await bfModal.locator('input[name="backfillCar"]').fill('BMW 5 Series');
   // Backfill drivers are paid per job (internal drivers are salaried) — pay is required.
-  await bfModal.getByPlaceholder('120').fill('120');
+  await bfModal.locator('input[name="backfillDriverPay"]').fill('120');
   await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
   await expect(page.locator('.toast')).toContainText(/backfill/i);
 

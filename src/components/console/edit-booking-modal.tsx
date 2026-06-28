@@ -322,7 +322,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   value={form.customerAccount}
                   onChange={(v) => set('customerAccount', v)}
                   month={monthOf(form.pickupAt)}
-                  placeholder="e.g. LEGO Group, Mercedes-Benz UK"
                   ariaLabel="Customer account"
                 />
               </div>
@@ -337,7 +336,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   type="text"
                   value={form.caseCode}
                   onChange={(e) => set('caseCode', e.target.value)}
-                  placeholder="e.g. LEGO-2026-0142"
                 />
               </div>
             </div>
@@ -387,7 +385,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   type="email"
                   value={form.execEmail ?? ''}
                   onChange={(e) => set('execEmail', e.target.value)}
-                  placeholder="exec@example.com"
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
               </div>
@@ -440,7 +437,6 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   rows={3}
                   value={form.operatorNotes}
                   onChange={(e) => set('operatorNotes', e.target.value)}
-                  placeholder="e.g. difficult client, account on stop, billing quirk…"
                 />
               </div>
             </div>
