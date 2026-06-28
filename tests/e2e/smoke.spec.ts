@@ -10,10 +10,11 @@ test.describe('smoke', () => {
 
   test('login page renders for unauthenticated user', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /chauffeur dispatch/i })).toBeVisible();
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByText('JJ Chauffeuring').first()).toBeVisible();
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+    await expect(page.locator('input[name="password"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^sign in/i })).toBeVisible();
   });
 
   test('dashboard redirects to login when unauthenticated', async ({ page }) => {

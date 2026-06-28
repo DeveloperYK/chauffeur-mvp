@@ -120,6 +120,31 @@ const config: Config = {
       fontSize: {
         '2xs': ['10px', { lineHeight: '14px' }],
       },
+      keyframes: {
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'auth-float': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
+          '50%': { transform: 'translate3d(0, -22px, 0) scale(1.06)' },
+        },
+        'auth-pan': {
+          '0%': { backgroundPosition: '0% 50%' },
+          '100%': { backgroundPosition: '100% 50%' },
+        },
+        'auth-sheen': {
+          '0%': { transform: 'translateX(-120%)' },
+          '60%, 100%': { transform: 'translateX(260%)' },
+        },
+      },
+      animation: {
+        'fade-in-up': 'fade-in-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'auth-float': 'auth-float 11s ease-in-out infinite',
+        'auth-float-slow': 'auth-float 16s ease-in-out infinite',
+        'auth-pan': 'auth-pan 18s ease-in-out infinite alternate',
+        'auth-sheen': 'auth-sheen 5.5s ease-in-out infinite',
+      },
     },
   },
   plugins: [forms({ strategy: 'class' })],
