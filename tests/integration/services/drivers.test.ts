@@ -59,6 +59,20 @@ describe('services/drivers (integration)', () => {
     expect(events[0]?.action).toBe('create');
   });
 
+  it('persists the optional number plate', async () => {
+    const result = await createDriver(valid({ numberPlate: 'AB12 CDE' }), { db, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.driver.numberPlate).toBe('AB12 CDE');
+  });
+
+  it('leaves the number plate null when omitted', async () => {
+    const result = await createDriver(valid(), { db, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.driver.numberPlate).toBeNull();
+  });
+
   it('rejects invalid vehicle class', async () => {
     const result = await createDriver(valid({ vehicleClass: 'platinum' }), { db, operatorId });
     expect(result.ok).toBe(false);

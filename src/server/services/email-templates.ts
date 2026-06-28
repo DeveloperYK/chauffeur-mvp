@@ -96,7 +96,12 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
 }
 
 /** Exec — booking confirmed once a driver accepts. */
-export function assignedEmail(booking: Booking, driver: NamedDriver, car: string): RenderedEmail {
+export function assignedEmail(
+  booking: Booking,
+  driver: NamedDriver,
+  car: string,
+  plate?: string | null,
+): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
@@ -108,6 +113,7 @@ export function assignedEmail(booking: Booking, driver: NamedDriver, car: string
       { label: 'Date & time', value: when },
       { label: 'Driver', value: driver.name },
       ...(car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
+      ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup', value: booking.pickupAddress },
       { label: 'Destination', value: destination(booking) },
     ],
@@ -122,7 +128,12 @@ export function assignedEmail(booking: Booking, driver: NamedDriver, car: string
 }
 
 /** Exec — driver is on the way (clock fires ~1h before pickup). */
-export function enRouteEmail(booking: Booking, driver: NamedDriver, car: string): RenderedEmail {
+export function enRouteEmail(
+  booking: Booking,
+  driver: NamedDriver,
+  car: string,
+  plate?: string | null,
+): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const time = formatLondonTimeOfDay(booking.pickupAt);
   const layout: Layout = {
@@ -133,6 +144,7 @@ export function enRouteEmail(booking: Booking, driver: NamedDriver, car: string)
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Driver', value: driver.name },
       ...(car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
+      ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup time', value: time },
       { label: 'Pickup', value: booking.pickupAddress },
     ],
