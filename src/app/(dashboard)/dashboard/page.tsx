@@ -114,6 +114,7 @@ export default async function DashboardHome({
     layout?: string;
     showDone?: string;
     new?: string;
+    booking?: string;
   }>;
 }) {
   const session = await currentSession();
@@ -410,6 +411,7 @@ export default async function DashboardHome({
         showDone={showDone}
         isPast={isPast}
         initialNewOpen={params.new === '1'}
+        initialSelectedId={params.booking ?? null}
       />
     </>
   );

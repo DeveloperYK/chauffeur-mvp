@@ -45,6 +45,8 @@ interface ConsoleBoardProps {
   /** Selected day is before today — show a completed-bookings view, not the live workflow columns. */
   isPast: boolean;
   initialNewOpen?: boolean;
+  /** Open the detail panel for this booking on mount (deep link, e.g. ?booking=<id>). */
+  initialSelectedId?: string | null;
 }
 
 export function ConsoleBoard({
@@ -57,11 +59,12 @@ export function ConsoleBoard({
   showDone,
   isPast,
   initialNewOpen = false,
+  initialSelectedId = null,
 }: ConsoleBoardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
+  const [panelOpen, setPanelOpen] = useState(Boolean(initialSelectedId));
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
   const [completeFormOpen, setCompleteFormOpen] = useState(false);
