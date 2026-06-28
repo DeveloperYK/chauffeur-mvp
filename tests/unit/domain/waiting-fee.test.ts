@@ -80,11 +80,14 @@ describe('waitingFee', () => {
     expect(fee.companyMarginPence).toBe(0);
   });
 
-  it('ships sensible placeholder defaults (30 free, 50p/min, 70% driver)', () => {
-    expect(WAITING_FEE_RULES.freeMinutes).toBe(30);
-    expect(WAITING_FEE_RULES.perMinutePence).toBe(50);
-    expect(WAITING_FEE_RULES.driverSharePercent).toBe(70);
-    // Uses the shipped defaults when no rules are passed.
-    expect(waitingFee(50).customerFeePence).toBe(1000);
+  it('ships the JJ policy: £1/min from minute 0, no driver share', () => {
+    expect(WAITING_FEE_RULES.freeMinutes).toBe(0);
+    expect(WAITING_FEE_RULES.perMinutePence).toBe(100);
+    expect(WAITING_FEE_RULES.driverSharePercent).toBe(0);
+    // £1/min from the first minute, billed in full to the customer.
+    expect(waitingFee(5).customerFeePence).toBe(500); // 5 min → £5.00
+    expect(waitingFee(5).chargeableMinutes).toBe(5);
+    expect(waitingFee(5).driverPayPence).toBe(0);
+    expect(waitingFee(0).customerFeePence).toBe(0); // arrived on time → no charge
   });
 });
