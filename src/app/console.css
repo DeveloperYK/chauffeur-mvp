@@ -4073,4 +4073,65 @@ button.driver-row {
   .modal__foot {
     flex-wrap: wrap;
   }
+
+  /* Tighter page gutters so full-page content (calendar, tables) has room. */
+  .content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .page-head {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .filterbar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  /* Page headers wrap (title + subtitle + counts) instead of overflowing. */
+  .page-head__row {
+    flex-wrap: wrap;
+  }
+  .page-head__sub {
+    white-space: normal;
+  }
+
+  /* Calendar: keep all 7 day columns on screen. Grid items default to
+     min-width:auto, so the booking pills were forcing the week wider than the
+     viewport; minmax(0,1fr) + min-width:0 lets the columns shrink to fit. */
+  .cal__grid,
+  .cal__wk {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .cal__cell {
+    min-width: 0;
+    overflow: hidden;
+    padding: 4px;
+  }
+  .cal--expanded .cal__cell {
+    min-height: 58px;
+    padding: 4px;
+  }
+  /* Compact the day markers: a coloured dot + count, no wrapping word, and drop
+     the "No bookings" filler — there's no room for it in a phone-width cell. */
+  .dc-pill {
+    font-size: 9.5px;
+    padding: 1px 3px;
+    gap: 2px;
+    max-width: 100%;
+  }
+  .dc-pill > span:last-child {
+    display: none;
+  }
+  .dc-empty {
+    display: none;
+  }
+
+  /* Wide data tables (drivers roster, etc.) scroll sideways rather than clip. */
+  .driver-table {
+    overflow-x: auto;
+  }
+  .dt-row {
+    min-width: 720px;
+  }
 }
