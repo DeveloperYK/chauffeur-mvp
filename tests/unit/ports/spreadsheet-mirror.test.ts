@@ -63,6 +63,7 @@ const driver: Driver = {
   vehicleClass: 'executive',
   car: 'Mercedes S-Class',
   carColour: 'Black',
+  numberPlate: null,
   whatsappNumber: '+447911000001',
   active: true,
   createdAt: new Date(),
@@ -137,9 +138,9 @@ describe('rowFromBooking', () => {
     expect(row[17]).toBe(''); // R Drop Off Time
   });
 
-  it("renders the assigned driver's car + colour in the Car Type column", () => {
+  it("renders the assigned driver's vehicle class in the Car Type column", () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[10]).toBe('Black Mercedes S-Class'); // K
+    expect(row[10]).toBe('Executive'); // K — vehicle class, not the specific model
   });
 
   it('renders the backfill car, driver name, Subcontractor type and cost for a subcontractor job', () => {

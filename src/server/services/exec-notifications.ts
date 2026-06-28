@@ -63,6 +63,8 @@ export interface ExecMessageContext {
   kind: NotificationKind;
   driverName: string;
   car?: string;
+  /** Registration plate, shown to the exec in the email (internal drivers only). */
+  plate?: string | null;
 }
 
 interface SendOutcome {
@@ -83,12 +85,12 @@ function renderSmsBody(ctx: ExecMessageContext): string {
 
 function renderEmail(ctx: ExecMessageContext): { subject: string; html: string; text: string } {
   if (ctx.kind === 'assigned') {
-    return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
+    return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '', ctx.plate);
   }
   if (ctx.kind === 'changed') {
     return changeExecEmail(ctx.booking);
   }
-  return enRouteEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '');
+  return enRouteEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '', ctx.plate);
 }
 
 async function performSmsSend(
@@ -306,6 +308,7 @@ export async function buildExecContextForBooking(
         kind,
         driverName: driver.name,
         car: carDescription(driver.car, driver.carColour),
+        plate: driver.numberPlate,
       };
     }
   }

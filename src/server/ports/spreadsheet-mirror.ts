@@ -1,5 +1,6 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
+import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
 
 /**
@@ -106,12 +107,15 @@ function waitingHoursMinutes(waitingTimeMinutes: number | null): string {
 
 export function rowFromBooking(input: MirrorRowInput): string[] {
   const { booking, driver, operator } = input;
-  // Car (column K): an internal driver brings the car + colour on their profile;
-  // a backfill subcontractor's car is recorded on the booking. Empty until a
-  // driver is assigned.
+  // Car Type (column K): the company classifies vehicles by class
+  // (Executive / Luxury / MPV / Coach), so an internal driver's row shows their
+  // class. A backfill subcontractor has no class on file, so keep the free-text
+  // car the operator entered. Empty until a driver is assigned.
   const car = booking.isBackfill
     ? carLabel(booking.backfillCar)
-    : [driver?.carColour?.trim(), carLabel(driver?.car ?? null)].filter(Boolean).join(' ');
+    : driver
+      ? VEHICLE_CLASS_LABEL[driver.vehicleClass]
+      : '';
   // Driver Name (column M): a backfill name lives on the booking; an internal
   // driver's name is on the driver record.
   const driverName = booking.isBackfill ? (booking.backfillDriverName ?? '') : (driver?.name ?? '');

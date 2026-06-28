@@ -35,24 +35,24 @@ describe('reconcile', () => {
     expect(noPark.accounts[0]?.caseCodes[0]?.lines[0]?.totalPence).toBe(20000);
   });
 
-  it('adds a waiting charge for time beyond the free period to the line total', () => {
-    // 50 min waited -> 20 chargeable min -> £10.00 waiting fee
+  it('adds the £1/min waiting charge to the line total', () => {
+    // 5 min waited -> £5.00 waiting charge (£1/min from minute 0)
     const r = reconcile([
-      bk({ contractPricePence: 30000, carParkPence: 500, waitingTimeMinutes: 50 }),
+      bk({ contractPricePence: 30000, carParkPence: 500, waitingTimeMinutes: 5 }),
     ]);
     const line = r.accounts[0]?.caseCodes[0]?.lines[0];
-    expect(line?.waitingFeePence).toBe(1000);
-    expect(line?.totalPence).toBe(31500); // 30000 + 500 + 1000
-    expect(r.accounts[0]?.caseCodes[0]?.subtotalPence).toBe(31500);
-    expect(r.grandTotalPence).toBe(31500);
+    expect(line?.waitingFeePence).toBe(500);
+    expect(line?.totalPence).toBe(31000); // 30000 + 500 + 500
+    expect(r.accounts[0]?.caseCodes[0]?.subtotalPence).toBe(31000);
+    expect(r.grandTotalPence).toBe(31000);
   });
 
-  it('adds no waiting charge within the free period or when unrecorded', () => {
-    const within = reconcile([
-      bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: 20 }),
+  it('adds no waiting charge when the driver waited 0 min or it is unrecorded', () => {
+    const onTime = reconcile([
+      bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: 0 }),
     ]);
-    expect(within.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
-    expect(within.accounts[0]?.caseCodes[0]?.lines[0]?.totalPence).toBe(10000);
+    expect(onTime.accounts[0]?.caseCodes[0]?.lines[0]?.waitingFeePence).toBe(0);
+    expect(onTime.accounts[0]?.caseCodes[0]?.lines[0]?.totalPence).toBe(10000);
 
     const unrecorded = reconcile([
       bk({ contractPricePence: 10000, carParkPence: 0, waitingTimeMinutes: null }),
@@ -127,7 +127,7 @@ describe('reconciliationCsv', () => {
         caseCode: 'LEGO-1',
         contractPricePence: 30000,
         carParkPence: 500,
-        waitingTimeMinutes: 50, // 20 chargeable min -> £10.00
+        waitingTimeMinutes: 50, // £1/min -> £50.00
       }),
     ]);
     const csv = reconciliationCsv(report);
@@ -138,8 +138,8 @@ describe('reconciliationCsv', () => {
     expect(lines[0]).toContain('Total');
     expect(lines[1]).toContain('LEGO Group');
     expect(lines[1]).toContain('LEGO-1');
-    expect(lines[1]).toContain('10.00'); // waiting fee in pounds
-    expect(lines[1]).toContain('315.00'); // 30000 + 500 + 1000 pence
+    expect(lines[1]).toContain('50.00'); // waiting fee in pounds
+    expect(lines[1]).toContain('355.00'); // 30000 + 500 + 5000 pence
   });
 
   it('escapes fields containing commas', () => {

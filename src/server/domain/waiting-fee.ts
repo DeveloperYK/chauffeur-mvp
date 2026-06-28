@@ -24,11 +24,16 @@ export interface WaitingFeeRules {
   driverSharePercent: number;
 }
 
-/** TODO: replace with the company's confirmed waiting-charge policy. */
+/**
+ * JJ Chauffeuring waiting-charge policy: £1 per minute waited, from the first
+ * minute (no free grace period). The driver records the chargeable minutes on
+ * the completion form (0 when they arrived on time). No per-job driver share —
+ * the charge is billed to the customer in full.
+ */
 export const WAITING_FEE_RULES: WaitingFeeRules = {
-  freeMinutes: 30, // first 30 min free
-  perMinutePence: 50, // £0.50 / min thereafter
-  driverSharePercent: 70, // driver keeps 70% of the waiting charge
+  freeMinutes: 0,
+  perMinutePence: 100, // £1.00 / min
+  driverSharePercent: 0,
 };
 
 export interface WaitingFee {

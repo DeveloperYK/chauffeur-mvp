@@ -35,6 +35,32 @@ describe('services/email-templates', () => {
     }
   });
 
+  it('shows the number plate when the driver has one, in both emails', () => {
+    const confirmed = assignedEmail(
+      booking(),
+      { name: 'Marcus Bell' },
+      'Black Mercedes S-Class',
+      'AB12 CDE',
+    );
+    expect(confirmed.html).toContain('Number plate');
+    expect(confirmed.html).toContain('AB12 CDE');
+    expect(confirmed.text).toContain('AB12 CDE');
+
+    const enRoute = enRouteEmail(
+      booking(),
+      { name: 'Marcus Bell' },
+      'Black Mercedes S-Class',
+      'AB12 CDE',
+    );
+    expect(enRoute.text).toContain('AB12 CDE');
+  });
+
+  it('omits the number-plate row when the driver has none', () => {
+    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    expect(e.html).not.toContain('Number plate');
+    expect(e.text).not.toContain('Number plate');
+  });
+
   it('enRouteEmail renders a branded en-route message with the pickup time', () => {
     const e = enRouteEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
     expect(e.subject.toLowerCase()).toContain('on the way');
