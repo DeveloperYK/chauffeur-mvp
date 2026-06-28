@@ -1,4 +1,6 @@
+import { bookingRef } from '@/lib/booking-ref';
 import { logger } from '@/lib/logger';
+import type { Booking } from '@/server/db/schema';
 import {
   type MirrorRowInput,
   SHEET_HEADERS,
@@ -36,6 +38,8 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
 
   private accessToken: string | undefined;
   private accessTokenExpiresAt = 0;
+  /** Numeric gid of the target tab, resolved once and cached (needed to delete rows). */
+  private sheetId: number | undefined;
 
   constructor(private readonly cfg: GoogleSheetsConfig) {
     if (!cfg.spreadsheetId) throw new Error('spreadsheetId required');
@@ -103,6 +107,38 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
         return { ok: false, reason: 'timeout' };
       }
       logger.error({ err }, 'sheets upsert failed');
+      return { ok: false, reason: 'network_error' };
+    }
+  }
+
+  /**
+   * Remove the booking's row from the sheet entirely (keyed by Job #), so a
+   * cancelled job doesn't linger in the JJ backup looking live. Locates the row
+   * the same way as the upsert, then deletes that dimension (rows below shift
+   * up — no blank gap). Idempotent: a booking that isn't in the sheet succeeds
+   * without touching it.
+   */
+  async deleteRow(booking: Booking): Promise<{ ok: true } | { ok: false; reason: string }> {
+    try {
+      const token = await this.getAccessToken();
+      const jobNumber = bookingRef(booking.seq);
+
+      const columnA = await this.readColumnA(token);
+      const headerRowIndex = columnA.findIndex((cells) => cells[0] === SHEET_HEADERS[0]);
+      if (headerRowIndex < 0) return { ok: true }; // no header → no data rows yet
+
+      const existingIndex = columnA.findIndex(
+        (cells, i) => i > headerRowIndex && cells[0] === jobNumber,
+      );
+      if (existingIndex < 0) return { ok: true }; // already absent — idempotent
+
+      const sheetId = await this.getSheetId(token);
+      return await this.deleteDimension(token, sheetId, existingIndex);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { ok: false, reason: 'timeout' };
+      }
+      logger.error({ err }, 'sheets delete failed');
       return { ok: false, reason: 'network_error' };
     }
   }
@@ -185,6 +221,67 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets write non-2xx');
+      return { ok: false, reason: `http_${res.status}` };
+    }
+    return { ok: true };
+  }
+
+  /** Resolve and cache the numeric gid of the target tab (needed to delete rows). */
+  private async getSheetId(token: string): Promise<number> {
+    if (this.sheetId !== undefined) return this.sheetId;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      this.cfg.spreadsheetId,
+    )}?fields=sheets.properties(sheetId,title)`;
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        signal,
+      }),
+    );
+    if (!res.ok) throw new Error(`sheets metadata failed: ${res.status}`);
+    const json = (await res.json()) as {
+      sheets?: { properties?: { sheetId?: number; title?: string } }[];
+    };
+    const match = json.sheets?.find((s) => s.properties?.title === this.sheetName);
+    const id = match?.properties?.sheetId;
+    if (id === undefined) throw new Error(`sheet tab not found: ${this.sheetName}`);
+    this.sheetId = id;
+    return id;
+  }
+
+  /** Delete a single row (0-based index) via batchUpdate; rows below shift up. */
+  private async deleteDimension(
+    token: string,
+    sheetId: number,
+    rowIndex: number,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      this.cfg.spreadsheetId,
+    )}:batchUpdate`;
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              deleteDimension: {
+                range: { sheetId, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 },
+              },
+            },
+          ],
+        }),
+        signal,
+      }),
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      logger.warn({ status: res.status, sheetsError: text.slice(0, 500) }, 'sheets delete non-2xx');
       return { ok: false, reason: `http_${res.status}` };
     }
     return { ok: true };

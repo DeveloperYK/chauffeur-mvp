@@ -44,6 +44,12 @@ export interface MirrorRowInput {
 
 export interface SpreadsheetMirrorPort {
   upsertRow(input: MirrorRowInput): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /**
+   * Remove the booking's row from the sheet entirely (keyed by Job #), so a
+   * cancelled job doesn't linger in the JJ backup looking live. Idempotent: a
+   * booking that isn't in the sheet is a no-op success.
+   */
+  deleteRow(booking: Booking): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
 // The JJ sheet is a UK billing record — dates and times must be in Europe/London
