@@ -169,7 +169,19 @@ export default async function DriverLinkPage({
         <Lozenge tone="blue">NEW OFFER</Lozenge>
       </div>
 
-      <h1>{passengerName}</h1>
+      <div
+        style={{
+          fontSize: 10.5,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          fontWeight: 600,
+          color: 'var(--ink-3)',
+          marginTop: 8,
+        }}
+      >
+        Client
+      </div>
+      <h1 style={{ marginTop: 2 }}>{passengerName}</h1>
 
       {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
 

@@ -41,3 +41,34 @@ export const phoneSchema = z
     }
     return e164;
   });
+
+/** Guidance for UK-only fields (e.g. the driver number). */
+export const UK_PHONE_HINT = 'UK number, e.g. 07911 123456 (or +44 7911 123456).';
+
+/**
+ * Parse a UK phone number to E.164, rejecting anything that isn't British.
+ * `07911 123456`, `020 7946 0000` and `+44 7911 123456` are accepted; a valid
+ * non-UK number (e.g. `+33 …`) is rejected. Returns null when invalid or non-UK.
+ */
+export function normalizeUkPhone(input: string): string | null {
+  const parsed = parsePhoneNumberFromString(input.trim(), DEFAULT_COUNTRY);
+  // Match on the +44 calling code, not `.country`: libphonenumber leaves
+  // `.country` ambiguous for +44 (shared by GB and the Crown Dependencies), so a
+  // valid UK mobile like 07911… would otherwise be rejected. +44 == UK here.
+  return parsed?.isValid() && parsed.countryCallingCode === '44' ? parsed.format('E.164') : null;
+}
+
+/** Zod schema for a required UK-only phone field, stored as E.164. */
+export const ukPhoneSchema = z
+  .string()
+  .trim()
+  .min(1, 'Phone number is required')
+  .max(30, UK_PHONE_HINT)
+  .transform((value, ctx) => {
+    const e164 = normalizeUkPhone(value);
+    if (!e164) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: UK_PHONE_HINT });
+      return z.NEVER;
+    }
+    return e164;
+  });

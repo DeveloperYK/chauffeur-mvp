@@ -1,4 +1,4 @@
-import { phoneSchema } from '@/lib/phone';
+import { ukPhoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Driver, drivers } from '@/server/db/schema';
 import { and, asc, eq } from 'drizzle-orm';
@@ -10,10 +10,13 @@ export const createDriverSchema = z
     name: z.string().min(2).max(120),
     vehicleClass: z.enum(['executive', 'luxury', 'mpv', 'coach']),
     car: z.string().trim().min(1).max(80),
-    carColour: z.string().trim().min(1).max(40),
+    // Optional — like the number plate. When present it is folded into the car
+    // description shown to the exec (e.g. "Black Mercedes S-Class").
+    carColour: z.string().trim().max(40).optional().default(''),
     // Optional registration plate, shown to the exec in the email.
     numberPlate: z.string().trim().max(15).optional().nullable(),
-    whatsappNumber: phoneSchema,
+    // Drivers are UK-based, so the number is UK-only.
+    whatsappNumber: ukPhoneSchema,
   })
   .strict();
 
