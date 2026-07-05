@@ -39,11 +39,10 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
           <Input type="text" name="car" required maxLength={80} defaultValue={driver?.car ?? ''} />
         </Field>
 
-        <Field label="Car colour" required>
+        <Field label="Car colour" helper="Optional.">
           <Input
             type="text"
             name="carColour"
-            required
             maxLength={40}
             defaultValue={driver?.carColour ?? ''}
           />
@@ -64,9 +63,9 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
       </Field>
 
       <Field
-        label="WhatsApp number"
+        label="Number"
         required
-        helper="International format, with country code: e.g. +44 7911 123 456."
+        helper="UK number, e.g. 07911 123456."
         className="md:col-span-2"
       >
         <Input

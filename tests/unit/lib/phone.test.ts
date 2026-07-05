@@ -1,5 +1,44 @@
-import { PHONE_HINT, normalizePhone, phoneSchema } from '@/lib/phone';
+import {
+  PHONE_HINT,
+  UK_PHONE_HINT,
+  normalizePhone,
+  normalizeUkPhone,
+  phoneSchema,
+  ukPhoneSchema,
+} from '@/lib/phone';
 import { describe, expect, it } from 'vitest';
+
+describe('normalizeUkPhone (UK-only)', () => {
+  it('accepts UK numbers (0-prefixed or +44) and normalises to E.164', () => {
+    expect(normalizeUkPhone('07911 123456')).toBe('+447911123456');
+    expect(normalizeUkPhone('020 7946 0000')).toBe('+442079460000');
+    expect(normalizeUkPhone('+44 7911 123456')).toBe('+447911123456');
+  });
+
+  it('rejects a valid NON-UK number', () => {
+    expect(normalizeUkPhone('+33 6 12 34 56 78')).toBeNull();
+    expect(normalizeUkPhone('+1 415 555 0100')).toBeNull();
+  });
+
+  it('rejects nonsense', () => {
+    expect(normalizeUkPhone('0791')).toBeNull();
+    expect(normalizeUkPhone('')).toBeNull();
+  });
+});
+
+describe('ukPhoneSchema', () => {
+  it('parses a UK number to E.164', () => {
+    const r = ukPhoneSchema.safeParse('07911 123456');
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toBe('+447911123456');
+  });
+
+  it('rejects a non-UK number with the UK hint', () => {
+    const r = ukPhoneSchema.safeParse('+33 6 12 34 56 78');
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe(UK_PHONE_HINT);
+  });
+});
 
 describe('normalizePhone', () => {
   it('accepts a UK mobile typed the national way (0-prefixed) and normalises to +44', () => {
