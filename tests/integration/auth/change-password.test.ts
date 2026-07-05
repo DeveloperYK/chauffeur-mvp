@@ -46,9 +46,9 @@ describe('auth/changePassword (integration)', () => {
     expect(op?.mustChangePassword).toBe(true);
   });
 
-  it('changes the password, clears the flag, and audits it', async () => {
+  it('sets the new password, clears the flag, and audits it (no current password required)', async () => {
     const id = await seedTempAccount();
-    const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: NEW });
+    const r = await changePassword(db, id, { newPassword: NEW });
     expect(r.ok).toBe(true);
 
     const op = await getOperatorByEmail(db, 'dev@example.com');
@@ -57,7 +57,7 @@ describe('auth/changePassword (integration)', () => {
     const event = (await db.select().from(auditEvents)).find((e) => e.action === 'change_password');
     expect(event?.actorId).toBe(id);
 
-    // The new password works and the old one no longer does.
+    // The new password works and the old temp one no longer does.
     const good = await login(
       { email: 'dev@example.com', password: NEW },
       { db, rateLimiter: limiter() },
@@ -70,38 +70,21 @@ describe('auth/changePassword (integration)', () => {
     expect(bad.ok).toBe(false);
   });
 
-  it('rejects a wrong current password (flag stays set)', async () => {
-    const id = await seedTempAccount();
-    const r = await changePassword(db, id, { currentPassword: 'wrong-password', newPassword: NEW });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe('invalid_current_password');
-    const op = await getOperatorByEmail(db, 'dev@example.com');
-    expect(op?.mustChangePassword).toBe(true);
-  });
-
   it('rejects a new password under 8 characters', async () => {
     const id = await seedTempAccount();
-    const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: 'short' });
+    const r = await changePassword(db, id, { newPassword: 'short' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('weak_password');
   });
 
-  it('accepts an 8-character new password (the new minimum)', async () => {
+  it('accepts an 8-character new password (the minimum)', async () => {
     const id = await seedTempAccount();
-    const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: 'eightchr' });
+    const r = await changePassword(db, id, { newPassword: 'eightchr' });
     expect(r.ok).toBe(true);
-  });
-
-  it('rejects reusing the current password', async () => {
-    const id = await seedTempAccount();
-    const r = await changePassword(db, id, { currentPassword: TEMP, newPassword: TEMP });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe('same_password');
   });
 
   it('rejects an unknown operator', async () => {
     const r = await changePassword(db, '00000000-0000-0000-0000-000000000000', {
-      currentPassword: TEMP,
       newPassword: NEW,
     });
     expect(r.ok).toBe(false);
