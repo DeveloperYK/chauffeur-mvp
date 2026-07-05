@@ -2,6 +2,7 @@
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
+import { PHONE_HINT } from '@/lib/phone';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
@@ -118,18 +119,41 @@ function defaultDateTime(offsetH = 26): string {
 export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBookingModalProps) {
   const [form, setForm] = useState<NewForm>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   const [isPending, startTransition] = useTransition();
   const routeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setForm((f) => ({ ...f, pickupAt: f.pickupAt || defaultDateTime() }));
       setError(null);
+      setFieldErrors({});
     }
   }, [isOpen]);
 
-  const set = <K extends keyof NewForm>(k: K, v: NewForm[K]) => setForm((p) => ({ ...p, [k]: v }));
+  // After a rejected submit, bring the first flagged field into view so the
+  // operator sees exactly what to fix rather than hunting up a long form.
+  useEffect(() => {
+    if (!error && Object.keys(fieldErrors).length === 0) return;
+    formRef.current?.querySelector('.err')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [error, fieldErrors]);
+
+  // The exec-mobile field on the form uses `execMobile`; the server keys a price
+  // error under `contractPricePence` though the input holds pounds.
+  const serverFieldFor = (k: keyof NewForm): string =>
+    k === 'contractPricePounds' ? 'contractPricePence' : k;
+
+  const set = <K extends keyof NewForm>(k: K, v: NewForm[K]) => {
+    setForm((p) => ({ ...p, [k]: v }));
+    // Clear this field's error as soon as the operator edits it.
+    setFieldErrors((prev) => {
+      const key = serverFieldFor(k);
+      if (!(key in prev)) return prev;
+      return Object.fromEntries(Object.entries(prev).filter(([k2]) => k2 !== key));
+    });
+  };
 
   // Auto-estimate a transfer's distance + drive time whenever both ends are set.
   useEffect(() => {
@@ -179,7 +203,6 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
   };
 
   const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
-  const priceValid = Number.parseFloat(form.contractPricePounds) > 0;
 
   const generateSample = () => {
     const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
@@ -210,6 +233,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     setError(null);
+    setFieldErrors({});
     const fd = new FormData();
     fd.set('serviceType', form.serviceType);
     fd.set('pickupAt', form.pickupAt);
@@ -231,8 +255,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
       const result = await createBookingAction(fd);
-      if (result.error) {
-        setError(result.error);
+      if (result.error || result.fieldErrors) {
+        setError(result.error ?? 'Please fix the highlighted fields.');
+        setFieldErrors(result.fieldErrors ?? {});
         return;
       }
       setForm(EMPTY);
@@ -244,7 +269,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
-      <form className="modal__card" style={{ width: 720 }} onSubmit={submit}>
+      <form className="modal__card" style={{ width: 720 }} onSubmit={submit} ref={formRef}>
         <header className="modal__head">
           <div className="row">
             <div>
@@ -302,8 +327,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 <input
                   type="datetime-local"
                   value={form.pickupAt}
+                  aria-invalid={fieldErrors.pickupAt ? true : undefined}
                   onChange={(e) => set('pickupAt', e.target.value)}
                 />
+                {fieldErrors.pickupAt ? <div className="err">{fieldErrors.pickupAt}</div> : null}
               </div>
             </div>
 
@@ -319,6 +346,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   placeholder="Start typing an address…"
                   ariaLabel="Pickup address"
                 />
+                {fieldErrors.pickupAddress ? (
+                  <div className="err">{fieldErrors.pickupAddress}</div>
+                ) : null}
               </div>
             </div>
 
@@ -345,6 +375,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                             ? 'Could not estimate the route — enter the duration manually.'
                             : 'Pick both ends to estimate the drive time.'}
                     </div>
+                    {fieldErrors.dropoffAddress ? (
+                      <div className="err">{fieldErrors.dropoffAddress}</div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="field">
@@ -397,6 +430,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   month={monthOf(form.pickupAt)}
                   ariaLabel="Customer account"
                 />
+                {fieldErrors.customerAccount ? (
+                  <div className="err">{fieldErrors.customerAccount}</div>
+                ) : null}
               </div>
             </div>
             <div className="field">
@@ -408,8 +444,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 <input
                   type="text"
                   value={form.caseCode}
+                  aria-invalid={fieldErrors.caseCode ? true : undefined}
                   onChange={(e) => set('caseCode', e.target.value)}
                 />
+                {fieldErrors.caseCode ? <div className="err">{fieldErrors.caseCode}</div> : null}
               </div>
             </div>
             <div className="field">
@@ -422,6 +460,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                   <input
                     type="text"
                     value={form.passengerFirstName}
+                    aria-invalid={fieldErrors.passengerFirstName ? true : undefined}
                     onChange={(e) => set('passengerFirstName', e.target.value)}
                     placeholder="First name"
                   />
@@ -432,6 +471,9 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     placeholder="Last name"
                   />
                 </div>
+                {fieldErrors.passengerFirstName ? (
+                  <div className="err">{fieldErrors.passengerFirstName}</div>
+                ) : null}
               </div>
             </div>
             <div className="field">
@@ -443,8 +485,15 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 <input
                   type="tel"
                   value={form.execMobile}
+                  aria-invalid={fieldErrors.execMobile ? true : undefined}
                   onChange={(e) => set('execMobile', e.target.value)}
+                  placeholder="07911 123456"
                 />
+                {fieldErrors.execMobile ? (
+                  <div className="err">{fieldErrors.execMobile}</div>
+                ) : (
+                  <div className="hint">{PHONE_HINT}</div>
+                )}
               </div>
             </div>
             <div className="field">
@@ -457,9 +506,11 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 <input
                   type="email"
                   value={form.execEmail ?? ''}
+                  aria-invalid={fieldErrors.execEmail ? true : undefined}
                   onChange={(e) => set('execEmail', e.target.value)}
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
+                {fieldErrors.execEmail ? <div className="err">{fieldErrors.execEmail}</div> : null}
               </div>
             </div>
           </div>
@@ -478,9 +529,13 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                     type="number"
                     step="1"
                     value={form.contractPricePounds}
+                    aria-invalid={fieldErrors.contractPricePence ? true : undefined}
                     onChange={(e) => set('contractPricePounds', e.target.value)}
                   />
                 </div>
+                {fieldErrors.contractPricePence ? (
+                  <div className="err">{fieldErrors.contractPricePence}</div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -527,7 +582,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn--primary" disabled={isPending || !priceValid}>
+          <button type="submit" className="btn btn--primary" disabled={isPending}>
             <Icon.Plus /> {isPending ? 'Creating…' : 'Create booking'}
           </button>
         </footer>

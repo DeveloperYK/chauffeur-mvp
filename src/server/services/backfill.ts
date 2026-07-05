@@ -13,6 +13,7 @@
  * The backfill driver fills out the same completion form via a link sent over
  * WhatsApp (see services/completion). See docs/shaping/backfill-drivers.
  */
+import { phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
@@ -22,7 +23,6 @@ import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { sendExecNotification } from './exec-notifications';
@@ -36,20 +36,6 @@ export interface BackfillDeps {
   email?: EmailPort;
   mirror?: SpreadsheetMirrorPort;
 }
-
-const phoneSchema = z
-  .string()
-  .min(7)
-  .max(30)
-  .refine((v) => parsePhoneNumberFromString(v)?.isValid() ?? false, {
-    message:
-      'invalid phone number — include the country code with a leading + (e.g. +44 7911 123 456)',
-  })
-  .transform((v) => {
-    const parsed = parsePhoneNumberFromString(v);
-    if (!parsed) throw new Error('invalid phone number');
-    return parsed.format('E.164');
-  });
 
 /** Backfill driver pay, in pence. Required — backfill drivers are paid per job. */
 const payPenceSchema = z.coerce
