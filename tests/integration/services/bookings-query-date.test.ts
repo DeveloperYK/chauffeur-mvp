@@ -22,7 +22,10 @@ describe('bookings-query date filtering (integration)', () => {
     await db.delete(bookings);
   });
 
-  const validBooking = (pickupAtIso: string, state: 'unassigned' | 'assigned' = 'unassigned') => ({
+  const validBooking = (
+    pickupAtIso: string,
+    state: 'unassigned' | 'assigned' | 'cancelled' | 'completed' = 'unassigned',
+  ) => ({
     state,
     pickupAt: new Date(pickupAtIso),
     expectedDurationMinutes: 60,
@@ -92,6 +95,24 @@ describe('bookings-query date filtering (integration)', () => {
 
       const jun = await monthlyDayCounts(db, '2026-06');
       expect(jun.get('2026-06-01')).toEqual({ total: 1, unassigned: 1, assigned: 0 });
+    });
+
+    it('excludes cancelled bookings from every count (they are not live jobs)', async () => {
+      await db.insert(bookings).values([
+        validBooking('2026-05-14T09:00:00Z', 'unassigned'),
+        validBooking('2026-05-14T15:00:00Z', 'assigned'),
+        validBooking('2026-05-14T17:00:00Z', 'cancelled'), // must not appear anywhere
+        validBooking('2026-05-14T18:00:00Z', 'cancelled'),
+      ]);
+      const may = await monthlyDayCounts(db, '2026-05');
+      // total counts only the two live bookings; the cancelled ones are dropped.
+      expect(may.get('2026-05-14')).toEqual({ total: 2, unassigned: 1, assigned: 1 });
+    });
+
+    it('drops a day that has only cancelled bookings', async () => {
+      await db.insert(bookings).values([validBooking('2026-05-20T10:00:00Z', 'cancelled')]);
+      const may = await monthlyDayCounts(db, '2026-05');
+      expect(may.has('2026-05-20')).toBe(false);
     });
 
     it('returns empty map for unknown month', async () => {

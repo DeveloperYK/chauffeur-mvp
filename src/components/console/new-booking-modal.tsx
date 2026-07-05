@@ -388,8 +388,13 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                       type="number"
                       min={15}
                       max={720}
-                      value={form.expectedDurationMinutes}
-                      onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
+                      value={form.expectedDurationMinutes || ''}
+                      onChange={(e) =>
+                        set(
+                          'expectedDurationMinutes',
+                          e.target.value === '' ? 0 : Number(e.target.value),
+                        )
+                      }
                     />
                   </div>
                 </div>
