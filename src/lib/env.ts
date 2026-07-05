@@ -26,7 +26,13 @@ const schema = z.object({
   // Signing secret for the Resend (Svix) delivery webhook. When unset the
   // webhook endpoint returns 503 (disabled). Format: `whsec_<base64>`.
   RESEND_WEBHOOK_SECRET: z.string().optional(),
+  // The LIVE operational backup sheet. Written ONLY by a real production deploy
+  // (see isRealProduction). Non-production environments never touch this id.
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().optional(),
+  // The sheet non-production environments (staging, dev) mirror to instead, so
+  // test bookings and simulator seeds land in a throwaway sheet, never the live
+  // backup. Unset in a non-prod environment => in-memory fake mirror (no writes).
+  GOOGLE_SHEETS_STAGING_SPREADSHEET_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   // When set (`true`/`1`), the operator login screen is bypassed and the app
