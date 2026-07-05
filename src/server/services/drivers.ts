@@ -1,23 +1,9 @@
+import { phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Driver, drivers } from '@/server/db/schema';
 import { and, asc, eq } from 'drizzle-orm';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
-
-const phoneSchema = z
-  .string()
-  .min(7)
-  .max(30)
-  .refine((v) => parsePhoneNumberFromString(v)?.isValid() ?? false, {
-    message:
-      'invalid phone number — include the country code with a leading + (e.g. +44 7911 123 456)',
-  })
-  .transform((v) => {
-    const parsed = parsePhoneNumberFromString(v);
-    if (!parsed) throw new Error('invalid phone number');
-    return parsed.format('E.164');
-  });
 
 export const createDriverSchema = z
   .object({

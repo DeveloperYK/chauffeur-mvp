@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { isRealProduction } from '@/lib/environment';
 import { logger } from '@/lib/logger';
 import { FakeEmailAdapter } from '@/server/adapters/email-fake';
 import { ResendEmailAdapter } from '@/server/adapters/email-resend';
@@ -49,13 +50,25 @@ export function email(): EmailPort {
 
 export function spreadsheetMirror(): SpreadsheetMirrorPort {
   const e = env();
-  if (e.GOOGLE_SHEETS_SPREADSHEET_ID && e.GOOGLE_SERVICE_ACCOUNT_JSON) {
+  // The live backup sheet must only ever receive real production records. A real
+  // production deploy writes GOOGLE_SHEETS_SPREADSHEET_ID; every other environment
+  // (staging, dev — where auth is bypassed and test/simulator data is created)
+  // writes GOOGLE_SHEETS_STAGING_SPREADSHEET_ID instead, and NEVER the live id.
+  // This makes cross-environment pollution impossible even if a non-prod deploy
+  // still carries the live id in its env.
+  const spreadsheetId = isRealProduction(e)
+    ? e.GOOGLE_SHEETS_SPREADSHEET_ID
+    : e.GOOGLE_SHEETS_STAGING_SPREADSHEET_ID;
+  if (spreadsheetId && e.GOOGLE_SERVICE_ACCOUNT_JSON) {
     if (!googleMirror) {
       googleMirror = new GoogleSheetsSpreadsheetMirror({
-        spreadsheetId: e.GOOGLE_SHEETS_SPREADSHEET_ID,
+        spreadsheetId,
         serviceAccountJson: e.GOOGLE_SERVICE_ACCOUNT_JSON,
       });
-      logger.info('using GoogleSheetsSpreadsheetMirror');
+      logger.info(
+        { target: isRealProduction(e) ? 'production' : 'staging' },
+        'using GoogleSheetsSpreadsheetMirror',
+      );
     }
     return googleMirror;
   }

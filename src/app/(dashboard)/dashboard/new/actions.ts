@@ -1,6 +1,7 @@
 'use server';
 import { formatLondonDay, parseMonthString } from '@/lib/dates';
 import { env } from '@/lib/env';
+import { fieldErrorsFromIssues } from '@/lib/form-errors';
 import { logger } from '@/lib/logger';
 import { currentSession } from '@/server/auth/current';
 import { spreadsheetMirror } from '@/server/composition';
@@ -13,7 +14,10 @@ import {
 import { redirect } from 'next/navigation';
 
 export interface CreateBookingActionResult {
+  /** Form-level summary, shown as a banner (e.g. "Please fix the highlighted fields"). */
   error?: string;
+  /** Per-field messages keyed by field name, rendered inline under each control. */
+  fieldErrors?: Record<string, string>;
   success?: boolean;
   /** London day (YYYY-MM-DD) of the new booking's pickup, so the board can jump to it. */
   bookingDay?: string;
@@ -73,7 +77,8 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
 
   if (!result.ok) {
     if (result.reason === 'pickup_in_past') {
-      return { error: 'Pickup must be in the future.' };
+      const message = 'Pickup must be in the future.';
+      return { error: message, fieldErrors: { pickupAt: message } };
     }
     if (result.reason === 'driver_not_found') {
       return { error: 'Selected driver not found.' };
@@ -81,11 +86,10 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     if (result.reason === 'driver_inactive') {
       return { error: 'Selected driver is inactive.' };
     }
-    const msg = result.issues
-      .map((i) => `${i.path.join('.') || 'field'}: ${i.message}`)
-      .slice(0, 3)
-      .join('; ');
-    return { error: msg };
+    return {
+      error: 'Please fix the highlighted fields.',
+      fieldErrors: fieldErrorsFromIssues(result.issues),
+    };
   }
 
   return { success: true, bookingDay: formatLondonDay(result.booking.pickupAt) };

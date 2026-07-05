@@ -1,4 +1,5 @@
 import { parsePickupInput } from '@/lib/dates';
+import { phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
@@ -6,23 +7,9 @@ import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
-
-const phoneSchema = z
-  .string()
-  .min(7)
-  .max(20)
-  .refine((v) => parsePhoneNumberFromString(v)?.isValid() ?? false, {
-    message: 'invalid phone number',
-  })
-  .transform((v) => {
-    const parsed = parsePhoneNumberFromString(v);
-    if (!parsed) throw new Error('invalid phone number');
-    return parsed.format('E.164');
-  });
 
 // See bookings.ts: parse the form's bare `datetime-local` as Europe/London
 // wall-clock, not as the server's local zone. Without this, every edit that
