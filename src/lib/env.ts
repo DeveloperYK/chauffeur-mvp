@@ -38,9 +38,11 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true' || v === '1'),
-  // When set (`true`/`1`), the operator-facing test simulator is available in
-  // every environment — including production — so demo deploys can seed data,
-  // advance the clock, and force state transitions. Off by default.
+  // Opts a deploy in to the operator-facing test simulator (seed data, advance
+  // the clock, force state transitions, reset all data). In a production build
+  // it takes effect ONLY alongside AUTH_DISABLED — i.e. a throwaway demo/staging
+  // environment. A real production deploy enforces login (AUTH_DISABLED off), so
+  // the simulator stays hidden there even if this is set. Off by default.
   SIMULATOR_ENABLED: z
     .string()
     .optional()
