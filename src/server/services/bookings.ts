@@ -1,27 +1,14 @@
 import { parsePickupInput } from '@/lib/dates';
+import { phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { eq } from 'drizzle-orm';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import { mirrorBooking } from './mirror';
-
-const phoneSchema = z
-  .string()
-  .min(7)
-  .max(20)
-  .refine((v) => parsePhoneNumberFromString(v)?.isValid() ?? false, {
-    message: 'invalid phone number',
-  })
-  .transform((v) => {
-    const parsed = parsePhoneNumberFromString(v);
-    if (!parsed) throw new Error('invalid phone number');
-    return parsed.format('E.164');
-  });
 
 // A `datetime-local` value from the booking form is a bare Europe/London
 // wall-clock string (no offset). `parsePickupInput` resolves it BST-aware rather
@@ -45,10 +32,10 @@ export const createBookingSchema = z
     expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
     // Route distance for transfers (metres); ignored/cleared for hourly.
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
-    pickupAddress: z.string().min(3).max(500),
+    pickupAddress: z.string().min(3, 'Pickup address is required').max(500),
     // Required for transfers (enforced below); omitted for hourly (no destination).
     dropoffAddress: z.string().max(500).optional().nullable(),
-    passengerFirstName: z.string().min(1).max(80),
+    passengerFirstName: z.string().min(1, 'Passenger first name is required').max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
     // Exec email — recipient when the email channel is active. Optional at the
