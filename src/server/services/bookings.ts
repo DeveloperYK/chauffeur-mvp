@@ -29,7 +29,11 @@ export const createBookingSchema = z
     // Point-to-point `transfer` (default) or `hourly` as-directed hire.
     serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
     pickupAt: pickupAtSchema,
-    expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
+    expectedDurationMinutes: z.coerce
+      .number()
+      .int()
+      .min(15, 'Duration must be at least 15 minutes')
+      .max(720, 'Duration cannot exceed 12 hours'),
     // Route distance for transfers (metres); ignored/cleared for hourly.
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3, 'Pickup address is required').max(500),

@@ -9,7 +9,7 @@ import {
 import { type DriverStatus, type DriverStatusRow, deriveDriverStatus } from '@/lib/driver-status';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
-import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-orm';
+import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, ne, or, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -460,7 +460,15 @@ export async function monthlyDayCounts(
   const rows = await db
     .select({ pickupAt: bookings.pickupAt, state: bookings.state })
     .from(bookings)
-    .where(and(gte(bookings.pickupAt, range.startUtc), lt(bookings.pickupAt, range.endUtc)))
+    // Cancelled bookings are not live jobs — they must not show on the calendar
+    // in the unassigned/assigned buckets (nor the day total).
+    .where(
+      and(
+        gte(bookings.pickupAt, range.startUtc),
+        lt(bookings.pickupAt, range.endUtc),
+        ne(bookings.state, 'cancelled'),
+      ),
+    )
     .limit(5000);
 
   const counts = new Map<string, DayCounts>();
