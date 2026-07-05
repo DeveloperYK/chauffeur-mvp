@@ -44,7 +44,7 @@ export function Topbar({ me }: { me: { id: string; name: string } }) {
       <a className="topbar__brand" href="/dashboard">
         <div className="topbar__mark">JJ</div>
         <div className="topbar__name">
-          JJ Chauffeuring<small>v26</small>
+          JJ Chauffeuring<small>v1</small>
         </div>
       </a>
       <div className="topbar__crumbs" />
