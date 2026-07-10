@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -25,4 +26,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source-map upload runs only when SENTRY_AUTH_TOKEN is present (CI/prod);
+// locally the build still works, it just skips the upload. Build-secret keys
+// are omitted (not set to undefined) so they never appear unset.
+const sentryBuildOptions = {
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  telemetry: false,
+  ...(process.env.SENTRY_ORG ? { org: process.env.SENTRY_ORG } : {}),
+  ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
+  ...(process.env.SENTRY_AUTH_TOKEN ? { authToken: process.env.SENTRY_AUTH_TOKEN } : {}),
+};
+
+export default withSentryConfig(nextConfig, sentryBuildOptions);
