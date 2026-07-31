@@ -8,7 +8,8 @@ import { useFormStatus } from 'react-dom';
 import { changePasswordAction } from './actions';
 
 const errorMessages: Record<string, string> = {
-  validation: 'Please enter a new password.',
+  validation: 'Please enter and confirm your new password.',
+  mismatch: 'The two passwords do not match.',
   weak: 'Your new password must be at least 8 characters.',
   config: 'Server not configured. Contact your administrator.',
   notfound: 'Account not found. Please sign in again.',
@@ -29,9 +30,12 @@ export function ChangePasswordForm({
     : null;
   const [show, setShow] = useState(false);
   const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
   const newId = useId();
+  const confirmId = useId();
 
-  const valid = next.length >= 8;
+  const mismatch = confirm.length > 0 && confirm !== next;
+  const valid = next.length >= 8 && confirm === next;
   const type = show ? 'text' : 'password';
 
   return (
@@ -49,6 +53,28 @@ export function ChangePasswordForm({
           minLength={8}
           value={next}
           onChange={(e) => setNext(e.target.value)}
+          className={inputClass}
+        />
+      </Field>
+
+      <Field
+        label="Confirm new password"
+        htmlFor={confirmId}
+        required
+        helper="Enter the same password again."
+        error={mismatch ? 'The two passwords do not match.' : undefined}
+      >
+        <input
+          id={confirmId}
+          type={type}
+          name="confirmPassword"
+          autoComplete="new-password"
+          placeholder="Re-enter your new password"
+          required
+          minLength={8}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          aria-invalid={mismatch || undefined}
           className={inputClass}
         />
       </Field>
