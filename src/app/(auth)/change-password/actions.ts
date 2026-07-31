@@ -6,19 +6,14 @@ import { changePassword } from '@/server/auth/change-password';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import { redirect } from 'next/navigation';
-import { z } from 'zod';
-
-const schema = z
-  .object({
-    newPassword: z.string().min(1).max(256),
-  })
-  .strict();
+import { parseChangePasswordForm } from './schema';
 
 export async function changePasswordAction(formData: FormData): Promise<void> {
-  const parsed = schema.safeParse({
+  const parsed = parseChangePasswordForm({
     newPassword: formData.get('newPassword'),
+    confirmPassword: formData.get('confirmPassword'),
   });
-  if (!parsed.success) redirect('/change-password?error=validation');
+  if (!parsed.ok) redirect(`/change-password?error=${parsed.error}`);
 
   const session = await currentSession();
   if (!session) redirect('/login');
@@ -31,7 +26,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
   const { db } = getDb(url);
 
   const result = await changePassword(db, session.operator.id, {
-    newPassword: parsed.data.newPassword,
+    newPassword: parsed.newPassword,
   });
 
   if (!result.ok) {
