@@ -282,8 +282,13 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                       type="number"
                       min={15}
                       max={720}
-                      value={form.expectedDurationMinutes}
-                      onChange={(e) => set('expectedDurationMinutes', Number(e.target.value))}
+                      value={form.expectedDurationMinutes || ''}
+                      onChange={(e) =>
+                        set(
+                          'expectedDurationMinutes',
+                          e.target.value === '' ? 0 : Number(e.target.value),
+                        )
+                      }
                     />
                   </div>
                 </div>

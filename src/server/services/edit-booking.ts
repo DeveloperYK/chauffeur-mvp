@@ -28,7 +28,11 @@ export const editBookingSchema = z
     bookingId: z.string().uuid(),
     serviceType: z.enum(['transfer', 'hourly']).optional().default('transfer'),
     pickupAt: pickupAtSchema,
-    expectedDurationMinutes: z.coerce.number().int().min(15).max(720),
+    expectedDurationMinutes: z.coerce
+      .number()
+      .int()
+      .min(15, 'Duration must be at least 15 minutes')
+      .max(720, 'Duration cannot exceed 12 hours'),
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3).max(500),
     dropoffAddress: z.string().max(500).optional().nullable(),

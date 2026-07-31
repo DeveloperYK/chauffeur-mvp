@@ -1,16 +1,19 @@
 // Usage:
-//   DATABASE_URL=... pnpm tsx scripts/create-operator.ts "alice@example.com" "Alice" "long-password-here"
+//   DATABASE_URL=... pnpm tsx scripts/create-operator.ts "alice@example.com" "Alice" "long-password-here" [--temp]
 //
-// Creates (or refuses if email exists) an operator. Password must be ≥12 chars.
+// Creates (or refuses if email exists) an operator.
+// --temp marks the password as temporary: the operator must set a new one on first login.
 
 import { logger } from '../src/lib/logger';
 import { createOperator, getOperatorByEmail } from '../src/server/auth/login';
 import { getDb } from '../src/server/db';
 
 async function main() {
-  const [email, name, password] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const mustChangePassword = args.includes('--temp');
+  const [email, name, password] = args.filter((a) => a !== '--temp');
   if (!email || !name || !password) {
-    logger.error('usage: tsx scripts/create-operator.ts <email> <name> <password>');
+    logger.error('usage: tsx scripts/create-operator.ts <email> <name> <password> [--temp]');
     process.exit(2);
   }
   const url = process.env.DATABASE_URL;
@@ -22,8 +25,8 @@ async function main() {
     await close();
     process.exit(1);
   }
-  const created = await createOperator(db, { email, name, password });
-  logger.info({ id: created.id, email }, 'operator created');
+  const created = await createOperator(db, { email, name, password, mustChangePassword });
+  logger.info({ id: created.id, email, mustChangePassword }, 'operator created');
   await close();
 }
 
