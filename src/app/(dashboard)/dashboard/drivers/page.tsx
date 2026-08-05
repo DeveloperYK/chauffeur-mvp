@@ -4,7 +4,7 @@ import { Lozenge } from '@/components/console/lozenge';
 import { formatLondonDay, londonDayRangeUtc, londonTodayString, parseDayString } from '@/lib/dates';
 import type { DriverStatus } from '@/lib/driver-status';
 import { env } from '@/lib/env';
-import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { VEHICLE_CLASS_LABEL, carDescription, carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
 import type { Booking, Driver, VehicleClass } from '@/server/db/schema';
 import { driverStatusData, listBookingsBetween } from '@/server/services/bookings-query';
@@ -234,7 +234,9 @@ function DriverRoster({
                 {VEHICLE_CLASS_LABEL[d.vehicleClass]}
               </span>
             </span>
-            <span>{carDescription(d.car, d.carColour)}</span>
+            <span className="car" title={carDescription(d.car, d.carColour)}>
+              {carLabel(d.car)}
+            </span>
             <span className="ws">{d.whatsappNumber}</span>
             <span>
               <DriverStatusCell status={status[d.id]} />
