@@ -3,6 +3,7 @@ import type {
   ChangeConfirmationStatus,
   ConfirmationMethod,
   ExecNotificationStatus,
+  MirrorStatus,
   VehicleClass,
 } from '@/server/db/schema';
 
@@ -47,6 +48,13 @@ export interface ConsoleBooking {
    * shows only in the detail panel. See exec-messages shaping.
    */
   execNotificationStatus: ExecNotificationStatus;
+  /**
+   * Health of this booking's row in the Sheets backup mirror. `failed` means
+   * the last write didn't land — the sheet may be stale for this booking.
+   */
+  mirrorStatus: MirrorStatus;
+  /** When the last mirror write was attempted (ISO), null if never. */
+  mirroredAt: string | null;
   /** True when the job is covered by a backfill (subcontractor) driver, not the internal roster. */
   isBackfill: boolean;
   /** Operator-entered backfill driver name (only when isBackfill). */

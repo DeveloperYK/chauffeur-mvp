@@ -169,6 +169,13 @@
       "when": 1782100000000,
       "tag": "0023_add_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0024_add_mirror_status",
+      "breakpoints": true
     }
   ]
 }

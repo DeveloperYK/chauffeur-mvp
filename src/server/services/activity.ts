@@ -47,6 +47,8 @@ function describe(action: string, passenger: string, after: unknown): string {
       return `cancelled ${passenger}${a.reason ? ` — ${a.reason}` : ''}.`;
     case 'simulator_force_state':
       return `forced ${passenger} to ${a.state ?? 'a new state'} (simulator).`;
+    case 'mirror_retry':
+      return `retried the backup-sheet write for ${passenger}.`;
     default:
       return `updated ${passenger}.`;
   }
@@ -127,6 +129,8 @@ function describeBookingDetail(action: string, after: unknown): string | null {
       return 'rejected the completion form.';
     case 'assign_operator':
       return 'changed the assigned operator.';
+    case 'mirror_retry':
+      return 'retried the backup-sheet write.';
     default:
       return null;
   }

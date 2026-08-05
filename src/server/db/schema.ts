@@ -110,6 +110,12 @@ export const execNotificationStatusEnum = pgEnum('exec_notification_status', [
   'failed',
 ]);
 
+// Health of the booking's row in the Sheets backup mirror:
+//   none   — never written (no mirror configured, or nothing attempted yet)
+//   ok     — the last mirror write (upsert, or row delete on cancel) succeeded
+//   failed — the last mirror write failed; the sheet may be stale for this booking
+export const mirrorStatusEnum = pgEnum('mirror_status', ['none', 'ok', 'failed']);
+
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 export const operators = pgTable(
@@ -316,6 +322,12 @@ export const bookings = pgTable(
       .notNull()
       .default('none'),
 
+    // Outcome + time of the LAST write of this booking to the Sheets backup
+    // mirror. Recorded by mirrorBooking/removeBookingFromMirror so the board can
+    // flag a stale backup row; any later successful write self-heals to ok.
+    mirrorStatus: mirrorStatusEnum('mirror_status').notNull().default('none'),
+    mirroredAt: timestamp('mirrored_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -450,5 +462,6 @@ export type NotificationChannel = (typeof notificationChannelEnum.enumValues)[nu
 export type NotificationKind = (typeof notificationKindEnum.enumValues)[number];
 export type NotificationStatus = (typeof notificationStatusEnum.enumValues)[number];
 export type ExecNotificationStatus = (typeof execNotificationStatusEnum.enumValues)[number];
+export type MirrorStatus = (typeof mirrorStatusEnum.enumValues)[number];
 export type ExecNotification = typeof execNotifications.$inferSelect;
 export type NewExecNotification = typeof execNotifications.$inferInsert;

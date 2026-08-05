@@ -17,6 +17,8 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       id: '00000000-0000-0000-0000-000000000001',
       seq: 1,
       state: 'completed',
+      mirrorStatus: 'none' as const,
+      mirroredAt: null,
       serviceType: 'transfer',
       pickupAt: new Date('2026-06-01T10:00:00.000Z'),
       expectedDurationMinutes: 90,

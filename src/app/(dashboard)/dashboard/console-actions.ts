@@ -35,6 +35,7 @@ import {
   listExecNotifications,
   resendExecNotification,
 } from '@/server/services/exec-notifications';
+import { retryMirror } from '@/server/services/mirror';
 import { assignOperator } from '@/server/services/operators';
 import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { revalidatePath } from 'next/cache';
@@ -546,6 +547,27 @@ export async function resendExecNotificationAction(notificationId: string): Prom
     return { ok: false, error };
   }
   revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/** Re-run a booking's backup-sheet write, to clear a failed mirror flag on demand. */
+export async function retryMirrorAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await retryMirror(
+    { db: db(), mirror: spreadsheetMirror(), operatorId: op.id },
+    bookingId,
+  );
+  if (!result.ok) return { ok: false, error: 'Booking not found.' };
+  revalidatePath('/dashboard');
+  if (result.status === 'failed') {
+    return {
+      ok: false,
+      error: 'The backup sheet write failed again — check the Sheets connection and retry.',
+    };
+  }
   return { ok: true };
 }
 
