@@ -2137,6 +2137,14 @@ a:hover {
   /* Wider final column so the status lozenge + Edit/Deactivate actions don't crowd. */
   grid-template-columns: 1.5fr 90px 130px 140px 170px 190px;
 }
+.dt-row .car {
+  /* Rows have a fixed height, so a wrapping value bleeds across row borders —
+     truncate instead; the full colour+car description lives in the title tooltip. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Live "now / next" status cell — replaces the old weekly-load bar. */
 .drv-now {
   display: inline-flex;
