@@ -2077,9 +2077,11 @@ a:hover {
   display: grid;
   grid-template-columns: 1.5fr 90px 100px 150px 120px 80px;
   gap: 16px;
-  padding: 0 18px;
+  padding: 6px 18px;
   align-items: center;
-  height: 48px;
+  /* min-height, not height: a cell whose content wraps (long car names) grows
+     the row instead of bleeding across the fixed row border. */
+  min-height: 48px;
   border-bottom: 1px solid var(--hairline-soft);
 }
 .dt-row:last-child {
@@ -2134,16 +2136,18 @@ a:hover {
    ───────────────────────────────────────────────────────────── */
 
 .dt-row--load {
-  /* Wider final column so the status lozenge + Edit/Deactivate actions don't crowd. */
-  grid-template-columns: 1.5fr 90px 130px 140px 170px 190px;
+  /* Car takes the biggest flexible share — model names run longer than driver
+     names — and the fixed columns are sized to their content so the flexible
+     ones keep as much room as possible. */
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1.35fr) 128px 165px 185px;
+  gap: 12px;
 }
 .dt-row .car {
-  /* Rows have a fixed height, so a wrapping value bleeds across row borders —
-     truncate instead; the full colour+car description lives in the title tooltip. */
+  /* Long car names wrap onto a second line (the row grows via min-height)
+     rather than truncating — operators need to read the car at a glance. */
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 /* Live "now / next" status cell — replaces the old weekly-load bar. */
 .drv-now {
