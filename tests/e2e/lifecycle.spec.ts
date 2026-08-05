@@ -48,6 +48,28 @@ async function expectSimState(page: Page, passenger: string, label: string) {
   await expect(row(page, passenger).locator('td').nth(1)).toHaveText(label);
 }
 
+/**
+ * Open a booking's detail panel via its day-resolving detail route
+ * (/dashboard/bookings/<id> → board with the panel open on the booking's own
+ * day). The board defaults to "today", but the simulator's fast-forwards move
+ * pickups by hours — around midnight that lands them on yesterday/tomorrow,
+ * so clicking the card on today's board is a flake. The id is read from the
+ * booking's link on the simulator page.
+ */
+async function openBookingPanel(page: Page, name: string) {
+  await gotoSimulator(page);
+  const href = await row(page, name).getByRole('link', { name }).getAttribute('href');
+  const id = href?.split('/').pop() ?? '';
+  expect(id, `expected a booking link for ${name}`).toBeTruthy();
+  await page.goto(`/dashboard/bookings/${id}`, { waitUntil: 'networkidle' });
+  // The redirect resolves the day but not the layout — force the board layout
+  // so card assertions work like the old `?layout=board` navigations did.
+  const boardUrl = new URL(page.url());
+  boardUrl.searchParams.set('layout', 'board');
+  await page.goto(boardUrl.toString(), { waitUntil: 'networkidle' });
+  await expect(page.locator('.panel.is-open')).toBeVisible();
+}
+
 test('booking moves through every stage via the simulator + console', async ({ page }) => {
   // ── Reset + seed ──────────────────────────────────────────────
   await gotoSimulator(page);
@@ -72,12 +94,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // releases them: the booking goes back to UNASSIGNED so it re-enters the
   // queue (truthful — nobody is committed in the gap), then a new driver is
   // dispatched and taps Accept via the normal path.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  // Next.js dev RSC cache can lag a single revalidatePath; reload forces a
-  // fresh server render so the just-assigned booking shows on the board.
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Driver pulled out/i })
@@ -90,10 +107,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
 
   // Re-dispatch via the multi-select fan-out: tick two free drivers, offer to
   // both (each gets its own link), then accept one — first-to-accept wins.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
   const dispatchModal = page.locator('.modal.is-open');
   await expect(dispatchModal).toBeVisible();
@@ -126,12 +140,11 @@ test('booking moves through every stage via the simulator + console', async ({ p
     page,
     row(page, LEGO).getByRole('button', { name: 'Fail exec msg' }).click(),
   );
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
+  // openBookingPanel lands the board on the booking's own day, so the card
+  // (behind the open panel) can be asserted for the red ⚠ exec marker.
+  await openBookingPanel(page, LEGO);
   const legoFailCard = page.locator('.card', { hasText: 'LEGO Group' }).first();
   await expect(legoFailCard).toContainText('exec'); // red ⚠ exec marker
-  await legoFailCard.click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText(
     'EXEC MESSAGE FAILED',
   );
@@ -143,9 +156,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.locator('.panel.is-open').getByRole('button', { name: 'Resend' }).first().click();
   await expect(page.locator('.toast')).toContainText(/re-sent/i);
 
-  // Tile marker is gone once the resend succeeds.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
+  // Tile marker is gone once the resend succeeds (re-open to re-render the
+  // board on the booking's day).
+  await openBookingPanel(page, LEGO);
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText('exec');
 
   await gotoSimulator(page);
@@ -169,10 +182,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expectSimState(page, LEGO, 'Awaiting operator review');
 
   // ── Console: approve from the detail panel → completed ───────
-  // The fast-forwards put the pickup at "today", so it shows on today's board.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('AWAITING REVIEW');
   // Completion form the driver "submitted" is visible.
   await expect(page.locator('.panel.is-open')).toContainText('Driver completion form');
@@ -189,13 +199,10 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expectSimState(page, LEGO, 'Completed');
 
   // ── Console: cancel a second booking from the panel ──────────
-  // Bring Mercedes booking onto today's board, then cancel it via the panel.
   await row(page, MERC).locator('select[name="scenario"]').selectOption('about_to_start');
   await clickAndSettle(page, row(page, MERC).getByRole('button', { name: 'Apply' }).click());
 
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'Mercedes-Benz UK' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, MERC);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Cancel', exact: true }).click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
@@ -220,10 +227,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
 
   // ── Console: hand to a backfill (subcontractor) driver ───────
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, JJ);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Hand to backfill' }).click();
   const bfModal = page.locator('.modal.is-open');
   await expect(bfModal).toBeVisible();
@@ -252,9 +256,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await expectSimState(page, JJ, 'Awaiting driver form');
 
   // ── Console: generate the completion link for the backfill driver ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, JJ);
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
   // The operator-entered backfill driver pay is recorded and shown on the panel.
   await expect(page.locator('.panel.is-open')).toContainText('Backfill pay');
@@ -284,9 +286,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await expectSimState(page, JJ, 'Awaiting operator review');
 
   // ── Console: approve → completed (same as a normal driver) ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'Johnson & Johnson' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, JJ);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);
 
@@ -316,10 +316,7 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await expectSimState(page, LEGO, 'Awaiting driver form');
 
   // ── Console: operator enters the completion details (driver was slow) ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: 'Enter completion details' })
@@ -337,8 +334,14 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Completed');
 
-  // The completed booking is marked operator-entered on the board.
-  await page.goto('/dashboard?layout=board&showDone=1', { waitUntil: 'networkidle' });
+  // The completed booking is marked operator-entered on the board. Open via
+  // the day-resolving route, then re-load that day's board with the Done
+  // column revealed.
+  await openBookingPanel(page, LEGO);
+  const doneUrl = new URL(page.url());
+  doneUrl.searchParams.set('layout', 'board');
+  doneUrl.searchParams.set('showDone', '1');
+  await page.goto(doneUrl.toString(), { waitUntil: 'networkidle' });
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
     'OP-ENTERED',
   );
@@ -362,10 +365,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expectSimState(page, LEGO, 'Assigned');
 
   // ── Console: edit a driver-facing field (duration) on the assigned booking ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
 
   const editModal = page.locator('.modal.is-open');
@@ -376,10 +376,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
   // The change flags the booking for driver re-confirmation.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
 
   // ── Operator attests the driver confirmed by phone ──
@@ -391,9 +388,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
     .click();
   await expect(page.locator('.toast')).toContainText(/confirmed/i);
 
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
+  await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY PHONE');
 });
 
@@ -411,10 +406,7 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await expectSimState(page, LEGO, 'Unassigned');
 
   // ── Assign a driver by phone (no link round-trip) ──
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
@@ -426,10 +418,7 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await expectSimState(page, LEGO, 'Assigned');
 
   // The panel records the assignment method.
-  await page.goto('/dashboard?layout=board', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('.card', { hasText: 'LEGO Group' }).first().click();
-  await expect(page.locator('.panel.is-open')).toBeVisible();
+  await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('ASSIGNED');
   await expect(page.locator('.panel.is-open')).toContainText('Confirmed by phone');
 
