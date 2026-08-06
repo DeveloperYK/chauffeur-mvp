@@ -91,7 +91,7 @@ export async function cancelBooking(
 
   // Remove the row from the JJ backup sheet — a cancelled job shouldn't linger
   // there looking live (the slim layout has no "cancelled" marker).
-  if (deps.mirror) await removeBookingFromMirror(deps.mirror, updated);
+  if (deps.mirror) await removeBookingFromMirror(deps.db, deps.mirror, updated, deps.clock);
 
   return { ok: true, booking: updated };
 }

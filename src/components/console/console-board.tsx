@@ -451,6 +451,7 @@ function ListRow({
           </span>
         ) : null}
         <ExecFailureTag status={b.execNotificationStatus} />
+        <MirrorFailureTag status={b.mirrorStatus} />
       </span>
       <span>
         {assignee ? (
@@ -483,6 +484,29 @@ function ExecFailureTag({ status }: { status: ConsoleBooking['execNotificationSt
       }}
     >
       ⚠ exec
+    </span>
+  );
+}
+
+/**
+ * Red marker shown on a tile when the booking's last write to the Sheets
+ * backup failed — the sheet may be stale for this booking. Cleared once any
+ * later write (or a manual retry from the panel) succeeds.
+ */
+function MirrorFailureTag({ status }: { status: ConsoleBooking['mirrorStatus'] }) {
+  if (status !== 'failed') return null;
+  return (
+    <span
+      title="The backup sheet doesn't have this booking's latest details — open the booking to retry"
+      style={{
+        marginLeft: 6,
+        color: 'var(--prio-high)',
+        fontWeight: 600,
+        fontSize: 11,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ⚠ sheet
     </span>
   );
 }
@@ -548,6 +572,7 @@ function BoardCard({
           </span>
         ) : null}
         <ExecFailureTag status={booking.execNotificationStatus} />
+        <MirrorFailureTag status={booking.mirrorStatus} />
         <span className="card__meta-right">
           {operator ? (
             <Avatar

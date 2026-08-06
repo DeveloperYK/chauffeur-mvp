@@ -13,6 +13,7 @@ import {
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
+  retryMirrorAction,
   setWaitingChargeAction,
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
@@ -162,6 +163,18 @@ export function DetailPanel({
       // the tile indicator clears.
       loadExecMessages();
       onMutated('Message re-sent to the exec.');
+    });
+  };
+
+  const retryMirrorWrite = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await retryMirrorAction(booking.id);
+      if (!result.ok) {
+        setError(result.error ?? 'Could not re-write the backup sheet row.');
+        return;
+      }
+      onMutated('Backup sheet row re-written.');
     });
   };
 
@@ -516,7 +529,34 @@ export function DetailPanel({
                 </Lozenge>
               ) : null}
               <ExecHealthLozenge status={booking.execNotificationStatus} onClick={toggleExec} />
+              {booking.mirrorStatus === 'failed' ? (
+                <Lozenge tone="red">BACKUP SHEET STALE</Lozenge>
+              ) : null}
             </div>
+            {booking.mirrorStatus === 'failed' ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: 'var(--ink-2)',
+                }}
+              >
+                <span>
+                  The backup sheet doesn&rsquo;t have this booking&rsquo;s latest details.
+                </span>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={retryMirrorWrite}
+                  disabled={isPending}
+                >
+                  Retry now
+                </button>
+              </div>
+            ) : null}
             <div className="dp-hero__eyebrow">
               <Icon.Person style={{ width: 11, height: 11 }} /> Customer account
             </div>

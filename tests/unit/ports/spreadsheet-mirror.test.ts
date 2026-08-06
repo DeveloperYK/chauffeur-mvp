@@ -7,6 +7,8 @@ const baseBooking: Booking = {
   id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
   seq: 42,
   state: 'completed',
+  mirrorStatus: 'none' as const,
+  mirroredAt: null,
   serviceType: 'transfer',
   pickupAt: new Date('2026-06-01T08:30:00.000Z'),
   expectedDurationMinutes: 90,
