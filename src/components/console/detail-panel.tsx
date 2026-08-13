@@ -818,18 +818,6 @@ export function DetailPanel({
                   </div>
                 ) : null}
                 <div className="ir">
-                  <div className="ir__k">Arrival</div>
-                  <div className="ir__v">
-                    {booking.arrivalAt ? fmtTimeWithDay(booking.arrivalAt) : '—'}
-                  </div>
-                </div>
-                <div className="ir">
-                  <div className="ir__k">Passenger on board</div>
-                  <div className="ir__v">
-                    {booking.passengerOnBoardAt ? fmtTimeWithDay(booking.passengerOnBoardAt) : '—'}
-                  </div>
-                </div>
-                <div className="ir">
                   <div className="ir__k">Parking fee</div>
                   <div className="ir__v">
                     {booking.carParkPence && booking.carParkPence > 0 ? (

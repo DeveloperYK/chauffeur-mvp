@@ -16,14 +16,11 @@ interface CompleteFormModalProps {
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** Sensible default times: arrival/on-board at pickup, completion at pickup + duration. */
-function defaultTimes(booking: ConsoleBooking): { atPickup: string; atCompletion: string } {
+/** Sensible default: completion at pickup + expected duration. */
+function defaultCompletionTime(booking: ConsoleBooking): string {
   const pickupMs = new Date(booking.pickupAt).getTime();
   const completionMs = pickupMs + booking.expectedDurationMinutes * 60_000;
-  return {
-    atPickup: toLocalTimeInput(new Date(pickupMs).toISOString()),
-    atCompletion: toLocalTimeInput(new Date(completionMs).toISOString()),
-  };
+  return toLocalTimeInput(new Date(completionMs).toISOString());
 }
 
 /**
@@ -38,7 +35,6 @@ export function CompleteFormModal({
   onClose,
   onCompleted,
 }: CompleteFormModalProps) {
-  const [arrivalTime, setArrivalTime] = useState('');
   const [waitingMinutes, setWaitingMinutes] = useState('0');
   const [completionTime, setCompletionTime] = useState('');
   const [carParkPounds, setCarParkPounds] = useState('0');
@@ -48,10 +44,8 @@ export function CompleteFormModal({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset the form only when the modal opens or the target booking changes
   useEffect(() => {
     if (isOpen && booking) {
-      const { atPickup, atCompletion } = defaultTimes(booking);
-      setArrivalTime(atPickup);
       setWaitingMinutes('0');
-      setCompletionTime(atCompletion);
+      setCompletionTime(defaultCompletionTime(booking));
       setCarParkPounds('0');
       setError(null);
     }
@@ -62,7 +56,6 @@ export function CompleteFormModal({
   const carParkPence = Math.round(Number.parseFloat(carParkPounds || '0') * 100);
   const waitingMins = Number(waitingMinutes);
   const valid =
-    HHMM.test(arrivalTime) &&
     Number.isInteger(waitingMins) &&
     waitingMins >= 0 &&
     waitingMins <= 720 &&
@@ -75,7 +68,6 @@ export function CompleteFormModal({
     setError(null);
     startTransition(async () => {
       const result = await completeFormOnBehalfAction(booking.id, {
-        arrivalTime,
         waitingMinutes: waitingMins,
         completionTime,
         carParkPence,
@@ -114,20 +106,6 @@ export function CompleteFormModal({
               <div className="ic__body">{error}</div>
             </div>
           ) : null}
-
-          <div className="field">
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
-            <label>
-              Arrival time<span className="req">*</span>
-            </label>
-            <div className="ctrl">
-              <input
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
-              />
-            </div>
-          </div>
 
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
