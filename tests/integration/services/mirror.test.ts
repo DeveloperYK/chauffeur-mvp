@@ -137,7 +137,6 @@ describe('spreadsheet mirror integration', () => {
       {
         token: completionToken,
         carParkPence: 750,
-        arrivalTime: '10:50',
         waitingMinutes: 12,
         completionTime: '12:25',
       },
