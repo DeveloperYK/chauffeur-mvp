@@ -1,38 +1,33 @@
 import { addDaysToDayString, formatLondonDay, londonWallClockToUtc } from '@/lib/dates';
 
 /**
- * Completion form captures three wall-clock times (HH:MM) plus a parking fee.
- * The driver only types times of day; the calendar date is inferred from the
- * booking's pickup day, with day-rollover so a job that runs past midnight
- * (e.g. an 11pm pickup completing at 2am) is understood without breaking.
+ * Completion form captures the minutes the driver waited for the passenger, the
+ * drop-off wall-clock time (HH:MM) and a parking fee. The driver only types a
+ * time of day; the calendar date is inferred from the booking's pickup day,
+ * with day-rollover so a job that runs past midnight (e.g. an 11pm pickup
+ * completing at 2am) is understood without breaking.
  */
 export interface CompletionTimeInput {
-  /** Driver reached the pickup, "HH:MM" (24h, Europe/London). */
-  arrivalTime: string;
-  /** Minutes the driver waited at the pickup (0 when they arrived on time). */
+  /** Minutes the driver waited for the passenger (0 when they were on time). */
   waitingMinutes: number;
-  /** Trip finished (drop-off), "HH:MM". */
+  /** Trip finished (drop-off), "HH:MM" (24h, Europe/London). */
   completionTime: string;
 }
 
 export interface ResolvedCompletionTimes {
-  arrivalAt: Date;
-  passengerOnBoardAt: Date;
   /** Trip completion (stored as `dropoff_at`). */
   dropoffAt: Date;
-  /** Derived: minutes from arrival to passenger-on-board. */
+  /** Minutes waited, as reported by the driver. */
   waitingTimeMinutes: number;
 }
 
-export type ResolveCompletionTimesError = 'bad_format' | 'waiting_too_long' | 'journey_too_long';
+export type ResolveCompletionTimesError = 'bad_format' | 'waiting_too_long';
 
 export type ResolveCompletionTimesResult =
   | ({ ok: true } & ResolvedCompletionTimes)
   | { ok: false; reason: ResolveCompletionTimesError };
 
 const MAX_WAITING_MINUTES = 720; // 12h — matches the old manual waiting cap.
-const MAX_JOURNEY_MINUTES = 24 * 60; // a single chauffeur leg never exceeds a day.
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 function parseHhmm(value: string): { hours: number; minutes: number } | null {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
@@ -41,26 +36,19 @@ function parseHhmm(value: string): { hours: number; minutes: number } | null {
 }
 
 /**
- * Turn the three time-of-day fields into absolute UTC instants, anchored to the
- * booking's London pickup day and chained forward so each event is at or after
- * the previous one:
- *
- * - Arrival is anchored to the pickup day, but shifted to the previous day if
- *   that would place it more than 12h after pickup (a time typed just before a
- *   just-after-midnight pickup).
- * - Passenger-on-board rolls to the next day if its clock time is before arrival.
- * - Completion rolls to the next day if its clock time is before on-board.
- *
- * Waiting time is derived as (on-board − arrival). Returns an error for a
- * malformed time or spans that are implausibly long (likely a typo).
+ * Turn the drop-off time-of-day into an absolute UTC instant, anchored to the
+ * booking's London pickup day: a clock time earlier than the pickup means the
+ * job ran past midnight, so it rolls to the next day. The rollover keeps every
+ * drop-off within 24h of pickup by construction. Waiting minutes are validated
+ * and passed through (they drive the £1/min charge). Returns an error for a
+ * malformed time or an implausibly long wait (likely a typo).
  */
 export function resolveCompletionTimes(
   pickupAt: Date,
   input: CompletionTimeInput,
 ): ResolveCompletionTimesResult {
-  const arrival = parseHhmm(input.arrivalTime);
   const completion = parseHhmm(input.completionTime);
-  if (!arrival || !completion) return { ok: false, reason: 'bad_format' };
+  if (!completion) return { ok: false, reason: 'bad_format' };
   const waitingTimeMinutes = input.waitingMinutes;
   if (!Number.isInteger(waitingTimeMinutes) || waitingTimeMinutes < 0) {
     return { ok: false, reason: 'bad_format' };
@@ -69,8 +57,7 @@ export function resolveCompletionTimes(
 
   const pickupDay = formatLondonDay(pickupAt);
   const nextDay = addDaysToDayString(pickupDay, 1);
-  const prevDay = addDaysToDayString(pickupDay, -1);
-  if (!nextDay || !prevDay) return { ok: false, reason: 'bad_format' };
+  if (!nextDay) return { ok: false, reason: 'bad_format' };
 
   const onDay = (day: string, t: { hours: number; minutes: number }): Date => {
     const at = londonWallClockToUtc(day, t.hours, t.minutes);
@@ -78,21 +65,10 @@ export function resolveCompletionTimes(
     return at;
   };
 
-  let arrivalAt = onDay(pickupDay, arrival);
-  if (arrivalAt.getTime() - pickupAt.getTime() > TWELVE_HOURS_MS) {
-    arrivalAt = onDay(prevDay, arrival);
-  }
-
-  // Passenger-on-board is arrival + the waiting the driver reported.
-  const passengerOnBoardAt = new Date(arrivalAt.getTime() + waitingTimeMinutes * 60_000);
-
   let dropoffAt = onDay(pickupDay, completion);
-  if (dropoffAt.getTime() < passengerOnBoardAt.getTime()) {
+  if (dropoffAt.getTime() < pickupAt.getTime()) {
     dropoffAt = onDay(nextDay, completion);
   }
 
-  const journeyMinutes = Math.round((dropoffAt.getTime() - passengerOnBoardAt.getTime()) / 60_000);
-  if (journeyMinutes > MAX_JOURNEY_MINUTES) return { ok: false, reason: 'journey_too_long' };
-
-  return { ok: true, arrivalAt, passengerOnBoardAt, dropoffAt, waitingTimeMinutes };
+  return { ok: true, dropoffAt, waitingTimeMinutes };
 }

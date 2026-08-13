@@ -273,7 +273,8 @@ test('backfill driver: hand off → clock → driver completion form → approve
   // ── Backfill driver fills out the same completion form via the link ──
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
-  await page.locator('#arrivalTime').fill('11:00');
+  // The form asks only for waiting minutes, completion time and parking — no arrival time.
+  await expect(page.locator('#arrivalTime')).toHaveCount(0);
   await page.locator('#waitingMinutes').fill('10');
   await page.locator('#completionTime').fill('12:30');
   await page.locator('#parkingFeePounds').fill('5');

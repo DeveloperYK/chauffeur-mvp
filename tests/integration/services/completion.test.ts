@@ -80,10 +80,9 @@ describe('services/completion (integration)', () => {
   const clock = fixedClock('2026-06-01T11:30:00.000Z');
   const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL });
 
-  // Pickup is 10:00Z = 11:00 London (BST). These London times resolve to
-  // arrival 09:50Z, on-board 10:02Z (→ 12 min wait), completion 11:25Z.
+  // Pickup is 10:00Z = 11:00 London (BST). The 12:25 London completion
+  // resolves to 11:25Z; the 12-minute wait is stored as entered.
   const FORM_TIMES = {
-    arrivalTime: '10:50',
     waitingMinutes: 12,
     completionTime: '12:25',
   } as const;
@@ -113,10 +112,11 @@ describe('services/completion (integration)', () => {
     if (!r.ok) return;
     expect(r.booking.state).toBe('awaiting_operator_review');
     expect(r.booking.carParkPence).toBe(750);
-    expect(r.booking.arrivalAt?.toISOString()).toBe('2026-06-01T09:50:00.000Z');
-    expect(r.booking.passengerOnBoardAt?.toISOString()).toBe('2026-06-01T10:02:00.000Z');
     expect(r.booking.waitingTimeMinutes).toBe(12);
     expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-01T11:25:00.000Z');
+    // The form no longer captures arrival — nothing is written to the legacy columns.
+    expect(r.booking.arrivalAt).toBeNull();
+    expect(r.booking.passengerOnBoardAt).toBeNull();
 
     expect((await db.select().from(consumedTokens)).length).toBe(1);
 
@@ -155,15 +155,13 @@ describe('services/completion (integration)', () => {
       {
         token,
         carParkPence: 0,
-        arrivalTime: '23:05',
         waitingMinutes: 15,
-        completionTime: '01:30', // before on-board → next London day
+        completionTime: '01:30', // before the 23:00 pickup → next London day
       },
       deps(),
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.booking.arrivalAt?.toISOString()).toBe('2026-06-01T22:05:00.000Z');
     expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-02T00:30:00.000Z');
     expect(r.booking.waitingTimeMinutes).toBe(15);
   });
@@ -394,7 +392,7 @@ describe('services/completion (integration)', () => {
     it('rejects a malformed time', async () => {
       const r = await completeFormOnBehalf(
         bookingId,
-        { ...input, arrivalTime: '7:5' },
+        { ...input, completionTime: '7:5' },
         operatorId,
         onBehalfDeps(),
       );
@@ -406,7 +404,7 @@ describe('services/completion (integration)', () => {
       const r = await completeFormOnBehalf(
         bookingId,
         // A 13h wait (780 min) is past the 720-min schema cap.
-        { ...input, arrivalTime: '08:00', waitingMinutes: 13 * 60, completionTime: '21:30' },
+        { ...input, waitingMinutes: 13 * 60, completionTime: '21:30' },
         operatorId,
         onBehalfDeps(),
       );

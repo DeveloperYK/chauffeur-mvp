@@ -150,13 +150,13 @@ export function changeSms(booking: Booking, url: string): string {
  * Driver — completion-form request after the trip.
  *
  *   JJ Chauffeuring - BKNG-00001
- *   Please submit your trip form (arrival, on-board, completion times + parking):
+ *   Please submit your trip form (waiting time, completion time + parking):
  *   <url>
  */
 export function completionRequestSms(booking: Booking, url: string): string {
   return [
     `${SMS_BRAND_NAME} - ${bookingRef(booking.seq)}`,
-    'Please submit your trip form (arrival, on-board, completion times + parking):',
+    'Please submit your trip form (waiting time, completion time + parking):',
     url,
   ].join('\n');
 }
