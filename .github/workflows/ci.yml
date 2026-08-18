@@ -109,8 +109,10 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+      # No continue-on-error: a smoke regression must fail the check. The
+      # script is scoped to smoke.spec.ts — the lifecycle spec needs the dev
+      # auth bypass and runs in its own job below.
       - run: pnpm test:e2e
-        continue-on-error: true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('smoke', () => {
-  test('healthcheck endpoint responds', async ({ request }) => {
+  test('healthcheck endpoint responds with a live database probe', async ({ request }) => {
     const res = await request.get('/api/healthz');
     expect(res.ok()).toBe(true);
-    const body = (await res.json()) as { ok: boolean };
+    const body = (await res.json()) as { ok: boolean; db: string };
     expect(body.ok).toBe(true);
+    expect(body.db).toBe('up');
+    // Must never be edge-cached — a cached "ok" defeats the point of a health check.
+    expect(res.headers()['cache-control']).toContain('no-store');
   });
 
   test('login page renders for unauthenticated user', async ({ page }) => {
