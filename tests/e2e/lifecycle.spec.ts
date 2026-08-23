@@ -128,6 +128,14 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // Wait for the accept to land (driver sees the confirmation) before re-checking.
   await expect(page.getByRole('heading', { name: 'Job accepted' })).toBeVisible();
 
+  // ── Driver reopens their link after accepting → persistent job view ──────
+  // The offer is one-shot, but the same link must now show the accepted job
+  // (addresses, time) instead of a dead end, so the driver can keep track.
+  await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
+  await expect(page.getByText('Your job', { exact: true })).toBeVisible();
+  await expect(page.getByText('CONFIRMED - YOUR JOB')).toBeVisible();
+  await expect(page.getByText('Pickup ·')).toBeVisible();
+
   // New driver accepted → back to assigned.
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
