@@ -117,17 +117,17 @@ export async function generateCompletionLink(
 /** "HH:MM" 24h wall-clock time (Europe/London), e.g. "23:05". */
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a time as HH:MM (24-hour)');
 
-// The driver reports a parking fee, the minutes they waited for the passenger,
-// and the drop-off wall-clock time. The calendar date is inferred from the
-// booking's pickup day in the service (with day-rollover), so a job running
-// past midnight resolves correctly.
+// The driver reports a parking fee and three wall-clock times: arrival at the
+// pickup, passenger on board, and drop-off. Waiting minutes are DERIVED from
+// those (on-board − the later of booked pickup and arrival) — the driver never
+// types a waiting figure. Calendar dates are inferred from the booking's pickup
+// day (with day-rollover), so a job running past midnight resolves correctly.
 export const completionFormSchema = z
   .object({
     token: z.string().min(20).max(4096),
     carParkPence: z.coerce.number().int().min(0).max(1_000_00),
-    // Minutes the driver waited for the passenger (0 = passenger was on time).
-    // Drives the £1/min waiting charge.
-    waitingMinutes: z.coerce.number().int().min(0).max(720),
+    arrivalTime: timeOfDay,
+    passengerOnBoardTime: timeOfDay,
     completionTime: timeOfDay,
   })
   .strict();
@@ -189,8 +189,8 @@ export async function submitCompletionForm(
   const t = transition(booking.state, { type: 'driver_submit_form' });
   if (!t.ok) return { ok: false, reason: 'wrong_state' };
 
-  // Resolve the drop-off wall-clock time against the booking's pickup day
-  // (with day-rollover); waiting minutes pass through and drive the charge.
+  // Resolve the three wall-clock times against the booking's pickup day (with
+  // day-rollover); the chargeable waiting minutes are derived from them.
   const times = resolveCompletionTimes(booking.pickupAt, parsed.data);
   if (!times.ok) return { ok: false, reason: 'times_invalid' };
 
@@ -200,6 +200,8 @@ export async function submitCompletionForm(
     .set({
       state: t.next,
       carParkPence: parsed.data.carParkPence,
+      arrivalAt: times.arrivalAt,
+      passengerOnBoardAt: times.passengerOnBoardAt,
       waitingTimeMinutes: times.waitingTimeMinutes,
       dropoffAt: times.dropoffAt,
       completionSubmittedAt: now,
@@ -226,6 +228,8 @@ export async function submitCompletionForm(
     after: {
       state: updated.state,
       carParkPence: parsed.data.carParkPence,
+      arrivalAt: times.arrivalAt.toISOString(),
+      passengerOnBoardAt: times.passengerOnBoardAt.toISOString(),
       dropoffAt: times.dropoffAt.toISOString(),
       waitingTimeMinutes: times.waitingTimeMinutes,
     },
@@ -362,6 +366,8 @@ export async function completeFormOnBehalf(
     .set({
       state: t.next,
       carParkPence,
+      arrivalAt: times.arrivalAt,
+      passengerOnBoardAt: times.passengerOnBoardAt,
       waitingTimeMinutes: times.waitingTimeMinutes,
       dropoffAt: times.dropoffAt,
       completionSubmittedAt: now,
@@ -384,6 +390,8 @@ export async function completeFormOnBehalf(
     after: {
       state: updated.state,
       carParkPence,
+      arrivalAt: times.arrivalAt.toISOString(),
+      passengerOnBoardAt: times.passengerOnBoardAt.toISOString(),
       dropoffAt: times.dropoffAt.toISOString(),
       waitingTimeMinutes: times.waitingTimeMinutes,
     },

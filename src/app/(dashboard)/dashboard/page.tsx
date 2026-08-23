@@ -84,6 +84,8 @@ function toConsoleBooking(
     mirroredAt: b.mirroredAt ? b.mirroredAt.toISOString() : null,
     carParkPence: b.carParkPence,
     waitingTimeMinutes: b.waitingTimeMinutes,
+    arrivalAt: b.arrivalAt ? b.arrivalAt.toISOString() : null,
+    passengerOnBoardAt: b.passengerOnBoardAt ? b.passengerOnBoardAt.toISOString() : null,
     waitingFee: (() => {
       const f = waitingFee(b.waitingTimeMinutes);
       return {
