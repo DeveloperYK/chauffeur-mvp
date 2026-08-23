@@ -482,24 +482,24 @@ async function CompletionPage({
       <form action={submitCompletionAction} style={{ marginTop: 14 }}>
         <input type="hidden" name="token" value={token} />
         <div className="field">
-          <label htmlFor="waitingMinutes">
-            Waiting time (minutes) <span className="req">*</span>
+          <label htmlFor="arrivalTime">
+            Arrival time <span className="req">*</span>
+          </label>
+          <input id="arrivalTime" className="input" type="time" name="arrivalTime" required />
+          <div className="hint">When you arrived at the pickup.</div>
+        </div>
+        <div className="field">
+          <label htmlFor="passengerOnBoardTime">
+            Passenger on board <span className="req">*</span>
           </label>
           <input
-            id="waitingMinutes"
+            id="passengerOnBoardTime"
             className="input"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={720}
-            step={1}
-            name="waitingMinutes"
-            defaultValue={0}
+            type="time"
+            name="passengerOnBoardTime"
             required
           />
-          <div className="hint">
-            How long you waited for the passenger. Enter 0 if they were on time.
-          </div>
+          <div className="hint">When the passenger got in the car.</div>
         </div>
         <div className="field">
           <label htmlFor="completionTime">

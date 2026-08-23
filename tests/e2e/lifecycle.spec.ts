@@ -38,6 +38,25 @@ function row(page: Page, passenger: string) {
   return page.locator('tr', { has: page.getByRole('link', { name: passenger }) });
 }
 
+/** Current Europe/London wall-clock as "HH:MM" (midnight normalised to 00). */
+function londonNowHhmm(): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(new Date())
+    .replace(/^24/, '00');
+}
+
+/** "HH:MM" plus n minutes, wrapping within the day. */
+function hhmmPlusMinutes(hhmm: string, n: number): string {
+  const [h = 0, m = 0] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + n + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 async function clickAndSettle(page: Page, click: Promise<void>) {
   await Promise.all([page.waitForURL(/\/dashboard\/simulator\?ok=/), click]);
 }
@@ -300,9 +319,12 @@ test('backfill driver: hand off → clock → driver completion form → approve
   // ── Backfill driver fills out the same completion form via the link ──
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
-  // The form asks only for waiting minutes, completion time and parking — no arrival time.
-  await expect(page.locator('#arrivalTime')).toHaveCount(0);
-  await page.locator('#waitingMinutes').fill('10');
+  // The form asks for arrival, passenger-on-board and completion times plus
+  // parking — waiting minutes are derived server-side, never typed.
+  await expect(page.locator('#waitingMinutes')).toHaveCount(0);
+  const nowHhmm = londonNowHhmm();
+  await page.locator('#arrivalTime').fill(nowHhmm);
+  await page.locator('#passengerOnBoardTime').fill(nowHhmm);
   await page.locator('#completionTime').fill('12:30');
   await page.locator('#parkingFeePounds').fill('5');
   await Promise.all([
@@ -351,10 +373,12 @@ test('operator completes the form on the driver behalf → completed, skipping r
     .click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
-  // Times are pre-filled from the booking. Two number inputs: waiting minutes
-  // (first) then the parking fee (second).
-  await modal.locator('input[type="number"]').first().fill('5');
-  await modal.locator('input[type="number"]').nth(1).fill('4.50');
+  // Times are pre-filled from the booking (arrival and on-board at the booked
+  // pickup → zero waiting). Nudge on-board +10 min to exercise the derived wait,
+  // then fill the parking fee (the only number input left on the form).
+  const onBoardInput = modal.locator('.field', { hasText: 'Passenger on board' }).locator('input');
+  await onBoardInput.fill(hhmmPlusMinutes(await onBoardInput.inputValue(), 10));
+  await modal.locator('input[type="number"]').first().fill('4.50');
   await modal.getByRole('button', { name: 'Complete booking' }).click();
   await expect(page.locator('.toast')).toContainText(/behalf/i);
 
@@ -373,6 +397,9 @@ test('operator completes the form on the driver behalf → completed, skipping r
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
     'OP-ENTERED',
   );
+  // The panel records the reported times and the derived 10-minute wait.
+  await expect(page.locator('.panel.is-open')).toContainText('Passenger on board');
+  await expect(page.locator('.panel.is-open')).toContainText('10 min');
 });
 
 test('mid-flight change: editing an assigned booking flags it, operator attests confirmation', async ({

@@ -921,9 +921,26 @@ export function DetailPanel({
                     )}
                   </div>
                 </div>
+                {booking.arrivalAt ? (
+                  <div className="ir">
+                    <div className="ir__k">Arrived at pickup</div>
+                    <div className="ir__v">{fmtTimeWithDay(booking.arrivalAt)}</div>
+                  </div>
+                ) : null}
+                {booking.passengerOnBoardAt ? (
+                  <div className="ir">
+                    <div className="ir__k">Passenger on board</div>
+                    <div className="ir__v">{fmtTimeWithDay(booking.passengerOnBoardAt)}</div>
+                  </div>
+                ) : null}
                 <div className="ir">
                   <div className="ir__k">Waiting time</div>
-                  <div className="ir__v">{booking.waitingTimeMinutes ?? 0} min</div>
+                  <div className="ir__v">
+                    {booking.waitingTimeMinutes ?? 0} min
+                    {booking.passengerOnBoardAt ? (
+                      <span className="muted"> (on board − later of pickup/arrival)</span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="ir">
                   <div className="ir__k">Waiting charge</div>

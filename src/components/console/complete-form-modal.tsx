@@ -35,7 +35,8 @@ export function CompleteFormModal({
   onClose,
   onCompleted,
 }: CompleteFormModalProps) {
-  const [waitingMinutes, setWaitingMinutes] = useState('0');
+  const [arrivalTime, setArrivalTime] = useState('');
+  const [passengerOnBoardTime, setPassengerOnBoardTime] = useState('');
   const [completionTime, setCompletionTime] = useState('');
   const [carParkPounds, setCarParkPounds] = useState('0');
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,11 @@ export function CompleteFormModal({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset the form only when the modal opens or the target booking changes
   useEffect(() => {
     if (isOpen && booking) {
-      setWaitingMinutes('0');
+      // Sensible defaults: arrived and boarded at the booked pickup time (zero
+      // waiting) — the operator adjusts from what the driver told them.
+      const pickupTime = toLocalTimeInput(booking.pickupAt);
+      setArrivalTime(pickupTime);
+      setPassengerOnBoardTime(pickupTime);
       setCompletionTime(defaultCompletionTime(booking));
       setCarParkPounds('0');
       setError(null);
@@ -54,11 +59,9 @@ export function CompleteFormModal({
   if (!booking) return null;
 
   const carParkPence = Math.round(Number.parseFloat(carParkPounds || '0') * 100);
-  const waitingMins = Number(waitingMinutes);
   const valid =
-    Number.isInteger(waitingMins) &&
-    waitingMins >= 0 &&
-    waitingMins <= 720 &&
+    HHMM.test(arrivalTime) &&
+    HHMM.test(passengerOnBoardTime) &&
     HHMM.test(completionTime) &&
     Number.isFinite(carParkPence) &&
     carParkPence >= 0;
@@ -68,7 +71,8 @@ export function CompleteFormModal({
     setError(null);
     startTransition(async () => {
       const result = await completeFormOnBehalfAction(booking.id, {
-        waitingMinutes: waitingMins,
+        arrivalTime,
+        passengerOnBoardTime,
         completionTime,
         carParkPence,
       });
@@ -110,17 +114,30 @@ export function CompleteFormModal({
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
             <label>
-              Waiting time (minutes)<span className="req">*</span>
+              Arrival time<span className="req">*</span>
             </label>
             <div className="ctrl">
               <input
-                type="number"
-                min={0}
-                max={720}
-                step={1}
-                value={waitingMinutes}
-                onChange={(e) => setWaitingMinutes(e.target.value)}
+                type="time"
+                value={arrivalTime}
+                onChange={(e) => setArrivalTime(e.target.value)}
               />
+              <div className="hint">When the driver arrived at the pickup.</div>
+            </div>
+          </div>
+
+          <div className="field">
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}
+            <label>
+              Passenger on board<span className="req">*</span>
+            </label>
+            <div className="ctrl">
+              <input
+                type="time"
+                value={passengerOnBoardTime}
+                onChange={(e) => setPassengerOnBoardTime(e.target.value)}
+              />
+              <div className="hint">Waiting is charged from this minus the booked pickup.</div>
             </div>
           </div>
 

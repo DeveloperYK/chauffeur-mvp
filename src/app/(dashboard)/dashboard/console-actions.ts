@@ -109,7 +109,8 @@ export async function generateCompletionLinkAction(
 export async function completeFormOnBehalfAction(
   bookingId: string,
   input: {
-    waitingMinutes: number;
+    arrivalTime: string;
+    passengerOnBoardTime: string;
     completionTime: string;
     carParkPence: number;
   },
@@ -121,7 +122,8 @@ export async function completeFormOnBehalfAction(
   const result = await completeFormOnBehalf(
     bookingId,
     {
-      waitingMinutes: input.waitingMinutes,
+      arrivalTime: input.arrivalTime,
+      passengerOnBoardTime: input.passengerOnBoardTime,
       completionTime: input.completionTime,
       carParkPence: input.carParkPence,
     },
