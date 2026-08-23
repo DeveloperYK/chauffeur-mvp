@@ -474,6 +474,12 @@ test('standalone create + detail routes redirect into the board surfaces', async
 test('optional pricing: a booking created without a price is flagged until one is set', async ({
   page,
 }) => {
+  // Fresh data so exactly one "Priceless" booking exists below.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+
   // ── Create through the real form, leaving the contract price blank ──
   await page.goto('/dashboard?new=1', { waitUntil: 'networkidle' });
   const modal = page.locator('.modal.is-open');
@@ -510,7 +516,7 @@ test('optional pricing: a booking created without a price is flagged until one i
     .locator('select[name="state"]')
     .selectOption('awaiting_operator_review');
   await clickAndSettle(page, row(page, 'Priceless').getByRole('button', { name: 'Set' }).click());
-  await expectSimState(page, 'Priceless', 'Awaiting review');
+  await expectSimState(page, 'Priceless', 'Awaiting operator review');
 
   await openBookingPanel(page, 'Priceless');
   await page
