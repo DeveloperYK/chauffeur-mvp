@@ -38,6 +38,7 @@ import {
 } from '@/server/services/exec-notifications';
 import { retryMirror } from '@/server/services/mirror';
 import { assignOperator } from '@/server/services/operators';
+import { setContractPrice } from '@/server/services/set-contract-price';
 import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { revalidatePath } from 'next/cache';
 
@@ -598,6 +599,37 @@ export async function dayCountsAction(month: string): Promise<Record<string, Day
   const out: Record<string, DayCounts> = {};
   for (const [day, c] of map.entries()) out[day] = c;
   return out;
+}
+
+/**
+ * Set (or clear) the contract price directly. Reachable from the detail panel's
+ * "Set price" control on an unpriced booking — in any state except cancelled,
+ * including completed, where the full edit flow is closed but the price still
+ * has to land for invoicing.
+ */
+export async function setContractPriceAction(
+  bookingId: string,
+  pricePence: number | null,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await setContractPrice(bookingId, pricePence, op.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'not_editable'
+          ? 'A cancelled booking cannot be priced.'
+          : 'Enter a valid price between £0.01 and £10,000.';
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 /**

@@ -202,6 +202,25 @@ describe('services/completion (integration)', () => {
     if (!r.ok) expect(r.reason).toBe('wrong_type');
   });
 
+  it('a booking with no contract price completes the full flow: submit → approve → completed', async () => {
+    // The operator never learned the price — the booking still runs end to end,
+    // stays unpriced (flagged in the console), and is priced later for invoicing.
+    await db.update(bookings).set({ contractPricePence: null }).where(eq(bookings.id, bookingId));
+    const gen = await generateCompletionLink(bookingId, operatorId, deps());
+    if (!gen.ok) throw new Error('setup');
+    const token = new URL(gen.url).pathname.split('/').pop() ?? '';
+    const submitted = await submitCompletionForm(
+      { token, carParkPence: 500, ...FORM_TIMES },
+      deps(),
+    );
+    expect(submitted.ok).toBe(true);
+    const approved = await approveBooking(bookingId, operatorId, deps());
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+    expect(approved.booking.state).toBe('completed');
+    expect(approved.booking.contractPricePence).toBeNull();
+  });
+
   it('approveBooking transitions awaiting_operator_review → completed', async () => {
     await db
       .update(bookings)

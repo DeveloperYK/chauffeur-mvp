@@ -41,6 +41,7 @@ describe('services/drivers (integration)', () => {
     vehicleClass: 'executive',
     car: 'Mercedes S-Class',
     carColour: 'Black',
+    pcoNumber: '15472',
     whatsappNumber: '+447911000001',
     ...overrides,
   });
@@ -52,11 +53,48 @@ describe('services/drivers (integration)', () => {
     expect(result.driver.vehicleClass).toBe('executive');
     expect(result.driver.car).toBe('Mercedes S-Class');
     expect(result.driver.carColour).toBe('Black');
+    expect(result.driver.pcoNumber).toBe('15472');
     expect(result.driver.active).toBe(true);
 
     const events = await db.select().from(auditEvents);
     expect(events.length).toBe(1);
     expect(events[0]?.action).toBe('create');
+    expect((events[0]?.after as Record<string, unknown>)?.pcoNumber).toBe('15472');
+  });
+
+  it('rejects a driver without a PCO number', async () => {
+    const { pcoNumber: _omitted, ...withoutPco } = valid();
+    const result = await createDriver(withoutPco, { db, operatorId });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation');
+  });
+
+  it('rejects a blank PCO number', async () => {
+    const result = await createDriver(valid({ pcoNumber: '   ' }), { db, operatorId });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation');
+  });
+
+  it('updates the PCO number and records it in the audit trail', async () => {
+    const created = await createDriver(valid(), { db, operatorId });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const updated = await updateDriver(
+      created.driver.id,
+      { pcoNumber: '98765' },
+      { db, operatorId },
+    );
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.driver.pcoNumber).toBe('98765');
+
+    const events = await db.select().from(auditEvents);
+    const update = events.find((e) => e.action === 'update');
+    expect((update?.before as Record<string, unknown>)?.pcoNumber).toBe('15472');
+    expect((update?.after as Record<string, unknown>)?.pcoNumber).toBe('98765');
   });
 
   it('persists the optional number plate', async () => {

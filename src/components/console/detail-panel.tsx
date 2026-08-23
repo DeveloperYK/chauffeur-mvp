@@ -14,6 +14,7 @@ import {
   releaseDriverAction,
   resendExecNotificationAction,
   retryMirrorAction,
+  setContractPriceAction,
   setWaitingChargeAction,
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
@@ -68,6 +69,8 @@ export function DetailPanel({
   const [payDraft, setPayDraft] = useState('');
   const [editingCharge, setEditingCharge] = useState(false);
   const [chargeDraft, setChargeDraft] = useState('');
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExec, setShowExec] = useState(false);
   const [execMessages, setExecMessages] = useState<ExecMessageEntry[] | null>(null);
@@ -221,6 +224,28 @@ export function DetailPanel({
       }
       setEditingPay(false);
       onMutated('Backfill driver pay updated.');
+    });
+  };
+  const startEditPrice = () => {
+    setPriceDraft('');
+    setError(null);
+    setEditingPrice(true);
+  };
+  const savePrice = () => {
+    const pounds = Number.parseFloat(priceDraft);
+    if (!Number.isFinite(pounds) || pounds <= 0) {
+      setError('Enter a valid price (more than £0).');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await setContractPriceAction(booking.id, Math.round(pounds * 100));
+      if (!result.ok) {
+        setError(result.error ?? 'Could not set the price.');
+        return;
+      }
+      setEditingPrice(false);
+      onMutated('Contract price set.');
     });
   };
   const startEditCharge = () => {
@@ -588,13 +613,54 @@ export function DetailPanel({
                     —
                   </div>
                 )}
-                {!hasContractPrice ? (
-                  <div
-                    className="dp-stat__sub"
-                    style={{ color: 'var(--prio-high)', fontWeight: 600 }}
-                  >
-                    No price yet — edit to add
-                  </div>
+                {!hasContractPrice && booking.state !== 'cancelled' ? (
+                  editingPrice ? (
+                    <div className="ir__row" style={{ marginTop: 4 }}>
+                      <div className="money" style={{ maxWidth: 120 }}>
+                        <div className="pfx">£</div>
+                        <input
+                          type="number"
+                          step="1"
+                          min={1}
+                          value={priceDraft}
+                          onChange={(e) => setPriceDraft(e.target.value)}
+                          // biome-ignore lint/a11y/noAutofocus: focus the field when the inline editor opens
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={savePrice}
+                        disabled={isPending}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setEditingPrice(false)}
+                        disabled={isPending}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="dp-stat__sub"
+                      style={{ color: 'var(--prio-high)', fontWeight: 600 }}
+                    >
+                      No price yet ·{' '}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={startEditPrice}
+                        disabled={isPending}
+                      >
+                        Set price
+                      </button>
+                    </div>
+                  )
                 ) : priceExtrasPence > 0 ? (
                   <div className="dp-stat__sub">
                     Fare {fmtPrice(booking.contractPricePence)}

@@ -504,15 +504,46 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
 
-  // ── Setting a price via Edit clears the flag ──
-  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
-  const editModal = page.locator('.modal.is-open');
-  await expect(editModal).toBeVisible();
-  await editModal.locator('.field', { hasText: 'Contract price' }).locator('input').fill('250');
-  await editModal.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.locator('.toast')).toContainText(/Booking updated/i);
+  // ── The unpriced booking runs the whole lifecycle to completed ──
+  await gotoSimulator(page);
+  await row(page, 'Priceless')
+    .locator('select[name="state"]')
+    .selectOption('awaiting_operator_review');
+  await clickAndSettle(page, row(page, 'Priceless').getByRole('button', { name: 'Set' }).click());
+  await expectSimState(page, 'Priceless', 'Awaiting review');
 
   await openBookingPanel(page, 'Priceless');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Approve/ })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/approved/i);
+  await gotoSimulator(page);
+  await expectSimState(page, 'Priceless', 'Completed');
+
+  // ── Completed and still unpriced: the flag persists on the done board ──
+  await openBookingPanel(page, 'Priceless');
+  const doneUrl = new URL(page.url());
+  doneUrl.searchParams.set('layout', 'board');
+  doneUrl.searchParams.set('showDone', '1');
+  await page.goto(doneUrl.toString(), { waitUntil: 'networkidle' });
+  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
+
+  // ── The panel's inline Set price works on the completed booking ──
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Set price' }).click();
+  await page.locator('.panel.is-open .dp-stat--price .money input').fill('250');
+  await page
+    .locator('.panel.is-open .dp-stat--price')
+    .getByRole('button', { name: 'Save' })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/Contract price set/i);
+
+  await openBookingPanel(page, 'Priceless');
+  const pricedUrl = new URL(page.url());
+  pricedUrl.searchParams.set('layout', 'board');
+  pricedUrl.searchParams.set('showDone', '1');
+  await page.goto(pricedUrl.toString(), { waitUntil: 'networkidle' });
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('£250');
   await expect(page.locator('.panel.is-open .dp-stat--price')).not.toContainText('No price yet');
   await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).not.toContainText(

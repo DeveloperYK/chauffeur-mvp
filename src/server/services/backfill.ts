@@ -129,7 +129,13 @@ export async function handToBackfill(
   // driver and the car they're bringing. Recorded so a failed send isn't silent.
   await sendExecNotification(
     { db: deps.db, notifications: deps.notifications, email: deps.email },
-    { booking: updated, kind: 'assigned', driverName: name, car },
+    {
+      booking: updated,
+      kind: 'assigned',
+      driverName: name,
+      car,
+      driverPhone: updated.backfillDriverPhone,
+    },
   );
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
