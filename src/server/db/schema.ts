@@ -201,6 +201,11 @@ export const bookings = pgTable(
     pickupAddress: text('pickup_address').notNull(),
     // Null for hourly as-directed bookings (no fixed destination).
     dropoffAddress: text('dropoff_address'),
+    // Optional structured reference for airport / station pickups: what the
+    // passenger is arriving on. Flights hold a normalized IATA designator
+    // (BA268); trains a short arrival description. Both set or both null.
+    travelMode: text('travel_mode', { enum: ['flight', 'train'] }),
+    travelRef: text('travel_ref'),
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
     execMobile: text('exec_mobile').notNull(),

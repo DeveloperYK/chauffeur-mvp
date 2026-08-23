@@ -9,6 +9,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { normalizedTravelPair, refineTravelRef } from './bookings';
 import { mirrorBooking } from './mirror';
 
 // See bookings.ts: parse the form's bare `datetime-local` as Europe/London
@@ -43,6 +44,9 @@ export const editBookingSchema = z
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
     contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
+    // Optional flight/train reference (paired fields, validated below).
+    travelMode: z.enum(['flight', 'train']).optional().nullable(),
+    travelRef: z.string().max(80).optional().nullable(),
     // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
     // Operator-only notes — never shown to the driver.
@@ -57,6 +61,7 @@ export const editBookingSchema = z
         message: 'Destination is required for a transfer',
       });
     }
+    refineTravelRef(data, ctx);
   });
 
 export type EditBookingInput = z.infer<typeof editBookingSchema>;
@@ -123,6 +128,7 @@ export async function editBooking(
   const isHourly = data.serviceType === 'hourly';
   const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
   const distanceMeters = isHourly ? null : (data.distanceMeters ?? null);
+  const travel = normalizedTravelPair(data);
 
   const changedFields = diffFields(existing, {
     ...data,
@@ -131,6 +137,7 @@ export async function editBooking(
     passengerLastName: lastName,
     notes,
     operatorNotes,
+    ...travel,
   });
 
   // Nothing changed — return the booking untouched, no audit, no mirror.
@@ -163,6 +170,8 @@ export async function editBooking(
       accountCode: data.customerAccount,
       caseCode: data.caseCode,
       contractPricePence: data.contractPricePence,
+      travelMode: travel.travelMode,
+      travelRef: travel.travelRef,
       notes,
       operatorNotes,
       // Flag for driver re-confirmation on a material mid-flight change. A new
@@ -200,12 +209,17 @@ export async function editBooking(
   return { ok: true, booking: updated, changedFields, materialChange };
 }
 
-type EditableFields = Omit<EditBookingInput, 'bookingId' | 'dropoffAddress' | 'distanceMeters'> & {
+type EditableFields = Omit<
+  EditBookingInput,
+  'bookingId' | 'dropoffAddress' | 'distanceMeters' | 'travelMode' | 'travelRef'
+> & {
   dropoffAddress: string | null;
   distanceMeters: number | null;
   passengerLastName: string | null;
   notes: string | null;
   operatorNotes: string | null;
+  travelMode: 'flight' | 'train' | null;
+  travelRef: string | null;
 };
 
 function diffFields(existing: Booking, next: EditableFields): string[] {
@@ -227,6 +241,12 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   if (existing.accountCode !== next.customerAccount) out.push('customer account');
   if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');
   if (existing.contractPricePence !== next.contractPricePence) out.push('price');
+  if (
+    (existing.travelMode ?? null) !== next.travelMode ||
+    (existing.travelRef ?? null) !== next.travelRef
+  ) {
+    out.push('flight/train');
+  }
   if ((existing.notes ?? null) !== next.notes) out.push('notes');
   if ((existing.operatorNotes ?? null) !== next.operatorNotes) out.push('private notes');
   return out;

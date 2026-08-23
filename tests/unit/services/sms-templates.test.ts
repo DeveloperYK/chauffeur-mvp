@@ -120,3 +120,31 @@ describe('SMS templates — brand, reference, structured format', () => {
     expect(body).not.toContain('To:');
   });
 });
+
+describe('dispatch SMS — flight/train reference', () => {
+  it('includes the flight reference when present', () => {
+    const withFlight = {
+      ...booking,
+      travelMode: 'flight',
+      travelRef: 'BA268',
+    } as unknown as Booking;
+    const body = dispatchSms(withFlight, 'https://app.test/s/Ab3xK7');
+    expect(body).toContain('Flight BA268');
+  });
+
+  it('includes the train reference when present', () => {
+    const withTrain = {
+      ...booking,
+      travelMode: 'train',
+      travelRef: '12:03 from Manchester Piccadilly',
+    } as unknown as Booking;
+    const body = dispatchSms(withTrain, 'https://app.test/s/Ab3xK7');
+    expect(body).toContain('Train 12:03 from Manchester Piccadilly');
+  });
+
+  it('omits the travel line when there is no reference', () => {
+    const body = dispatchSms(booking, 'https://app.test/s/Ab3xK7');
+    expect(body).not.toContain('Flight');
+    expect(body).not.toContain('Train');
+  });
+});

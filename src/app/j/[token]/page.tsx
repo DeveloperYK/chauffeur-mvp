@@ -193,6 +193,12 @@ export default async function DriverLinkPage({
             <div className="k">Duration</div>
             <div className="v">{booking.expectedDurationMinutes} min</div>
           </div>
+          {booking.travelRef ? (
+            <div className="m">
+              <div className="k">{booking.travelMode === 'flight' ? 'Flight' : 'Train'}</div>
+              <div className="v">{booking.travelRef}</div>
+            </div>
+          ) : null}
         </div>
         {booking.notes ? (
           <div
@@ -451,6 +457,12 @@ async function ChangeConfirmPage({
             <div className="k">Duration</div>
             <div className="v">{booking.expectedDurationMinutes} min</div>
           </div>
+          {booking.travelRef ? (
+            <div className="m">
+              <div className="k">{booking.travelMode === 'flight' ? 'Flight' : 'Train'}</div>
+              <div className="v">{booking.travelRef}</div>
+            </div>
+          ) : null}
         </div>
         {booking.notes ? (
           <div

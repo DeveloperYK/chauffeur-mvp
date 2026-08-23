@@ -263,4 +263,57 @@ describe('services/edit-booking (integration)', () => {
     const events = await db.select().from(auditEvents);
     expect(events.length).toBe(0);
   });
+
+  // ── Flight/train reference ─────────────────────────────────────
+  it('adds a flight reference and reports it as a flight/train change', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { travelMode: 'flight', travelRef: 'ba 268' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.travelMode).toBe('flight');
+    expect(result.booking.travelRef).toBe('BA268');
+    expect(result.changedFields).toContain('flight/train');
+  });
+
+  it('flags an assigned booking for driver re-confirmation when the flight changes', async () => {
+    const seeded = await seed('assigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { travelMode: 'flight', travelRef: 'BA268' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.materialChange).toBe(true);
+  });
+
+  it('clears the travel reference when both fields are removed', async () => {
+    const seeded = await seed('unassigned');
+    const first = await editBooking(
+      fullEdit(seeded.id, { travelMode: 'train', travelRef: '12:03 from Manchester' }),
+      operatorId,
+      { db },
+    );
+    expect(first.ok).toBe(true);
+    const second = await editBooking(fullEdit(seeded.id), operatorId, { db });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.booking.travelMode).toBeNull();
+    expect(second.booking.travelRef).toBeNull();
+    expect(second.changedFields).toContain('flight/train');
+  });
+
+  it('rejects an invalid flight designator on edit', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { travelMode: 'flight', travelRef: 'not a flight' }),
+      operatorId,
+      { db },
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+  });
 });
