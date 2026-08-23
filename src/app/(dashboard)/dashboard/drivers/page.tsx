@@ -236,6 +236,9 @@ function DriverRoster({
             </span>
             <span className="car" title={carDescription(d.car, d.carColour)}>
               {carLabel(d.car)}
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)' }}>
+                {d.pcoNumber ? `PCO ${d.pcoNumber}` : 'No PCO on file'}
+              </span>
             </span>
             <span className="ws">{d.whatsappNumber}</span>
             <span>

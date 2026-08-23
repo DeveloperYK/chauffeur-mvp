@@ -12,7 +12,7 @@ import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
-import { sendExecNotification } from './exec-notifications';
+import { execContextFromDriver, sendExecNotification } from './exec-notifications';
 
 export interface ClockTickDeps {
   db: Database;
@@ -89,7 +89,7 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
       if (driver) {
         await sendExecNotification(
           { db: deps.db, notifications: deps.notifications, email: deps.email },
-          { booking: updated, kind: 'en_route', driverName: driver.name },
+          execContextFromDriver(updated, 'en_route', driver),
         );
       }
     } else if (updated.isBackfill && updated.backfillDriverName) {
@@ -97,7 +97,12 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
       // operator-entered subcontractor instead. Exec experience is unchanged.
       await sendExecNotification(
         { db: deps.db, notifications: deps.notifications, email: deps.email },
-        { booking: updated, kind: 'en_route', driverName: updated.backfillDriverName },
+        {
+          booking: updated,
+          kind: 'en_route',
+          driverName: updated.backfillDriverName,
+          driverPhone: updated.backfillDriverPhone,
+        },
       );
     }
   }

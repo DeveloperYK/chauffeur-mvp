@@ -28,6 +28,7 @@ export async function editDriverAction(formData: FormData): Promise<void> {
       car: String(formData.get('car') ?? ''),
       carColour: String(formData.get('carColour') ?? ''),
       numberPlate: String(formData.get('numberPlate') ?? '').trim() || null,
+      pcoNumber: String(formData.get('pcoNumber') ?? ''),
       whatsappNumber: String(formData.get('whatsappNumber') ?? ''),
     },
     { db, operatorId: session.operator.id },

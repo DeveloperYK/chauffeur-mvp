@@ -10,6 +10,7 @@ import {
 } from '@/server/db/schema';
 import {
   type ExecNotificationDeps,
+  buildExecContextForBooking,
   listExecNotifications,
   resendExecNotification,
   sendExecNotification,
@@ -103,6 +104,21 @@ describe('services/exec-notifications email channel (integration)', () => {
     expect(emailer.sent[0]?.to).toBe('exec@example.com');
     // Email accepted ⇒ booking is pending until a delivery webhook (V3).
     expect(await status(booking.id)).toBe('pending');
+  });
+
+  it('carries the driver PCO number and contact number from the roster into the email', async () => {
+    const booking = await seedAssigned('exec@example.com');
+    const ctx = await buildExecContextForBooking(db, booking, 'assigned');
+    expect(ctx).not.toBeNull();
+    if (!ctx) return;
+    expect(ctx.pcoNumber).toBe(driver.pcoNumber);
+    expect(ctx.driverPhone).toBe(driver.whatsappNumber);
+
+    await sendExecNotification(emailDeps(), ctx);
+    const sent = emailer.sent[0];
+    expect(sent?.text).toContain(driver.pcoNumber ?? '');
+    expect(sent?.text).toContain(driver.whatsappNumber);
+    expect(sent?.html).toContain('PCO number');
   });
 
   it('records a failed row + failed booking when the provider rejects', async () => {
