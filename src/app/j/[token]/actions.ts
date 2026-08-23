@@ -108,7 +108,8 @@ export async function submitCompletionAction(formData: FormData): Promise<void> 
     {
       token,
       carParkPence,
-      waitingMinutes: Number(formData.get('waitingMinutes') ?? 0),
+      arrivalTime: String(formData.get('arrivalTime') ?? ''),
+      passengerOnBoardTime: String(formData.get('passengerOnBoardTime') ?? ''),
       completionTime: String(formData.get('completionTime') ?? ''),
     },
     {

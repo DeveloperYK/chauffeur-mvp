@@ -76,6 +76,10 @@ export interface ConsoleBooking {
   carParkPence: number | null;
   /** Waiting minutes reported by the driver, null until the form is in. */
   waitingTimeMinutes: number | null;
+  /** Driver's arrival at the pickup (ISO), from the completion form; null until submitted. */
+  arrivalAt: string | null;
+  /** Passenger on board (ISO), from the completion form; null until submitted. */
+  passengerOnBoardAt: string | null;
   /**
    * Waiting charge resolved server-side: `customerFeePence` is the *effective*
    * charge (operator override if set, else the computed £1/min fee). Always

@@ -80,10 +80,12 @@ describe('services/completion (integration)', () => {
   const clock = fixedClock('2026-06-01T11:30:00.000Z');
   const deps = () => ({ db, clock, secret: SECRET, appUrl: APP_URL });
 
-  // Pickup is 10:00Z = 11:00 London (BST). The 12:25 London completion
-  // resolves to 11:25Z; the 12-minute wait is stored as entered.
+  // Pickup is 10:00Z = 11:00 London (BST). Driver arrives 10:55, passenger on
+  // board 11:12 → the 12-minute wait is DERIVED (on board − booked pickup);
+  // the 12:25 London completion resolves to 11:25Z.
   const FORM_TIMES = {
-    waitingMinutes: 12,
+    arrivalTime: '10:55',
+    passengerOnBoardTime: '11:12',
     completionTime: '12:25',
   } as const;
 
@@ -114,9 +116,9 @@ describe('services/completion (integration)', () => {
     expect(r.booking.carParkPence).toBe(750);
     expect(r.booking.waitingTimeMinutes).toBe(12);
     expect(r.booking.dropoffAt?.toISOString()).toBe('2026-06-01T11:25:00.000Z');
-    // The form no longer captures arrival — nothing is written to the legacy columns.
-    expect(r.booking.arrivalAt).toBeNull();
-    expect(r.booking.passengerOnBoardAt).toBeNull();
+    // The reported times are stored: 10:55 / 11:12 London (BST) → 09:55Z / 10:12Z.
+    expect(r.booking.arrivalAt?.toISOString()).toBe('2026-06-01T09:55:00.000Z');
+    expect(r.booking.passengerOnBoardAt?.toISOString()).toBe('2026-06-01T10:12:00.000Z');
 
     expect((await db.select().from(consumedTokens)).length).toBe(1);
 
@@ -155,7 +157,8 @@ describe('services/completion (integration)', () => {
       {
         token,
         carParkPence: 0,
-        waitingMinutes: 15,
+        arrivalTime: '22:50',
+        passengerOnBoardTime: '23:15', // 15 min after the 23:00 pickup
         completionTime: '01:30', // before the 23:00 pickup → next London day
       },
       deps(),
@@ -176,7 +179,7 @@ describe('services/completion (integration)', () => {
     if (!r.ok) expect(r.reason).toBe('token_consumed');
   });
 
-  it('submitCompletionForm rejects negative car park / waiting', async () => {
+  it('submitCompletionForm rejects a negative car park fee', async () => {
     const gen = await generateCompletionLink(bookingId, operatorId, deps());
     if (!gen.ok) throw new Error('setup');
     const token = new URL(gen.url).pathname.split('/').pop() ?? '';
@@ -419,16 +422,17 @@ describe('services/completion (integration)', () => {
       if (!r.ok) expect(r.reason).toBe('validation');
     });
 
-    it('rejects an implausibly long wait beyond the 12h cap (validation)', async () => {
+    it('rejects an implausibly long derived wait beyond the 12h cap', async () => {
       const r = await completeFormOnBehalf(
         bookingId,
-        // A 13h wait (780 min) is past the 720-min schema cap.
-        { ...input, waitingMinutes: 13 * 60, completionTime: '21:30' },
+        // Passenger "on board" 00:30 rolls past midnight → 13.5h after the
+        // 11:00 London pickup, past the 720-min waiting cap.
+        { ...input, passengerOnBoardTime: '00:30', completionTime: '01:30' },
         operatorId,
         onBehalfDeps(),
       );
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe('validation');
+      if (!r.ok) expect(r.reason).toBe('times_invalid');
     });
   });
 });
