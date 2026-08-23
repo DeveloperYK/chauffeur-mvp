@@ -134,6 +134,17 @@ test('booking moves through every stage via the simulator + console', async ({ p
     'href',
     /calendar\.google\.com\/calendar\/render\?action=TEMPLATE/,
   );
+  // Apple Calendar: the .ics route serves a real event, gated by the same token.
+  const appleHref = await page
+    .getByRole('link', { name: 'Add to Apple Calendar' })
+    .getAttribute('href');
+  expect(appleHref, 'expected an Apple Calendar link').toBeTruthy();
+  const icsRes = await page.request.get(appleHref as string);
+  expect(icsRes.status()).toBe(200);
+  expect(icsRes.headers()['content-type']).toContain('text/calendar');
+  const icsBody = await icsRes.text();
+  expect(icsBody).toContain('BEGIN:VCALENDAR');
+  expect(icsBody).toContain('SUMMARY:JJ Chauffeuring BKNG-');
 
   // ── Driver reopens their link after accepting → persistent job view ──────
   // The offer is one-shot, but the same link must now show the accepted job
