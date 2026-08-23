@@ -65,6 +65,10 @@ export interface ExecMessageContext {
   car?: string;
   /** Registration plate, shown to the exec in the email (internal drivers only). */
   plate?: string | null;
+  /** PCO licence number, shown to the exec in the email (internal drivers only). */
+  pcoNumber?: string | null;
+  /** Driver's contact number, shown to the exec in the email. */
+  driverPhone?: string | null;
 }
 
 interface SendOutcome {
@@ -84,13 +88,14 @@ function renderSmsBody(ctx: ExecMessageContext): string {
 }
 
 function renderEmail(ctx: ExecMessageContext): { subject: string; html: string; text: string } {
+  const driver = { name: ctx.driverName, pcoNumber: ctx.pcoNumber, phone: ctx.driverPhone };
   if (ctx.kind === 'assigned') {
-    return assignedEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '', ctx.plate);
+    return assignedEmail(ctx.booking, driver, ctx.car ?? '', ctx.plate);
   }
   if (ctx.kind === 'changed') {
     return changeExecEmail(ctx.booking);
   }
-  return enRouteEmail(ctx.booking, { name: ctx.driverName }, ctx.car ?? '', ctx.plate);
+  return enRouteEmail(ctx.booking, driver, ctx.car ?? '', ctx.plate);
 }
 
 async function performSmsSend(
@@ -290,6 +295,28 @@ export async function notifyExecOfChange(
   return { ok: true, notification: row };
 }
 
+/**
+ * Build the render context from a booking + its already-loaded driver row.
+ * Single source of truth for which driver fields the exec sees (name, car,
+ * plate, PCO number, contact number) — used by accept/assign/swap/en-route
+ * sends and by the rebuild path below.
+ */
+export function execContextFromDriver(
+  booking: typeof bookings.$inferSelect,
+  kind: NotificationKind,
+  driver: typeof drivers.$inferSelect,
+): ExecMessageContext {
+  return {
+    booking,
+    kind,
+    driverName: driver.name,
+    car: carDescription(driver.car, driver.carColour),
+    plate: driver.numberPlate,
+    pcoNumber: driver.pcoNumber,
+    driverPhone: driver.whatsappNumber,
+  };
+}
+
 /** Rebuild the render context from the booking's CURRENT driver/backfill state. */
 export async function buildExecContextForBooking(
   db: Database,
@@ -302,15 +329,7 @@ export async function buildExecContextForBooking(
       .from(drivers)
       .where(eq(drivers.id, booking.assignedDriverId))
       .limit(1);
-    if (driver) {
-      return {
-        booking,
-        kind,
-        driverName: driver.name,
-        car: carDescription(driver.car, driver.carColour),
-        plate: driver.numberPlate,
-      };
-    }
+    if (driver) return execContextFromDriver(booking, kind, driver);
   }
   if (booking.isBackfill && booking.backfillDriverName) {
     return {
@@ -318,6 +337,7 @@ export async function buildExecContextForBooking(
       kind,
       driverName: booking.backfillDriverName,
       car: booking.backfillCar ?? '',
+      driverPhone: booking.backfillDriverPhone,
     };
   }
   return null;

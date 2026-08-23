@@ -50,18 +50,33 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
         </Field>
       </div>
 
-      <Field
-        label="Number plate"
-        helper="Optional. Shown to the exec in the email to help them spot the car."
-        className="md:col-span-2"
-      >
-        <Input
-          type="text"
-          name="numberPlate"
-          maxLength={15}
-          defaultValue={driver?.numberPlate ?? ''}
-        />
-      </Field>
+      <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field
+          label="Number plate"
+          helper="Optional. Shown to the exec in the email to help them spot the car."
+        >
+          <Input
+            type="text"
+            name="numberPlate"
+            maxLength={15}
+            defaultValue={driver?.numberPlate ?? ''}
+          />
+        </Field>
+
+        <Field
+          label="PCO number"
+          required
+          helper="The driver's PCO licence number. Shown to the exec in the email."
+        >
+          <Input
+            type="text"
+            name="pcoNumber"
+            required
+            maxLength={20}
+            defaultValue={driver?.pcoNumber ?? ''}
+          />
+        </Field>
+      </div>
 
       <Field
         label="WhatsApp number"
