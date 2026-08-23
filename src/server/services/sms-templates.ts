@@ -1,5 +1,6 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDateTimeShort, formatLondonTimeOfDay } from '@/lib/dates';
+import { travelRefLabel } from '@/lib/travel-ref';
 import type { Booking } from '@/server/db/schema';
 
 /**
@@ -111,6 +112,8 @@ export function dispatchSms(booking: Booking, url: string): string {
   } else {
     lines.push(`${booking.pickupAddress} -> ${destination(booking)}`);
   }
+  const travel = travelRefLabel(booking.travelMode, booking.travelRef);
+  if (travel) lines.push(travel);
   lines.push(`Accept: ${url}`);
   return lines.join('\n');
 }

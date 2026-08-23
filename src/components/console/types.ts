@@ -19,6 +19,9 @@ export interface ConsoleBooking {
   pickupAt: string;
   expectedDurationMinutes: number;
   distanceMeters: number | null;
+  /** Optional flight/train the passenger arrives on (paired; null when unset). */
+  travelMode: 'flight' | 'train' | null;
+  travelRef: string | null;
   pickupAddress: string;
   /** Empty string for hourly as-directed bookings (no destination). */
   dropoffAddress: string;
