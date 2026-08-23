@@ -617,3 +617,47 @@ export async function previewDispatchLink(
   }
   return { ok: true, preview: { booking, driver, expiresAt: new Date(exp * 1000) } };
 }
+
+export type DriverJobResult =
+  | { ok: true; booking: Booking; driver: Driver }
+  | {
+      ok: false;
+      reason:
+        | 'token_invalid'
+        | 'token_expired'
+        | 'not_your_job'
+        | 'cancelled'
+        | 'booking_not_found'
+        | 'driver_not_found';
+    };
+
+/**
+ * The driver's persistent view of a job they accepted. The dispatch offer is
+ * one-shot (the jti is consumed on accept), but the signed link itself stays
+ * valid until pickup + 48h — so the driver can reopen the same WhatsApp link
+ * to see the job details again. Access rule: the token's driver must be the
+ * booking's CURRENT assigned driver. A losing fan-out offer, or a driver who
+ * was released/reassigned, gets nothing — their link stays a dead end.
+ */
+export async function previewDriverJob(
+  token: string,
+  deps: Omit<DispatchDeps, 'notifications'>,
+): Promise<DriverJobResult> {
+  const clock = deps.clock ?? systemClock;
+  const verified = await verifyDriverLink(deps.secret, token, clock.now());
+  if (!verified.ok) {
+    if (verified.reason === 'expired') return { ok: false, reason: 'token_expired' };
+    return { ok: false, reason: 'token_invalid' };
+  }
+  const { jobId, driverId, type } = verified.payload;
+  if (type !== 'dispatch') return { ok: false, reason: 'token_invalid' };
+
+  const [booking] = await deps.db.select().from(bookings).where(eq(bookings.id, jobId)).limit(1);
+  if (!booking) return { ok: false, reason: 'booking_not_found' };
+  if (booking.state === 'cancelled') return { ok: false, reason: 'cancelled' };
+  if (booking.assignedDriverId !== driverId) return { ok: false, reason: 'not_your_job' };
+  const [driver] = await deps.db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1);
+  if (!driver) return { ok: false, reason: 'driver_not_found' };
+
+  return { ok: true, booking, driver };
+}
