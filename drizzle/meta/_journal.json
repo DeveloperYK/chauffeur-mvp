@@ -176,6 +176,13 @@
       "when": 1782200000000,
       "tag": "0024_add_mirror_status",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787910000000,
+      "tag": "0025_add_travel_ref",
+      "breakpoints": true
     }
   ]
 }
