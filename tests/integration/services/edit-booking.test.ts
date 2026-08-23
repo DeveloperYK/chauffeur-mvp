@@ -263,4 +263,51 @@ describe('services/edit-booking (integration)', () => {
     const events = await db.select().from(auditEvents);
     expect(events.length).toBe(0);
   });
+
+  // ── Optional pricing ───────────────────────────────────────────
+  it('clears the contract price and reports it changed', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { contractPricePence: null }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.contractPricePence).toBeNull();
+    expect(result.changedFields).toContain('price');
+  });
+
+  it('sets the subcontractor price and reports it changed', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { subcontractorPricePence: 12000 }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.subcontractorPricePence).toBe(12000);
+    expect(result.changedFields).toContain('subcontractor price');
+  });
+
+  it('treats an omitted subcontractor price as unchanged when none is stored', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(fullEdit(seeded.id), operatorId, { db });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changedFields).toEqual([]);
+  });
+
+  it('rejects a zero subcontractor price', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { subcontractorPricePence: 0 }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation');
+  });
 });

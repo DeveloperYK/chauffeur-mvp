@@ -214,7 +214,14 @@ export const bookings = pgTable(
     // cost. Maps to the legacy JJ sheet column D. Nullable: bookings created
     // before this field exist without one.
     caseCode: text('case_code'),
-    contractPricePence: integer('contract_price_pence').notNull(),
+    // Operator-agreed contract price. Nullable: operators don't always know the
+    // price when the booking call comes in — a booking without one is flagged in
+    // the console until it's set.
+    contractPricePence: integer('contract_price_pence'),
+    // Price agreed for handing the job to a subcontractor (backfill) driver —
+    // the quote captured at booking time, distinct from backfill_driver_pay_pence
+    // (what the covering driver is actually paid, entered at handoff).
+    subcontractorPricePence: integer('subcontractor_price_pence'),
     // Driver-facing notes. Shown to the driver on the dispatch link page and
     // labelled "Notes for the driver" in the operator UI.
     notes: text('notes'),

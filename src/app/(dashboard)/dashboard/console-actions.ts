@@ -2,6 +2,7 @@
 
 import { parseMonthString } from '@/lib/dates';
 import { logger } from '@/lib/logger';
+import { parsePoundsFieldToPence } from '@/lib/money';
 import { currentSession } from '@/server/auth/current';
 import {
   appUrl,
@@ -442,9 +443,8 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
   const op = await requireOperator();
   if (!op) return { ok: false, error: 'Not authenticated.' };
 
-  const poundsRaw = formData.get('contractPricePounds');
-  const pounds = poundsRaw == null ? 0 : Number.parseFloat(String(poundsRaw));
-  const pence = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
+  const contractPricePence = parsePoundsFieldToPence(formData.get('contractPricePounds'));
+  const subcontractorPricePence = parsePoundsFieldToPence(formData.get('subcontractorPricePounds'));
 
   const distanceRaw = formData.get('distanceMeters');
   const distanceMeters =
@@ -466,7 +466,8 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     execEmail: String(formData.get('execEmail') ?? '') || null,
     customerAccount: String(formData.get('customerAccount') ?? ''),
     caseCode: String(formData.get('caseCode') ?? ''),
-    contractPricePence: pence,
+    contractPricePence,
+    subcontractorPricePence,
     notes: (formData.get('notes') as string | null) || null,
     operatorNotes: (formData.get('operatorNotes') as string | null) || null,
   };

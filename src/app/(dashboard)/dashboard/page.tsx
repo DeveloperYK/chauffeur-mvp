@@ -64,6 +64,7 @@ function toConsoleBooking(
     accountCode: b.accountCode,
     caseCode: b.caseCode,
     contractPricePence: b.contractPricePence,
+    subcontractorPricePence: b.subcontractorPricePence,
     notes: b.notes,
     operatorNotes: b.operatorNotes,
     createdByOperatorId: b.createdByOperatorId,

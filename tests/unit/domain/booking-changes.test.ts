@@ -31,6 +31,10 @@ describe('domain/booking-changes — isMaterialChange', () => {
     expect(isMaterialChange(['price'])).toBe(false);
   });
 
+  it('is not material for a subcontractor-price-only change', () => {
+    expect(isMaterialChange(['subcontractor price'])).toBe(false);
+  });
+
   it('is not material for exec mobile / customer account / case code / private notes', () => {
     expect(isMaterialChange(['exec mobile'])).toBe(false);
     expect(isMaterialChange(['customer account'])).toBe(false);
@@ -65,6 +69,7 @@ describe('domain/booking-changes — isExecFacingChange', () => {
 
   it('is NOT exec-facing for cosmetic fields or an empty set', () => {
     expect(isExecFacingChange(['price'])).toBe(false);
+    expect(isExecFacingChange(['subcontractor price'])).toBe(false);
     expect(isExecFacingChange(['exec mobile'])).toBe(false);
     expect(isExecFacingChange([])).toBe(false);
   });

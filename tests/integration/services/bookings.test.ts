@@ -272,7 +272,7 @@ describe('services/bookings (integration)', () => {
       expect(result.booking.distanceMeters).toBeNull();
     });
 
-    it('rejects a booking with no price (price is required, not auto-computed)', async () => {
+    it('rejects an explicit zero price (blank means "not agreed yet", zero is a mistake)', async () => {
       const result = await createBooking(
         validInput({ contractPricePence: 0, distanceMeters: Math.round(10 * 1609.344) }),
         { db, clock, operatorId },
@@ -290,6 +290,86 @@ describe('services/bookings (integration)', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.booking.contractPricePence).toBe(9999);
+    });
+  });
+
+  describe('optional pricing', () => {
+    it('creates a booking with no contract price when the operator does not know it yet', async () => {
+      const result = await createBooking(validInput({ contractPricePence: null }), {
+        db,
+        clock,
+        operatorId,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBeNull();
+    });
+
+    it('creates a booking when the contract price key is omitted entirely', async () => {
+      const { contractPricePence: _omitted, ...rest } = validInput();
+      const result = await createBooking(rest, { db, clock, operatorId });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBeNull();
+    });
+
+    it('stores the subcontractor price when given', async () => {
+      const result = await createBooking(validInput({ subcontractorPricePence: 15000 }), {
+        db,
+        clock,
+        operatorId,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.subcontractorPricePence).toBe(15000);
+      expect(result.booking.contractPricePence).toBe(30000);
+    });
+
+    it('defaults the subcontractor price to null when omitted', async () => {
+      const result = await createBooking(validInput(), { db, clock, operatorId });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.subcontractorPricePence).toBeNull();
+    });
+
+    it('accepts a booking with a subcontractor price but no contract price', async () => {
+      const result = await createBooking(
+        validInput({ contractPricePence: null, subcontractorPricePence: 12000 }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.booking.contractPricePence).toBeNull();
+      expect(result.booking.subcontractorPricePence).toBe(12000);
+    });
+
+    it('rejects a zero subcontractor price', async () => {
+      const result = await createBooking(validInput({ subcontractorPricePence: 0 }), {
+        db,
+        clock,
+        operatorId,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
+    });
+
+    it('rejects a negative subcontractor price', async () => {
+      const result = await createBooking(validInput({ subcontractorPricePence: -500 }), {
+        db,
+        clock,
+        operatorId,
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects a subcontractor price over the maximum', async () => {
+      const result = await createBooking(validInput({ subcontractorPricePence: 10_000_01 }), {
+        db,
+        clock,
+        operatorId,
+      });
+      expect(result.ok).toBe(false);
     });
   });
 });

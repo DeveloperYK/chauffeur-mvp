@@ -138,6 +138,18 @@ describe('services/edit-booking — mid-flight change flag (integration)', () =>
     expect(row?.changeConfirmationStatus).toBe('none');
   });
 
+  it('does NOT flag a subcontractor-price-only change', async () => {
+    const b = await seed('assigned');
+    const res = await editBooking(fullEdit(b.id, { subcontractorPricePence: 20000 }), operatorId, {
+      db,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.materialChange).toBe(false);
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(row?.changeConfirmationStatus).toBe('none');
+  });
+
   it('does NOT flag a driver-facing change before dispatch (unassigned)', async () => {
     const b = await seed('unassigned');
     const res = await editBooking(fullEdit(b.id, { dropoffAddress: 'Gatwick South' }), operatorId, {

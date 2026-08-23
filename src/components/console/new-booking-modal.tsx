@@ -37,6 +37,7 @@ interface NewForm {
   customerAccount: string;
   caseCode: string;
   contractPricePounds: string;
+  subcontractorPricePounds: string;
   notes: string;
   operatorNotes: string;
 }
@@ -60,6 +61,7 @@ const EMPTY: NewForm = {
   customerAccount: '',
   caseCode: '',
   contractPricePounds: '',
+  subcontractorPricePounds: '',
   notes: '',
   operatorNotes: '',
 };
@@ -78,6 +80,7 @@ const SAMPLES: Array<
     pickupAddress: 'The Connaught, Carlos Place, Mayfair, London W1K 2AL',
     dropoffAddress: 'Heathrow Terminal 5, Departures',
     contractPricePounds: '165',
+    subcontractorPricePounds: '120',
     notes: 'Flight BA268 to LAX. Two large suitcases.',
     operatorNotes: 'Account on stop — confirm PO before dispatch.',
     durationMin: 75,
@@ -91,6 +94,7 @@ const SAMPLES: Array<
     pickupAddress: 'Soho House, 76 Dean Street, London W1D 3SQ',
     dropoffAddress: 'Gatwick North Terminal',
     contractPricePounds: '135',
+    subcontractorPricePounds: '',
     notes: 'Prefers a quiet driver.',
     operatorNotes: '',
     durationMin: 90,
@@ -104,6 +108,7 @@ const SAMPLES: Array<
     pickupAddress: '1 Embankment Place, London WC2N 6RH',
     dropoffAddress: 'Battersea Power Station — Office',
     contractPricePounds: '85',
+    subcontractorPricePounds: '',
     notes: '',
     operatorNotes: '',
     durationMin: 60,
@@ -141,10 +146,14 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     formRef.current?.querySelector('.err')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [error, fieldErrors]);
 
-  // The exec-mobile field on the form uses `execMobile`; the server keys a price
-  // error under `contractPricePence` though the input holds pounds.
+  // The exec-mobile field on the form uses `execMobile`; the server keys price
+  // errors under the pence field names though the inputs hold pounds.
   const serverFieldFor = (k: keyof NewForm): string =>
-    k === 'contractPricePounds' ? 'contractPricePence' : k;
+    k === 'contractPricePounds'
+      ? 'contractPricePence'
+      : k === 'subcontractorPricePounds'
+        ? 'subcontractorPricePence'
+        : k;
 
   const set = <K extends keyof NewForm>(k: K, v: NewForm[K]) => {
     setForm((p) => ({ ...p, [k]: v }));
@@ -225,6 +234,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
       customerAccount: s.customerAccount,
       caseCode: s.caseCode,
       contractPricePounds: s.contractPricePounds,
+      subcontractorPricePounds: s.subcontractorPricePounds,
       notes: s.notes,
       operatorNotes: s.operatorNotes,
     });
@@ -251,7 +261,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     fd.set('execEmail', form.execEmail ?? '');
     fd.set('customerAccount', form.customerAccount);
     fd.set('caseCode', form.caseCode);
-    fd.set('contractPricePounds', form.contractPricePounds || '0');
+    // Blank price fields mean "not agreed yet" — the server stores null and the
+    // console flags the booking until a price is set.
+    fd.set('contractPricePounds', form.contractPricePounds);
+    fd.set('subcontractorPricePounds', form.subcontractorPricePounds);
     fd.set('notes', form.notes);
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
@@ -522,12 +535,10 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Contract price</div>
+            <div className="form-section__head">Pricing</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                Price<span className="req">*</span>
-              </label>
+              <label>Contract price</label>
               <div className="ctrl">
                 <div className="money">
                   <div className="pfx">£</div>
@@ -541,6 +552,29 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
                 </div>
                 {fieldErrors.contractPricePence ? (
                   <div className="err">{fieldErrors.contractPricePence}</div>
+                ) : (
+                  <div className="hint">
+                    Leave blank if not agreed yet — the booking is flagged until it has a price.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Subcontractor price</label>
+              <div className="ctrl">
+                <div className="money">
+                  <div className="pfx">£</div>
+                  <input
+                    type="number"
+                    step="1"
+                    value={form.subcontractorPricePounds}
+                    aria-invalid={fieldErrors.subcontractorPricePence ? true : undefined}
+                    onChange={(e) => set('subcontractorPricePounds', e.target.value)}
+                  />
+                </div>
+                {fieldErrors.subcontractorPricePence ? (
+                  <div className="err">{fieldErrors.subcontractorPricePence}</div>
                 ) : null}
               </div>
             </div>

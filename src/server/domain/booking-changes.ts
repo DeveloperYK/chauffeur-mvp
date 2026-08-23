@@ -4,8 +4,8 @@
  * After a booking is dispatched, an operator can still edit it. Some fields are
  * shown to the driver on the dispatch link page (pickup, drop-off, time,
  * duration, service type, passenger, driver-facing notes); the rest (exec
- * contact, customer account, case code, contract price, private notes) are
- * invisible to the driver. Only a change to a driver-facing field means the
+ * contact, customer account, case code, contract price, subcontractor price,
+ * private notes) are invisible to the driver. Only a change to a driver-facing field means the
  * driver was told something now stale and must re-confirm the new plan.
  *
  * See docs/shaping/mid-flight-changes.

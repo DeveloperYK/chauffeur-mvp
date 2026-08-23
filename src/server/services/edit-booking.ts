@@ -42,7 +42,21 @@ export const editBookingSchema = z
     execEmail: z.string().email().max(200).optional().nullable(),
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
-    contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
+    // Both prices are optional — see bookings.ts. Null clears a stored price.
+    contractPricePence: z.coerce
+      .number()
+      .int()
+      .min(1, 'Contract price must be a positive amount — leave it blank if not agreed yet')
+      .max(10_000_00)
+      .nullable()
+      .optional(),
+    subcontractorPricePence: z.coerce
+      .number()
+      .int()
+      .min(1, 'Subcontractor price must be a positive amount — leave it blank if not agreed yet')
+      .max(10_000_00)
+      .nullable()
+      .optional(),
     // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
     // Operator-only notes — never shown to the driver.
@@ -119,6 +133,8 @@ export async function editBooking(
   const lastName = data.passengerLastName ?? null;
   const notes = data.notes ?? null;
   const operatorNotes = data.operatorNotes ?? null;
+  const contractPricePence = data.contractPricePence ?? null;
+  const subcontractorPricePence = data.subcontractorPricePence ?? null;
   // Hourly hire has no destination or route distance; a transfer keeps both.
   const isHourly = data.serviceType === 'hourly';
   const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
@@ -129,6 +145,8 @@ export async function editBooking(
     dropoffAddress,
     distanceMeters,
     passengerLastName: lastName,
+    contractPricePence,
+    subcontractorPricePence,
     notes,
     operatorNotes,
   });
@@ -162,7 +180,8 @@ export async function editBooking(
       clientName: data.customerAccount,
       accountCode: data.customerAccount,
       caseCode: data.caseCode,
-      contractPricePence: data.contractPricePence,
+      contractPricePence,
+      subcontractorPricePence,
       notes,
       operatorNotes,
       // Flag for driver re-confirmation on a material mid-flight change. A new
@@ -204,6 +223,8 @@ type EditableFields = Omit<EditBookingInput, 'bookingId' | 'dropoffAddress' | 'd
   dropoffAddress: string | null;
   distanceMeters: number | null;
   passengerLastName: string | null;
+  contractPricePence: number | null;
+  subcontractorPricePence: number | null;
   notes: string | null;
   operatorNotes: string | null;
 };
@@ -226,7 +247,10 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   // Customer Account is held in account_code (client_name mirrors it).
   if (existing.accountCode !== next.customerAccount) out.push('customer account');
   if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');
-  if (existing.contractPricePence !== next.contractPricePence) out.push('price');
+  if ((existing.contractPricePence ?? null) !== next.contractPricePence) out.push('price');
+  if ((existing.subcontractorPricePence ?? null) !== next.subcontractorPricePence) {
+    out.push('subcontractor price');
+  }
   if ((existing.notes ?? null) !== next.notes) out.push('notes');
   if ((existing.operatorNotes ?? null) !== next.operatorNotes) out.push('private notes');
   return out;
