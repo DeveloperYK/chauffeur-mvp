@@ -2,6 +2,7 @@ import '@/app/console.css';
 import { Avatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
+import { driverJobCalendarUrl } from '@/lib/calendar';
 import { carDescription } from '@/lib/labels';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
@@ -46,6 +47,14 @@ export default async function DriverLinkPage({
   const search = await searchParams;
 
   if (search.status === 'accepted') {
+    // Load the job so the confirmation can hand the driver their two ways back
+    // in: this link, and a prefilled calendar event that links to it.
+    const job = await previewDriverJob(token, {
+      db: db(),
+      secret: driverLinkSecret(),
+      appUrl: appUrl(),
+    });
+    const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
     return (
       <Stage>
         <div className="ph-center">
@@ -54,10 +63,26 @@ export default async function DriverLinkPage({
           </div>
           <h1>Job accepted</h1>
           <p className="you">
-            The operator and the passenger have been notified. Reopen this same link any time to see
-            the job details.
+            The operator and the passenger have been notified. <strong>Keep this link</strong> —
+            reopen it any time to see the job details.
           </p>
         </div>
+        {job.ok ? (
+          <>
+            <a href={jobUrl} className="btn btn--lg btn--block" style={{ marginTop: 12 }}>
+              View job details
+            </a>
+            <a
+              href={driverJobCalendarUrl(job.booking, jobUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn--block"
+              style={{ marginTop: 6 }}
+            >
+              Add to Google Calendar
+            </a>
+          </>
+        ) : null}
       </Stage>
     );
   }
@@ -138,7 +163,8 @@ export default async function DriverLinkPage({
         appUrl: appUrl(),
       });
       if (job.ok) {
-        return <DriverJobView booking={job.booking} driver={job.driver} />;
+        const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
+        return <DriverJobView booking={job.booking} driver={job.driver} jobUrl={jobUrl} />;
       }
       if (job.reason === 'cancelled') {
         return (
@@ -310,7 +336,15 @@ function jobStatus(state: string): { label: string; tone: 'green' | 'blue' | 'ye
  * the original dispatch link (kept in their WhatsApp history) after acceptance;
  * lives until the link expires at pickup + 48h.
  */
-function DriverJobView({ booking, driver }: { booking: JobBooking; driver: JobDriver }) {
+function DriverJobView({
+  booking,
+  driver,
+  jobUrl,
+}: {
+  booking: JobBooking;
+  driver: JobDriver;
+  jobUrl: string;
+}) {
   const passengerName = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
   const status = jobStatus(booking.state);
   return (
@@ -351,6 +385,18 @@ function DriverJobView({ booking, driver }: { booking: JobBooking; driver: JobDr
         <strong style={{ color: 'var(--ink)' }}>Your car:</strong>{' '}
         {carDescription(driver.car, driver.carColour)}
       </div>
+
+      {booking.state === 'assigned' || booking.state === 'in_progress' ? (
+        <a
+          href={driverJobCalendarUrl(booking, jobUrl)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn--block"
+          style={{ marginTop: 12 }}
+        >
+          Add to Google Calendar
+        </a>
+      ) : null}
 
       <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
         {booking.state === 'awaiting_driver_form'

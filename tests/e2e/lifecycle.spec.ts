@@ -127,6 +127,13 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.getByRole('button', { name: 'Accept job' }).click();
   // Wait for the accept to land (driver sees the confirmation) before re-checking.
   await expect(page.getByRole('heading', { name: 'Job accepted' })).toBeVisible();
+  // The confirmation hands the driver both ways back in: the persistent link
+  // and a prefilled Google Calendar event that links to it.
+  await expect(page.getByRole('link', { name: 'View job details' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute(
+    'href',
+    /calendar\.google\.com\/calendar\/render\?action=TEMPLATE/,
+  );
 
   // ── Driver reopens their link after accepting → persistent job view ──────
   // The offer is one-shot, but the same link must now show the accepted job
@@ -135,6 +142,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.getByText('Your job', { exact: true })).toBeVisible();
   await expect(page.getByText('CONFIRMED - YOUR JOB')).toBeVisible();
   await expect(page.getByText('Pickup ·')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toBeVisible();
 
   // New driver accepted → back to assigned.
   await gotoSimulator(page);
