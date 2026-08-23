@@ -1,17 +1,19 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
+import { milesStringFromMeters } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
 
 /**
- * Columns A–R: the *input* columns of the JJ "Main Data" workbook, grouped as
+ * Columns A–S: the *input* columns of the JJ "Main Data" workbook, grouped as
  * the operators know them — Step 1 Job Details (A–L), Step 2 Job Allocation
- * (M–O) and Step 3 Job Completion (P–R). The mirror writes only these.
+ * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S), the route distance
+ * the booking form estimates for transfers. The mirror writes only these.
  *
  * Everything to the right is left for the operators' own template: the manual
- * Accounting flags (S–T "Raise an invoice?" / "Invoiced by Driver?") and the
- * "Auto-Calculations (don't touch!)" columns (U–AD), which are sheet formulas.
- * The mirror never touches columns beyond R, so it can't clobber them.
+ * Accounting flags ("Raise an invoice?" / "Invoiced by Driver?") and the
+ * "Auto-Calculations (don't touch!)" formula columns, which now start at T.
+ * The mirror never touches columns beyond S, so it can't clobber them.
  */
 export const SHEET_HEADERS = [
   'Job #', // A
@@ -32,10 +34,11 @@ export const SHEET_HEADERS = [
   'Car Park (£)', // P
   'Waiting Time (hh:mm)', // Q
   'Drop Off Time (24hr)', // R
+  'Mileage (miles)', // S
 ] as const;
 
-/** Last spreadsheet column the mirror writes (18 input columns → R). */
-export const SHEET_LAST_COLUMN = 'R';
+/** Last spreadsheet column the mirror writes (19 input columns → S). */
+export const SHEET_LAST_COLUMN = 'S';
 
 /**
  * Zero-based indices of the money columns — Contract Price (L), Driver Cost (O)
@@ -149,5 +152,6 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     poundsOrBlank(booking.carParkPence), // P Car Park (£)
     waitingHoursMinutes(booking.waitingTimeMinutes), // Q Waiting Time (hh:mm)
     booking.dropoffAt ? formatTimeOfDay(booking.dropoffAt) : '', // R Drop Off Time (24hr)
+    milesStringFromMeters(booking.distanceMeters), // S Mileage (miles)
   ];
 }

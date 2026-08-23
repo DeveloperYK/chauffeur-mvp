@@ -1,6 +1,7 @@
 'use client';
 
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
+import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
@@ -136,7 +137,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     setRouteStatus('idle');
   };
 
-  const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
+  const miles = milesStringFromMeters(form.distanceMeters) || null;
   const priceValid = Number.parseFloat(form.contractPricePounds) > 0;
 
   const submit = (ev: React.FormEvent) => {
@@ -268,7 +269,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     <div className="hint">
                       {routeStatus === 'loading'
                         ? 'Estimating route…'
-                        : routeStatus === 'ready' && miles
+                        : miles
                           ? `≈ ${form.expectedDurationMinutes} min · ${miles} mi`
                           : 'Drive time is estimated from the route.'}
                     </div>
