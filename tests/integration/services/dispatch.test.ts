@@ -7,6 +7,7 @@ import {
   generateDispatchLink,
   generateDispatchLinks,
   previewDispatchLink,
+  previewDriverJob,
   releaseDriver,
 } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
@@ -484,6 +485,102 @@ describe('services/dispatch (integration)', () => {
       );
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe('booking_not_found');
+    });
+  });
+
+  describe('previewDriverJob (accepted-job view)', () => {
+    // Happy paths
+    it('shows the accepted job to the driver who holds the consumed winning link', async () => {
+      const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      expect(gen.ok).toBe(true);
+      if (!gen.ok) return;
+      const token = gen.url.split('/j/')[1] ?? '';
+      const accepted = await acceptDispatchLink({ token }, deps());
+      expect(accepted.ok).toBe(true);
+
+      const r = await previewDriverJob(token, { db, clock, secret: SECRET, appUrl: APP_URL });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.id).toBe(bookingId);
+      expect(r.booking.state).toBe('assigned');
+      expect(r.driver.id).toBe(driverId);
+    });
+
+    it('keeps showing the job as it progresses through the trip states', async () => {
+      const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      if (!gen.ok) return;
+      const token = gen.url.split('/j/')[1] ?? '';
+      await acceptDispatchLink({ token }, deps());
+
+      for (const state of [
+        'in_progress',
+        'awaiting_driver_form',
+        'awaiting_operator_review',
+        'completed',
+      ] as const) {
+        await db.update(bookings).set({ state }).where(eq(bookings.id, bookingId));
+        const r = await previewDriverJob(token, { db, clock, secret: SECRET, appUrl: APP_URL });
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.booking.state).toBe(state);
+      }
+    });
+
+    // Unhappy paths
+    it("refuses another driver's lapsed offer link once the job is taken", async () => {
+      const [other] = await db
+        .insert(drivers)
+        .values({
+          name: 'Ravi',
+          vehicleClass: 'executive',
+          car: 'BMW 7 Series',
+          carColour: 'Black',
+          whatsappNumber: '+447911000002',
+        })
+        .returning();
+      const loserGen = await generateDispatchLink(bookingId, other?.id ?? '', operatorId, deps());
+      const winnerGen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      if (!loserGen.ok || !winnerGen.ok) return;
+      await acceptDispatchLink({ token: winnerGen.url.split('/j/')[1] ?? '' }, deps());
+
+      const r = await previewDriverJob(loserGen.url.split('/j/')[1] ?? '', {
+        db,
+        clock,
+        secret: SECRET,
+        appUrl: APP_URL,
+      });
+      expect(r).toMatchObject({ ok: false, reason: 'not_your_job' });
+    });
+
+    it('refuses once the driver has been released from the job', async () => {
+      const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      if (!gen.ok) return;
+      const token = gen.url.split('/j/')[1] ?? '';
+      await acceptDispatchLink({ token }, deps());
+      await releaseDriver(bookingId, operatorId, deps());
+
+      const r = await previewDriverJob(token, { db, clock, secret: SECRET, appUrl: APP_URL });
+      expect(r).toMatchObject({ ok: false, reason: 'not_your_job' });
+    });
+
+    it('reports a cancelled booking as cancelled, not as a viewable job', async () => {
+      const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+      if (!gen.ok) return;
+      const token = gen.url.split('/j/')[1] ?? '';
+      await acceptDispatchLink({ token }, deps());
+      await db.update(bookings).set({ state: 'cancelled' }).where(eq(bookings.id, bookingId));
+
+      const r = await previewDriverJob(token, { db, clock, secret: SECRET, appUrl: APP_URL });
+      expect(r).toMatchObject({ ok: false, reason: 'cancelled' });
+    });
+
+    it('rejects a garbage token', async () => {
+      const r = await previewDriverJob('not-a-token', {
+        db,
+        clock,
+        secret: SECRET,
+        appUrl: APP_URL,
+      });
+      expect(r).toMatchObject({ ok: false, reason: 'token_invalid' });
     });
   });
 });

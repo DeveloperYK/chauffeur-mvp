@@ -2,6 +2,7 @@ import '@/app/console.css';
 import { Avatar } from '@/components/console/avatar';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
+import { driverJobCalendarUrl } from '@/lib/calendar';
 import { carDescription } from '@/lib/labels';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/server/db/schema';
 import { verifyDriverLink } from '@/server/domain/link-tokens';
 import { previewChangeConfirmLink } from '@/server/services/change-confirmation';
-import { previewDispatchLink } from '@/server/services/dispatch';
+import { previewDispatchLink, previewDriverJob } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import type { ReactNode } from 'react';
 import {
@@ -46,6 +47,14 @@ export default async function DriverLinkPage({
   const search = await searchParams;
 
   if (search.status === 'accepted') {
+    // Load the job so the confirmation can hand the driver their two ways back
+    // in: this link, and a prefilled calendar event that links to it.
+    const job = await previewDriverJob(token, {
+      db: db(),
+      secret: driverLinkSecret(),
+      appUrl: appUrl(),
+    });
+    const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
     return (
       <Stage>
         <div className="ph-center">
@@ -53,8 +62,27 @@ export default async function DriverLinkPage({
             <Icon.Check />
           </div>
           <h1>Job accepted</h1>
-          <p className="you">The operator and the passenger have been notified.</p>
+          <p className="you">
+            The operator and the passenger have been notified. <strong>Keep this link</strong> —
+            reopen it any time to see the job details.
+          </p>
         </div>
+        {job.ok ? (
+          <>
+            <a href={jobUrl} className="btn btn--lg btn--block" style={{ marginTop: 12 }}>
+              View job details
+            </a>
+            <a
+              href={driverJobCalendarUrl(job.booking, jobUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn--block"
+              style={{ marginTop: 6 }}
+            >
+              Add to Google Calendar
+            </a>
+          </>
+        ) : null}
       </Stage>
     );
   }
@@ -126,6 +154,29 @@ export default async function DriverLinkPage({
   });
 
   if (!result.ok) {
+    // A consumed or closed offer link may still be the assigned driver's own
+    // link — show them their job instead of a dead end so they can keep track.
+    if (result.reason === 'token_consumed' || result.reason === 'wrong_state') {
+      const job = await previewDriverJob(token, {
+        db: db(),
+        secret: driverLinkSecret(),
+        appUrl: appUrl(),
+      });
+      if (job.ok) {
+        const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
+        return <DriverJobView booking={job.booking} driver={job.driver} jobUrl={jobUrl} />;
+      }
+      if (job.reason === 'cancelled') {
+        return (
+          <Stage>
+            <div className="ph-center">
+              <h1>Booking cancelled</h1>
+              <p className="you">This booking has been cancelled. Nothing more to do.</p>
+            </div>
+          </Stage>
+        );
+      }
+    }
     return (
       <Stage>
         <div className="ph-center">
@@ -173,40 +224,7 @@ export default async function DriverLinkPage({
 
       {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
 
-      <div className="public-card__job">
-        <div className="row">
-          <span className="pin" />
-          <div className="addr">
-            <div className="lbl">Pickup · {fmtTimeWithDay(booking.pickupAt)}</div>
-            {booking.pickupAddress}
-          </div>
-        </div>
-        <div className="row">
-          <span className="pin to" />
-          <div className="addr">
-            <div className="lbl">Drop-off</div>
-            {booking.dropoffAddress}
-          </div>
-        </div>
-        <div className="meta">
-          <div className="m">
-            <div className="k">Duration</div>
-            <div className="v">{booking.expectedDurationMinutes} min</div>
-          </div>
-        </div>
-        {booking.notes ? (
-          <div
-            style={{
-              fontSize: 12,
-              color: 'var(--ink-3)',
-              borderTop: '1px solid var(--hairline-soft)',
-              paddingTop: 10,
-            }}
-          >
-            <strong style={{ color: 'var(--ink)' }}>Note:</strong> {booking.notes}
-          </div>
-        ) : null}
-      </div>
+      <JobCard booking={booking} />
 
       <div
         style={{
@@ -243,6 +261,147 @@ export default async function DriverLinkPage({
 
       <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
         By accepting, you confirm you are {driver.name}.
+      </div>
+    </Stage>
+  );
+}
+
+type JobBooking = typeof bookingsTable.$inferSelect;
+type JobDriver = typeof driversTable.$inferSelect;
+
+/** The job facts card shared by the dispatch offer and the accepted-job view. */
+function JobCard({ booking }: { booking: JobBooking }) {
+  return (
+    <div className="public-card__job">
+      <div className="row">
+        <span className="pin" />
+        <div className="addr">
+          <div className="lbl">Pickup · {fmtTimeWithDay(booking.pickupAt)}</div>
+          {booking.pickupAddress}
+        </div>
+      </div>
+      <div className="row">
+        <span className="pin to" />
+        <div className="addr">
+          <div className="lbl">Drop-off</div>
+          {booking.dropoffAddress ?? 'As directed'}
+        </div>
+      </div>
+      <div className="meta">
+        <div className="m">
+          <div className="k">Duration</div>
+          <div className="v">{booking.expectedDurationMinutes} min</div>
+        </div>
+        {booking.travelRef ? (
+          <div className="m">
+            <div className="k">{booking.travelMode === 'flight' ? 'Flight' : 'Train'}</div>
+            <div className="v">{booking.travelRef}</div>
+          </div>
+        ) : null}
+      </div>
+      {booking.notes ? (
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            borderTop: '1px solid var(--hairline-soft)',
+            paddingTop: 10,
+          }}
+        >
+          <strong style={{ color: 'var(--ink)' }}>Note:</strong> {booking.notes}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Driver-facing status line for the accepted-job view. */
+function jobStatus(state: string): { label: string; tone: 'green' | 'blue' | 'yellow' } {
+  switch (state) {
+    case 'in_progress':
+      return { label: 'IN PROGRESS', tone: 'blue' };
+    case 'awaiting_driver_form':
+      return { label: 'AWAITING YOUR TRIP FORM', tone: 'yellow' };
+    case 'awaiting_operator_review':
+      return { label: 'SUBMITTED - UNDER REVIEW', tone: 'blue' };
+    case 'completed':
+      return { label: 'COMPLETED', tone: 'green' };
+    default:
+      return { label: 'CONFIRMED - YOUR JOB', tone: 'green' };
+  }
+}
+
+/**
+ * Read-only view of a job for the driver who accepted it. Reached by reopening
+ * the original dispatch link (kept in their WhatsApp history) after acceptance;
+ * lives until the link expires at pickup + 48h.
+ */
+function DriverJobView({
+  booking,
+  driver,
+  jobUrl,
+}: {
+  booking: JobBooking;
+  driver: JobDriver;
+  jobUrl: string;
+}) {
+  const passengerName = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
+  const status = jobStatus(booking.state);
+  return (
+    <Stage>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Avatar name={driver.name} id={driver.id} size={36} />
+        <div>
+          <div
+            style={{
+              fontSize: 10.5,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+              color: 'var(--ink-3)',
+            }}
+          >
+            Your job
+          </div>
+          <strong style={{ fontSize: 14 }}>{driver.name}</strong>
+        </div>
+        <span style={{ flex: 1 }} />
+        <Lozenge tone={status.tone}>{status.label}</Lozenge>
+      </div>
+
+      <h1>{passengerName}</h1>
+
+      <JobCard booking={booking} />
+
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--ink-3)',
+          borderTop: '1px solid var(--hairline-soft)',
+          paddingTop: 10,
+          marginTop: 10,
+        }}
+      >
+        <strong style={{ color: 'var(--ink)' }}>Your car:</strong>{' '}
+        {carDescription(driver.car, driver.carColour)}
+      </div>
+
+      {booking.state === 'assigned' || booking.state === 'in_progress' ? (
+        <a
+          href={driverJobCalendarUrl(booking, jobUrl)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn--block"
+          style={{ marginTop: 12 }}
+        >
+          Add to Google Calendar
+        </a>
+      ) : null}
+
+      <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
+        {booking.state === 'awaiting_driver_form'
+          ? 'The operator has sent (or will send) your trip form link separately.'
+          : 'Keep this link to check the job details any time.'}
       </div>
     </Stage>
   );
@@ -451,6 +610,12 @@ async function ChangeConfirmPage({
             <div className="k">Duration</div>
             <div className="v">{booking.expectedDurationMinutes} min</div>
           </div>
+          {booking.travelRef ? (
+            <div className="m">
+              <div className="k">{booking.travelMode === 'flight' ? 'Flight' : 'Train'}</div>
+              <div className="v">{booking.travelRef}</div>
+            </div>
+          ) : null}
         </div>
         {booking.notes ? (
           <div

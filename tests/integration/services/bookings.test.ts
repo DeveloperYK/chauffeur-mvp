@@ -373,3 +373,98 @@ describe('services/bookings (integration)', () => {
     });
   });
 });
+
+describe('services/bookings — flight/train reference', () => {
+  let db2: TestDb;
+  let close2: () => Promise<void>;
+  let opId: string;
+
+  beforeAll(async () => {
+    const t = await createTestDb();
+    db2 = t.db;
+    close2 = t.close;
+    const [op] = await db2
+      .insert(operators)
+      .values({ email: 'op2@example.com', passwordHash: 'x', name: 'Op2' })
+      .returning();
+    opId = op?.id ?? '';
+  });
+
+  afterAll(async () => {
+    await close2();
+  });
+
+  const clock = fixedClock('2026-05-18T10:00:00.000Z');
+  const input = (overrides: Record<string, unknown> = {}) => ({
+    pickupAt: new Date('2026-06-01T10:00:00.000Z').toISOString(),
+    expectedDurationMinutes: 90,
+    pickupAddress: 'LHR Terminal 5',
+    dropoffAddress: '11 Belsize Park Gardens, London',
+    passengerFirstName: 'Eric',
+    execMobile: '+447911123456',
+    customerAccount: 'LEGO Group',
+    caseCode: 'LEGO-2026-001',
+    contractPricePence: 30000,
+    ...overrides,
+  });
+
+  // Happy paths
+  it('stores a flight reference normalized to its IATA designator', async () => {
+    const result = await createBooking(input({ travelMode: 'flight', travelRef: 'ba 268' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.travelMode).toBe('flight');
+    expect(result.booking.travelRef).toBe('BA268');
+  });
+
+  it('stores a train arrival reference trimmed', async () => {
+    const result = await createBooking(
+      input({ travelMode: 'train', travelRef: ' 12:03 from Manchester Piccadilly ' }),
+      { db: db2, clock, operatorId: opId },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.travelMode).toBe('train');
+    expect(result.booking.travelRef).toBe('12:03 from Manchester Piccadilly');
+  });
+
+  it('creates a booking with no travel reference at all', async () => {
+    const result = await createBooking(input(), { db: db2, clock, operatorId: opId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.travelMode).toBeNull();
+    expect(result.booking.travelRef).toBeNull();
+  });
+
+  // Unhappy paths
+  it('rejects a travel reference without a mode', async () => {
+    const result = await createBooking(input({ travelRef: 'BA268' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+  });
+
+  it('rejects a mode without a reference', async () => {
+    const result = await createBooking(input({ travelMode: 'flight' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+  });
+
+  it('rejects an invalid flight designator', async () => {
+    const result = await createBooking(input({ travelMode: 'flight', travelRef: '268' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+  });
+});

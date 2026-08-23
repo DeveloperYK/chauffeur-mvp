@@ -20,6 +20,7 @@ import {
 import { bookingRef } from '@/lib/booking-ref';
 import { formatMiles } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { travelRefLabel } from '@/lib/travel-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
@@ -645,9 +646,12 @@ export function DetailPanel({
                   </div>
                 </div>
               </div>
-              {vehicle ? (
+              {vehicle || booking.travelRef ? (
                 <div className="trip-meta">
-                  <Tag>{vehicle}</Tag>
+                  {vehicle ? <Tag>{vehicle}</Tag> : null}
+                  {booking.travelRef ? (
+                    <Tag>{travelRefLabel(booking.travelMode, booking.travelRef)}</Tag>
+                  ) : null}
                 </div>
               ) : null}
             </div>

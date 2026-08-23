@@ -54,6 +54,8 @@ function toConsoleBooking(
     expectedDurationMinutes: b.expectedDurationMinutes,
     serviceType: b.serviceType,
     distanceMeters: b.distanceMeters,
+    travelMode: b.travelMode,
+    travelRef: b.travelRef,
     pickupAddress: b.pickupAddress,
     dropoffAddress: b.dropoffAddress ?? '',
     passengerFirstName: b.passengerFirstName,

@@ -1,5 +1,6 @@
 import { parsePickupInput } from '@/lib/dates';
 import { phoneSchema } from '@/lib/phone';
+import { normalizeTravelRef } from '@/lib/travel-ref';
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
@@ -70,6 +71,11 @@ export const createBookingSchema = z
       .max(10_000_00)
       .nullable()
       .optional(),
+    // Optional flight/train reference for airport / station pickups; shown to
+    // the driver. Both fields together or neither (enforced below); the ref is
+    // validated + normalized per mode in the superRefine.
+    travelMode: z.enum(['flight', 'train']).optional().nullable(),
+    travelRef: z.string().max(80).optional().nullable(),
     // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
     // Operator-only notes — never shown to the driver.
@@ -88,7 +94,48 @@ export const createBookingSchema = z
         message: 'Destination is required for a transfer',
       });
     }
+    refineTravelRef(data, ctx);
   });
+
+/**
+ * Shared create/edit rule: travelMode and travelRef come as a pair, and the ref
+ * must be valid for its mode. Runs inside each schema's superRefine.
+ */
+export function refineTravelRef(
+  data: {
+    travelMode?: 'flight' | 'train' | null | undefined;
+    travelRef?: string | null | undefined;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const mode = data.travelMode ?? null;
+  const ref = data.travelRef ?? null;
+  if (!mode && !ref) return;
+  if (!mode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['travelMode'],
+      message: 'Choose flight or train for the reference',
+    });
+    return;
+  }
+  const normalized = normalizeTravelRef(mode, ref ?? '');
+  if (!normalized.ok) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['travelRef'], message: normalized.error });
+  }
+}
+
+/** The pair to persist: normalized ref, or both null when unset. */
+export function normalizedTravelPair(data: {
+  travelMode?: 'flight' | 'train' | null | undefined;
+  travelRef?: string | null | undefined;
+}): { travelMode: 'flight' | 'train' | null; travelRef: string | null } {
+  const mode = data.travelMode ?? null;
+  if (!mode) return { travelMode: null, travelRef: null };
+  const normalized = normalizeTravelRef(mode, data.travelRef ?? '');
+  // The schema's refine already rejected invalid refs; this is a type guard.
+  return { travelMode: mode, travelRef: normalized.ok ? normalized.value : null };
+}
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
@@ -156,6 +203,7 @@ export async function createBooking(
       distanceMeters,
       pickupAddress: parsed.data.pickupAddress,
       dropoffAddress,
+      ...normalizedTravelPair(parsed.data),
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,

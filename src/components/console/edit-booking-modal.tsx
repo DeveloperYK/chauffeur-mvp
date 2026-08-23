@@ -26,6 +26,8 @@ interface EditBookingModalProps {
 
 interface EditForm {
   serviceType: ServiceType;
+  travelMode: '' | 'flight' | 'train';
+  travelRef: string;
   pickupAt: string;
   expectedDurationMinutes: number;
   distanceMeters: number | null;
@@ -60,6 +62,8 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     if (isOpen && booking) {
       setForm({
         serviceType: booking.serviceType,
+        travelMode: booking.travelMode ?? '',
+        travelRef: booking.travelRef ?? '',
         pickupAt: toLocalDateTimeInput(booking.pickupAt),
         expectedDurationMinutes: booking.expectedDurationMinutes,
         distanceMeters: booking.distanceMeters,
@@ -170,6 +174,8 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
     fd.set('subcontractorPricePounds', form.subcontractorPricePounds);
+    fd.set('travelMode', form.travelMode);
+    fd.set('travelRef', form.travelMode ? form.travelRef : '');
     fd.set('notes', form.notes);
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
@@ -324,6 +330,39 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 </div>
               </div>
             )}
+
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Flight / train</label>
+              <div className="ctrl">
+                <div className="row" style={{ gap: 8 }}>
+                  <select
+                    value={form.travelMode}
+                    onChange={(e) => {
+                      const mode = e.target.value as '' | 'flight' | 'train';
+                      set('travelMode', mode);
+                      if (!mode) set('travelRef', '');
+                    }}
+                    style={{ width: 110, flex: '0 0 auto' }}
+                    aria-label="Arrival travel type"
+                  >
+                    <option value="">None</option>
+                    <option value="flight">Flight</option>
+                    <option value="train">Train</option>
+                  </select>
+                  {form.travelMode ? (
+                    <input
+                      value={form.travelRef}
+                      onChange={(e) => set('travelRef', e.target.value)}
+                      placeholder={
+                        form.travelMode === 'flight' ? 'e.g. BA268' : 'e.g. 12:03 from Manchester'
+                      }
+                      aria-label="Flight or train reference"
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="form-section">
