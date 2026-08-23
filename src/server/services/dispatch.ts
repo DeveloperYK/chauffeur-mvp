@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { carDescription } from '@/lib/labels';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
 import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
@@ -13,7 +12,7 @@ import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq, isNull } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
-import { sendExecNotification } from './exec-notifications';
+import { execContextFromDriver, sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
 import { recordDispatchOffer, resolveOffersOnAccept } from './offers';
 import { createShortLink } from './short-links';
@@ -286,12 +285,7 @@ export async function acceptDispatchLink(
   // attempt is recorded and a failed send is never silent.
   await sendExecNotification(
     { db: deps.db, notifications: deps.notifications, email: deps.email },
-    {
-      booking: updated,
-      kind: 'assigned',
-      driverName: driver.name,
-      car: carDescription(driver.car, driver.carColour),
-    },
+    execContextFromDriver(updated, 'assigned', driver),
   );
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
@@ -372,12 +366,7 @@ export async function assignDriverDirect(
 
     await sendExecNotification(
       { db: deps.db, notifications: deps.notifications, email: deps.email },
-      {
-        booking: updated,
-        kind: 'assigned',
-        driverName: driver.name,
-        car: carDescription(driver.car, driver.carColour),
-      },
+      execContextFromDriver(updated, 'assigned', driver),
     );
 
     if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
@@ -439,12 +428,7 @@ export async function assignDriverDirect(
     // Re-confirm the exec with the new driver + car.
     await sendExecNotification(
       { db: deps.db, notifications: deps.notifications, email: deps.email },
-      {
-        booking: updated,
-        kind: 'assigned',
-        driverName: driver.name,
-        car: carDescription(driver.car, driver.carColour),
-      },
+      execContextFromDriver(updated, 'assigned', driver),
     );
 
     if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);

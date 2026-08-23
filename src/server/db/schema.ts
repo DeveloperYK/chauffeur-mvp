@@ -163,6 +163,10 @@ export const drivers = pgTable(
     // Registration plate (e.g. "AB12 CDE"). Optional — shown to the exec in the
     // confirmation/en-route email to help them spot the car kerbside.
     numberPlate: text('number_plate'),
+    // PCO (TfL private-hire) licence number, shown to the exec in the emails.
+    // Nullable in the DB for drivers created before the field existed, but the
+    // driver form requires it on every create/edit.
+    pcoNumber: text('pco_number'),
     whatsappNumber: text('whatsapp_number').notNull(),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

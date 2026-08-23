@@ -13,6 +13,9 @@ export const createDriverSchema = z
     carColour: z.string().trim().min(1).max(40),
     // Optional registration plate, shown to the exec in the email.
     numberPlate: z.string().trim().max(15).optional().nullable(),
+    // PCO licence number, shown to the exec in the email. Required on every
+    // create/edit (the DB column stays nullable for pre-existing rows).
+    pcoNumber: z.string().trim().min(1).max(20),
     whatsappNumber: phoneSchema,
   })
   .strict();
@@ -64,6 +67,7 @@ export async function createDriver(
         car: inserted.car,
         carColour: inserted.carColour,
         numberPlate: inserted.numberPlate,
+        pcoNumber: inserted.pcoNumber,
       },
     });
     return { ok: true, driver: inserted };
@@ -122,6 +126,7 @@ export async function updateDriver(
         car: existing.car,
         carColour: existing.carColour,
         numberPlate: existing.numberPlate,
+        pcoNumber: existing.pcoNumber,
         active: existing.active,
       },
       after: {
@@ -130,6 +135,7 @@ export async function updateDriver(
         car: updated.car,
         carColour: updated.carColour,
         numberPlate: updated.numberPlate,
+        pcoNumber: updated.pcoNumber,
         active: updated.active,
       },
     });

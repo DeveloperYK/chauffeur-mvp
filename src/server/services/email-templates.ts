@@ -13,7 +13,26 @@ import { SMS_BRAND_NAME } from './sms-templates';
  * operator/driver-entered, so it is HTML-escaped before going into the HTML
  * body. The plain-text body needs no escaping.
  */
-type NamedDriver = { name: string };
+/**
+ * Driver identity as shown to the exec. PCO licence number and contact number
+ * are optional: legacy roster rows predate the fields, and backfill
+ * (subcontractor) drivers may not have a PCO number on file — the email simply
+ * omits the missing rows.
+ */
+type NamedDriver = {
+  name: string;
+  pcoNumber?: string | null | undefined;
+  phone?: string | null | undefined;
+};
+
+/** Rows describing the driver, shared by the confirmation and en-route emails. */
+function driverRows(driver: NamedDriver): { label: string; value: string }[] {
+  return [
+    { label: 'Driver', value: driver.name },
+    ...(driver.pcoNumber?.trim() ? [{ label: 'PCO number', value: driver.pcoNumber.trim() }] : []),
+    ...(driver.phone?.trim() ? [{ label: 'Driver contact', value: driver.phone.trim() }] : []),
+  ];
+}
 
 export interface RenderedEmail {
   subject: string;
@@ -111,7 +130,7 @@ export function assignedEmail(
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Date & time', value: when },
-      { label: 'Driver', value: driver.name },
+      ...driverRows(driver),
       ...(car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
       ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup', value: booking.pickupAddress },
@@ -142,7 +161,7 @@ export function enRouteEmail(
     rows: [
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
-      { label: 'Driver', value: driver.name },
+      ...driverRows(driver),
       ...(car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
       ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup time', value: time },

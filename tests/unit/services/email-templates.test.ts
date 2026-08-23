@@ -95,4 +95,38 @@ describe('services/email-templates', () => {
     expect(e.html).not.toContain('Vehicle');
     expect(e.text).not.toContain('Vehicle');
   });
+
+  it('shows the driver PCO number and contact number when provided, in both emails', () => {
+    const driver = { name: 'Marcus Bell', pcoNumber: '15472', phone: '+447852188558' };
+    const confirmed = assignedEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
+    expect(confirmed.html).toContain('PCO number');
+    expect(confirmed.html).toContain('15472');
+    expect(confirmed.html).toContain('Driver contact');
+    expect(confirmed.html).toContain('+447852188558');
+    expect(confirmed.text).toContain('15472');
+    expect(confirmed.text).toContain('+447852188558');
+
+    const enRoute = enRouteEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
+    expect(enRoute.html).toContain('PCO number');
+    expect(enRoute.html).toContain('15472');
+    expect(enRoute.text).toContain('+447852188558');
+  });
+
+  it('omits the PCO and contact rows when the driver has neither (legacy driver)', () => {
+    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    expect(e.html).not.toContain('PCO number');
+    expect(e.html).not.toContain('Driver contact');
+    expect(e.text).not.toContain('PCO number');
+  });
+
+  it('omits only the missing row when a driver has a phone but no PCO on file', () => {
+    const e = assignedEmail(
+      booking(),
+      { name: 'Marcus Bell', pcoNumber: null, phone: '+447852188558' },
+      'Black Mercedes S-Class',
+    );
+    expect(e.html).not.toContain('PCO number');
+    expect(e.html).toContain('Driver contact');
+    expect(e.text).toContain('+447852188558');
+  });
 });
