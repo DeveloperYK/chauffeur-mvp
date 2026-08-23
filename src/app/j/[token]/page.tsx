@@ -81,6 +81,9 @@ export default async function DriverLinkPage({
             >
               Add to Google Calendar
             </a>
+            <a href={`${jobUrl}/calendar`} className="btn btn--block" style={{ marginTop: 6 }}>
+              Add to Apple Calendar
+            </a>
           </>
         ) : null}
       </Stage>
@@ -387,15 +390,20 @@ function DriverJobView({
       </div>
 
       {booking.state === 'assigned' || booking.state === 'in_progress' ? (
-        <a
-          href={driverJobCalendarUrl(booking, jobUrl)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn--block"
-          style={{ marginTop: 12 }}
-        >
-          Add to Google Calendar
-        </a>
+        <>
+          <a
+            href={driverJobCalendarUrl(booking, jobUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--block"
+            style={{ marginTop: 12 }}
+          >
+            Add to Google Calendar
+          </a>
+          <a href={`${jobUrl}/calendar`} className="btn btn--block" style={{ marginTop: 6 }}>
+            Add to Apple Calendar
+          </a>
+        </>
       ) : null}
 
       <div style={{ fontSize: 10.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 12 }}>
