@@ -18,6 +18,7 @@ import {
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { formatMiles } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
@@ -571,6 +572,9 @@ export function DetailPanel({
               <div className="dp-stat">
                 <div className="dp-stat__lbl">Duration</div>
                 <div className="dp-stat__val">{booking.expectedDurationMinutes} min</div>
+                {booking.distanceMeters != null ? (
+                  <div className="dp-stat__sub">≈ {formatMiles(booking.distanceMeters)}</div>
+                ) : null}
               </div>
               <div className="dp-stat dp-stat--price">
                 <div className="dp-stat__lbl">Price</div>
