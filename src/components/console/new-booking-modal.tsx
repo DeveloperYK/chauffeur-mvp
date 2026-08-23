@@ -1,6 +1,7 @@
 'use client';
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
+import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { PHONE_HINT } from '@/lib/phone';
 import { getRouteEstimate } from '@/lib/routes';
@@ -202,7 +203,7 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
     setRouteStatus('idle');
   };
 
-  const miles = form.distanceMeters != null ? (form.distanceMeters / 1609.344).toFixed(1) : null;
+  const miles = milesStringFromMeters(form.distanceMeters) || null;
 
   const generateSample = () => {
     const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];

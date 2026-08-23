@@ -1,6 +1,10 @@
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import type { Booking, Driver, Operator } from '@/server/db/schema';
-import { SHEET_HEADERS, rowFromBooking } from '@/server/ports/spreadsheet-mirror';
+import {
+  SHEET_HEADERS,
+  SHEET_LAST_COLUMN,
+  rowFromBooking,
+} from '@/server/ports/spreadsheet-mirror';
 import { describe, expect, it } from 'vitest';
 
 const baseBooking: Booking = {
@@ -85,10 +89,41 @@ const operator: Operator = {
 };
 
 describe('rowFromBooking', () => {
-  it('produces an 18-column row (A–R) of JJ input columns', () => {
+  it('produces a 19-column row (A–S) of JJ input columns', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(18);
+    expect(row.length).toBe(19);
+  });
+
+  it('names the last column Mileage (miles) and writes through column S', () => {
+    expect(SHEET_HEADERS[18]).toBe('Mileage (miles)');
+    expect(SHEET_LAST_COLUMN).toBe('S');
+  });
+
+  it('renders the route distance as miles with 1 decimal (S)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[18]).toBe('17.4'); // 28 000 m ≈ 17.4 mi
+  });
+
+  it('leaves Mileage blank when no distance was estimated', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, distanceMeters: null },
+      driver,
+    });
+    expect(row[18]).toBe('');
+  });
+
+  it('leaves Mileage blank for hourly as-directed jobs (no route)', () => {
+    const row = rowFromBooking({
+      booking: {
+        ...baseBooking,
+        serviceType: 'hourly',
+        dropoffAddress: null,
+        distanceMeters: null,
+      },
+      driver,
+    });
+    expect(row[18]).toBe('');
   });
 
   it('formats pickup date and time of day in Europe/London (BST)', () => {
