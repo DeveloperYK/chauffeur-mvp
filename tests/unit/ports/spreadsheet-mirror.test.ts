@@ -13,6 +13,8 @@ const baseBooking: Booking = {
   pickupAt: new Date('2026-06-01T08:30:00.000Z'),
   expectedDurationMinutes: 90,
   distanceMeters: 28000,
+  travelMode: null,
+  travelRef: null,
   pickupAddress: '11 Belsize Park Gardens',
   dropoffAddress: 'LHR T5',
   passengerFirstName: 'Eric',
