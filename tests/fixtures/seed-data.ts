@@ -156,7 +156,8 @@ export interface BookingOverrides {
   clientName?: string;
   accountCode?: string;
   caseCode?: string | null;
-  contractPricePence?: number;
+  contractPricePence?: number | null;
+  subcontractorPricePence?: number | null;
   notes?: string | null;
   operatorNotes?: string | null;
   createdByOperatorId?: string | null;

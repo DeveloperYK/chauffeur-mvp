@@ -53,9 +53,24 @@ export const createBookingSchema = z
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     // "Case code" — the expense code the customer's company bills against.
     caseCode: z.string().min(1, 'Case code is required').max(60),
-    // Operator-set contract price. Required — operators determine every price
-    // manually; there is no auto-suggested figure to fall back on.
-    contractPricePence: z.coerce.number().int().min(1, 'Contract price is required').max(10_000_00),
+    // Operator-set contract price. Optional — operators don't always know the
+    // price at booking time; a booking without one is flagged in the console.
+    // An explicit zero is rejected: blank means "not agreed yet", zero is a mistake.
+    contractPricePence: z.coerce
+      .number()
+      .int()
+      .min(1, 'Contract price must be a positive amount — leave it blank if not agreed yet')
+      .max(10_000_00)
+      .nullable()
+      .optional(),
+    // Price agreed for handing the job to a subcontractor (backfill) driver.
+    subcontractorPricePence: z.coerce
+      .number()
+      .int()
+      .min(1, 'Subcontractor price must be a positive amount — leave it blank if not agreed yet')
+      .max(10_000_00)
+      .nullable()
+      .optional(),
     // Optional flight/train reference for airport / station pickups; shown to
     // the driver. Both fields together or neither (enforced below); the ref is
     // validated + normalized per mode in the superRefine.
@@ -173,8 +188,10 @@ export async function createBooking(
   const dropoffAddress = isHourly ? null : (parsed.data.dropoffAddress ?? null);
   const distanceMeters = isHourly ? null : (parsed.data.distanceMeters ?? null);
 
-  // The operator sets the price manually; use it verbatim.
-  const contractPricePence = parsed.data.contractPricePence;
+  // The operator sets the prices manually; use them verbatim. Null means the
+  // price isn't agreed yet — the console flags the booking until it is.
+  const contractPricePence = parsed.data.contractPricePence ?? null;
+  const subcontractorPricePence = parsed.data.subcontractorPricePence ?? null;
 
   const [inserted] = await deps.db
     .insert(bookings)
@@ -197,6 +214,7 @@ export async function createBooking(
       accountCode: parsed.data.customerAccount,
       caseCode: parsed.data.caseCode,
       contractPricePence,
+      subcontractorPricePence,
       notes: parsed.data.notes ?? null,
       operatorNotes: parsed.data.operatorNotes ?? null,
       createdByOperatorId: deps.operatorId,

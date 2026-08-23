@@ -48,7 +48,8 @@ export function relTime(iso: string): string {
   return future ? `in ${Math.round(abs / 60 / 24)} d` : `${Math.round(abs / 60 / 24)} d ago`;
 }
 
-export function fmtPrice(pence: number): string {
+export function fmtPrice(pence: number | null): string {
+  if (pence == null) return '—';
   return `£${(pence / 100).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 

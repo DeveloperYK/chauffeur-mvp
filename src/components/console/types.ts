@@ -35,7 +35,10 @@ export interface ConsoleBooking {
   accountCode: string;
   /** Case code — expense code the customer's company bills against. */
   caseCode: string | null;
-  contractPricePence: number;
+  /** Operator-agreed contract price; null until agreed — drives the "no price" flag. */
+  contractPricePence: number | null;
+  /** Price agreed for handing the job to a subcontractor driver; null if none quoted. */
+  subcontractorPricePence: number | null;
   /** Driver-facing notes — shown to the driver on the dispatch link page. */
   notes: string | null;
   /** Operator-only notes — never shown to the driver. */

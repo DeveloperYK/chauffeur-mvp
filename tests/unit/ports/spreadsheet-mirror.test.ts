@@ -60,6 +60,7 @@ const baseBooking: Booking = {
   backfillDriverPhone: null,
   backfillCar: null,
   backfillDriverPayPence: null,
+  subcontractorPricePence: null,
   completionByOperator: false,
   execNotificationStatus: 'none',
   createdAt: new Date('2026-05-30T10:00:00.000Z'),
@@ -228,6 +229,14 @@ describe('rowFromBooking', () => {
     const row = rowFromBooking({ booking: baseBooking });
     expect(row[12]).toBe(''); // M Driver Name
     expect(row[13]).toBe(''); // N Driver Type
+  });
+
+  it('leaves Contract Price (L) blank when the booking has no price yet', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, contractPricePence: null },
+      driver,
+    });
+    expect(row[11]).toBe(''); // L Contract Price — blank, not "0.00"
   });
 });
 
