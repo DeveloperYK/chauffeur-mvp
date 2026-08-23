@@ -14,6 +14,7 @@ import {
   releaseDriverAction,
   resendExecNotificationAction,
   retryMirrorAction,
+  setContractPriceAction,
   setWaitingChargeAction,
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
@@ -68,6 +69,8 @@ export function DetailPanel({
   const [payDraft, setPayDraft] = useState('');
   const [editingCharge, setEditingCharge] = useState(false);
   const [chargeDraft, setChargeDraft] = useState('');
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExec, setShowExec] = useState(false);
   const [execMessages, setExecMessages] = useState<ExecMessageEntry[] | null>(null);
@@ -126,10 +129,12 @@ export function DetailPanel({
 
   // Headline price is the all-in total once the driver's completion data lands:
   // agreed fare + car park + waiting charge (matches the invoicing line total).
+  // A booking with no agreed fare yet shows a warning instead of a total.
   const carParkPence = booking.carParkPence ?? 0;
   const waitingChargePence = booking.waitingFee.customerFeePence;
   const priceExtrasPence = carParkPence + waitingChargePence;
-  const totalPricePence = booking.contractPricePence + priceExtrasPence;
+  const hasContractPrice = booking.contractPricePence != null;
+  const totalPricePence = (booking.contractPricePence ?? 0) + priceExtrasPence;
 
   const toggleHistory = () => {
     const next = !showHistory;
@@ -219,6 +224,28 @@ export function DetailPanel({
       }
       setEditingPay(false);
       onMutated('Backfill driver pay updated.');
+    });
+  };
+  const startEditPrice = () => {
+    setPriceDraft('');
+    setError(null);
+    setEditingPrice(true);
+  };
+  const savePrice = () => {
+    const pounds = Number.parseFloat(priceDraft);
+    if (!Number.isFinite(pounds) || pounds <= 0) {
+      setError('Enter a valid price (more than £0).');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await setContractPriceAction(booking.id, Math.round(pounds * 100));
+      if (!result.ok) {
+        setError(result.error ?? 'Could not set the price.');
+        return;
+      }
+      setEditingPrice(false);
+      onMutated('Contract price set.');
     });
   };
   const startEditCharge = () => {
@@ -579,12 +606,71 @@ export function DetailPanel({
               </div>
               <div className="dp-stat dp-stat--price">
                 <div className="dp-stat__lbl">Price</div>
-                <div className="dp-stat__val tabnum">{fmtPrice(totalPricePence)}</div>
-                {priceExtrasPence > 0 ? (
+                {hasContractPrice ? (
+                  <div className="dp-stat__val tabnum">{fmtPrice(totalPricePence)}</div>
+                ) : (
+                  <div className="dp-stat__val tabnum" style={{ color: 'var(--prio-high)' }}>
+                    —
+                  </div>
+                )}
+                {!hasContractPrice && booking.state !== 'cancelled' ? (
+                  editingPrice ? (
+                    <div className="ir__row" style={{ marginTop: 4 }}>
+                      <div className="money" style={{ maxWidth: 120 }}>
+                        <div className="pfx">£</div>
+                        <input
+                          type="number"
+                          step="1"
+                          min={1}
+                          value={priceDraft}
+                          onChange={(e) => setPriceDraft(e.target.value)}
+                          // biome-ignore lint/a11y/noAutofocus: focus the field when the inline editor opens
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={savePrice}
+                        disabled={isPending}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setEditingPrice(false)}
+                        disabled={isPending}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="dp-stat__sub"
+                      style={{ color: 'var(--prio-high)', fontWeight: 600 }}
+                    >
+                      No price yet ·{' '}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={startEditPrice}
+                        disabled={isPending}
+                      >
+                        Set price
+                      </button>
+                    </div>
+                  )
+                ) : priceExtrasPence > 0 ? (
                   <div className="dp-stat__sub">
                     Fare {fmtPrice(booking.contractPricePence)}
                     {carParkPence > 0 ? ` + parking ${fmtPrice(carParkPence)}` : ''}
                     {waitingChargePence > 0 ? ` + waiting ${fmtPrice(waitingChargePence)}` : ''}
+                  </div>
+                ) : null}
+                {booking.subcontractorPricePence != null ? (
+                  <div className="dp-stat__sub">
+                    Subcontractor {fmtPrice(booking.subcontractorPricePence)}
                   </div>
                 ) : null}
               </div>

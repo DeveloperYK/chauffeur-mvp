@@ -40,6 +40,7 @@ interface EditForm {
   customerAccount: string;
   caseCode: string;
   contractPricePounds: string;
+  subcontractorPricePounds: string;
   notes: string;
   operatorNotes: string;
 }
@@ -74,7 +75,12 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         execEmail: booking.execEmail ?? '',
         customerAccount: booking.accountCode,
         caseCode: booking.caseCode ?? '',
-        contractPricePounds: String((booking.contractPricePence ?? 0) / 100),
+        contractPricePounds:
+          booking.contractPricePence != null ? String(booking.contractPricePence / 100) : '',
+        subcontractorPricePounds:
+          booking.subcontractorPricePence != null
+            ? String(booking.subcontractorPricePence / 100)
+            : '',
         notes: booking.notes ?? '',
         operatorNotes: booking.operatorNotes ?? '',
       });
@@ -142,7 +148,10 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
   };
 
   const miles = milesStringFromMeters(form.distanceMeters) || null;
-  const priceValid = Number.parseFloat(form.contractPricePounds) > 0;
+  // Prices are optional — blank clears them; a non-blank value must be positive.
+  const priceFieldValid = (v: string) => v.trim() === '' || Number.parseFloat(v) > 0;
+  const priceValid =
+    priceFieldValid(form.contractPricePounds) && priceFieldValid(form.subcontractorPricePounds);
 
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -164,6 +173,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('customerAccount', form.customerAccount);
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
+    fd.set('subcontractorPricePounds', form.subcontractorPricePounds);
     fd.set('travelMode', form.travelMode);
     fd.set('travelRef', form.travelMode ? form.travelRef : '');
     fd.set('notes', form.notes);
@@ -437,12 +447,10 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
           </div>
 
           <div className="form-section">
-            <div className="form-section__head">Contract price</div>
+            <div className="form-section__head">Pricing</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                Price<span className="req">*</span>
-              </label>
+              <label>Contract price</label>
               <div className="ctrl">
                 <div className="money">
                   <div className="pfx">£</div>
@@ -451,6 +459,24 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     step="1"
                     value={form.contractPricePounds}
                     onChange={(e) => set('contractPricePounds', e.target.value)}
+                  />
+                </div>
+                <div className="hint">
+                  Leave blank if not agreed yet — the booking is flagged until it has a price.
+                </div>
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Subcontractor price</label>
+              <div className="ctrl">
+                <div className="money">
+                  <div className="pfx">£</div>
+                  <input
+                    type="number"
+                    step="1"
+                    value={form.subcontractorPricePounds}
+                    onChange={(e) => set('subcontractorPricePounds', e.target.value)}
                   />
                 </div>
               </div>

@@ -145,7 +145,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     booking.dropoffAddress ?? 'As directed', // I Address To
     booking.accountCode, // J Customer Account
     car, // K Car Type
-    (booking.contractPricePence / 100).toFixed(2), // L Contract Price (£)
+    poundsOrBlank(booking.contractPricePence), // L Contract Price (£) — blank until agreed
     driverName, // M Driver Name
     driverType(booking, driver), // N Driver Type
     poundsOrBlank(booking.backfillDriverPayPence), // O Driver Cost (£) — subcontractor pay

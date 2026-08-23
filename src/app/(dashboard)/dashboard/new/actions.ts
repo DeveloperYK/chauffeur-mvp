@@ -3,6 +3,7 @@ import { formatLondonDay, parseMonthString } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { fieldErrorsFromIssues } from '@/lib/form-errors';
 import { logger } from '@/lib/logger';
+import { parsePoundsFieldToPence } from '@/lib/money';
 import { currentSession } from '@/server/auth/current';
 import { spreadsheetMirror } from '@/server/composition';
 import { getDb } from '@/server/db';
@@ -35,9 +36,8 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     return { error: 'Server not configured' };
   }
 
-  const poundsRaw = formData.get('contractPricePounds');
-  const pounds = poundsRaw == null ? 0 : Number.parseFloat(String(poundsRaw));
-  const pence = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
+  const contractPricePence = parsePoundsFieldToPence(formData.get('contractPricePounds'));
+  const subcontractorPricePence = parsePoundsFieldToPence(formData.get('subcontractorPricePounds'));
 
   const assignedDriverId = formData.get('assignedDriverId');
   const markAsAccepted = formData.get('markAsAccepted') === 'true';
@@ -61,7 +61,8 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     execEmail: String(formData.get('execEmail') ?? '') || null,
     customerAccount: String(formData.get('customerAccount') ?? ''),
     caseCode: String(formData.get('caseCode') ?? ''),
-    contractPricePence: pence,
+    contractPricePence,
+    subcontractorPricePence,
     travelMode: String(formData.get('travelMode') ?? '') || null,
     travelRef: String(formData.get('travelRef') ?? '') || null,
     notes: (formData.get('notes') as string | null) ?? null,

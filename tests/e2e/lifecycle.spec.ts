@@ -470,3 +470,89 @@ test('standalone create + detail routes redirect into the board surfaces', async
   await expect(page.locator('.panel.is-open')).toBeVisible();
   await expect(page.locator('.panel.is-open')).toContainText('LEGO Group');
 });
+
+test('optional pricing: a booking created without a price is flagged until one is set', async ({
+  page,
+}) => {
+  // Fresh data so exactly one "Priceless" booking exists below.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+
+  // ── Create through the real form, leaving the contract price blank ──
+  await page.goto('/dashboard?new=1', { waitUntil: 'networkidle' });
+  const modal = page.locator('.modal.is-open');
+  await expect(modal.locator('.modal__title')).toHaveText('Create booking');
+
+  await modal.locator('input[aria-label="Pickup address"]').fill('1 Test Street, London');
+  await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London');
+  await modal
+    .locator('.field', { hasText: 'Passenger' })
+    .locator('input')
+    .first()
+    .fill('Priceless');
+  await modal.locator('.field', { hasText: 'Exec mobile' }).locator('input').fill('+447911123456');
+  await modal
+    .locator('.field', { hasText: 'Exec email' })
+    .locator('input')
+    .fill('exec@example.com');
+  await modal.locator('input[aria-label="Customer account"]').fill('NoPrice Co');
+  await modal.locator('.field', { hasText: 'Case code' }).locator('input').fill('NP-1');
+  // Capture the subcontractor quote; the contract price is deliberately left blank.
+  await modal.locator('.field', { hasText: 'Subcontractor price' }).locator('input').fill('90');
+  await modal.getByRole('button', { name: 'Create booking' }).click();
+  await expect(page.locator('.modal.is-open')).toHaveCount(0);
+
+  // ── The board flags the unpriced booking, the panel spells it out ──
+  await openBookingPanel(page, 'Priceless');
+  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
+
+  // ── The unpriced booking runs the whole lifecycle to completed ──
+  await gotoSimulator(page);
+  await row(page, 'Priceless')
+    .locator('select[name="state"]')
+    .selectOption('awaiting_operator_review');
+  await clickAndSettle(page, row(page, 'Priceless').getByRole('button', { name: 'Set' }).click());
+  await expectSimState(page, 'Priceless', 'Awaiting operator review');
+
+  await openBookingPanel(page, 'Priceless');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Approve/ })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/approved/i);
+  await gotoSimulator(page);
+  await expectSimState(page, 'Priceless', 'Completed');
+
+  // ── Completed and still unpriced: the flag persists on the done board ──
+  await openBookingPanel(page, 'Priceless');
+  const doneUrl = new URL(page.url());
+  doneUrl.searchParams.set('layout', 'board');
+  doneUrl.searchParams.set('showDone', '1');
+  await page.goto(doneUrl.toString(), { waitUntil: 'networkidle' });
+  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
+
+  // ── The panel's inline Set price works on the completed booking ──
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Set price' }).click();
+  await page.locator('.panel.is-open .dp-stat--price .money input').fill('250');
+  await page
+    .locator('.panel.is-open .dp-stat--price')
+    .getByRole('button', { name: 'Save' })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/Contract price set/i);
+
+  await openBookingPanel(page, 'Priceless');
+  const pricedUrl = new URL(page.url());
+  pricedUrl.searchParams.set('layout', 'board');
+  pricedUrl.searchParams.set('showDone', '1');
+  await page.goto(pricedUrl.toString(), { waitUntil: 'networkidle' });
+  await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('£250');
+  await expect(page.locator('.panel.is-open .dp-stat--price')).not.toContainText('No price yet');
+  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).not.toContainText(
+    'no price',
+  );
+});

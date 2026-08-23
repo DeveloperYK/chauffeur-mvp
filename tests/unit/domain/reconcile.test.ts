@@ -176,3 +176,25 @@ describe('reconciliationCsv', () => {
     expect(csv).toContain('"Acme, Inc"');
   });
 });
+
+describe('bookings with no contract price', () => {
+  it('totals only the extras when the contract price is not set', () => {
+    const r = reconcile([
+      bk({ contractPricePence: null, carParkPence: 500, waitingTimeMinutes: 5 }),
+    ]);
+    const line = r.accounts[0]?.caseCodes[0]?.lines[0];
+    expect(line?.contractPricePence).toBeNull();
+    expect(line?.totalPence).toBe(1000); // 500 car park + 500 waiting
+    expect(r.grandTotalPence).toBe(1000);
+  });
+
+  it('leaves the Contract cell blank in the CSV when the price is not set', () => {
+    const report = reconcile([
+      bk({ contractPricePence: null, carParkPence: 500, waitingTimeMinutes: null }),
+    ]);
+    const csv = reconciliationCsv(report);
+    const row = csv.trim().split('\n')[1] ?? '';
+    // ...Route,Contract,Car Park,Waiting,Total — Contract must be empty, not 0.00.
+    expect(row.endsWith(',,5.00,0.00,5.00')).toBe(true);
+  });
+});

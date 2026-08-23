@@ -452,6 +452,7 @@ function ListRow({
         ) : null}
         <ExecFailureTag status={b.execNotificationStatus} />
         <MirrorFailureTag status={b.mirrorStatus} />
+        <NoPriceTag booking={b} />
       </span>
       <span>
         {assignee ? (
@@ -484,6 +485,30 @@ function ExecFailureTag({ status }: { status: ConsoleBooking['execNotificationSt
       }}
     >
       ⚠ exec
+    </span>
+  );
+}
+
+/**
+ * Marker shown on a tile when the booking has no contract price yet — the
+ * operator took the call without knowing the price and it still needs updating
+ * before invoicing. Cleared as soon as a price is saved via Edit. Cancelled
+ * bookings aren't billed, so they don't nag.
+ */
+function NoPriceTag({ booking }: { booking: ConsoleBooking }) {
+  if (booking.contractPricePence != null || booking.state === 'cancelled') return null;
+  return (
+    <span
+      title="No contract price yet — edit the booking to add one"
+      style={{
+        marginLeft: 6,
+        color: 'var(--prio-high)',
+        fontWeight: 600,
+        fontSize: 11,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ⚠ no price
     </span>
   );
 }
@@ -573,6 +598,7 @@ function BoardCard({
         ) : null}
         <ExecFailureTag status={booking.execNotificationStatus} />
         <MirrorFailureTag status={booking.mirrorStatus} />
+        <NoPriceTag booking={booking} />
         <span className="card__meta-right">
           {operator ? (
             <Avatar
