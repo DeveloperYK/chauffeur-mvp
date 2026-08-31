@@ -34,6 +34,25 @@ function driverRows(driver: NamedDriver): { label: string; value: string }[] {
   ];
 }
 
+/**
+ * Company signature + confidentiality notice appended to every exec email,
+ * as supplied by the client (2026-08-31). Static, trusted content — no
+ * user-controlled values.
+ */
+const COMPANY = {
+  legalName: 'JJ Chauffeuring Services (UK) Ltd',
+  email: 'info@jjchauffeuringservices.com',
+  website: 'www.jjchauffeuringservices.com',
+  phone: '+44 (0)208 959 2999 (24 HOURS)',
+} as const;
+
+const CONFIDENTIALITY_NOTICE =
+  'This email and any attachments are intended only for the named recipients and may contain ' +
+  'confidential and/or privileged information. If you have received this email in error, please ' +
+  'notify the sender immediately and delete this email from your system. Unauthorised use, ' +
+  'disclosure, or distribution of the information in this email is strictly prohibited. We ' +
+  'respect your privacy and are committed to protecting your personal data.';
+
 export interface RenderedEmail {
   subject: string;
   html: string;
@@ -87,6 +106,14 @@ function renderText({ heading, intro, rows, closing }: Layout): string {
     '',
     closing,
     '',
+    '--',
+    COMPANY.legalName,
+    COMPANY.email,
+    COMPANY.website,
+    `T: ${COMPANY.phone}`,
+    '',
+    CONFIDENTIALITY_NOTICE,
+    '',
     `${SMS_BRAND_NAME} · Automated booking notification`,
   ].join('\n');
 }
@@ -109,7 +136,12 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
     `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;">${rowsHtml}</table>`,
     `<p style="margin:22px 0 0;font-size:14px;line-height:1.5;color:#4b5563;">${escapeHtml(closing)}</p>`,
     '</div>',
-    `<div style="padding:14px 28px;background:#fafafa;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;">${brand} · Automated booking notification</div>`,
+    '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
+    `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
+    `<p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:#6b7280;"><a href="mailto:${COMPANY.email}" style="color:#6b7280;">${COMPANY.email}</a><br><a href="https://${COMPANY.website}" style="color:#6b7280;">${COMPANY.website}</a><br>T: ${escapeHtml(COMPANY.phone)}</p>`,
+    `<p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;">${escapeHtml(CONFIDENTIALITY_NOTICE)}</p>`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Automated booking notification</p>`,
+    '</div>',
     '</div></body></html>',
   ].join('');
 }
