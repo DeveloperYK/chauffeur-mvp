@@ -1,5 +1,5 @@
 import type { Booking } from '@/server/db/schema';
-import { assignedEmail, enRouteEmail } from '@/server/services/email-templates';
+import { assignedEmail, changeExecEmail, enRouteEmail } from '@/server/services/email-templates';
 import { describe, expect, it } from 'vitest';
 
 function booking(overrides: Partial<Booking> = {}): Booking {
@@ -117,6 +117,33 @@ describe('services/email-templates', () => {
     expect(e.html).not.toContain('PCO number');
     expect(e.html).not.toContain('Driver contact');
     expect(e.text).not.toContain('PCO number');
+  });
+
+  it('includes the company signature and confidentiality notice in every email footer', () => {
+    const emails = [
+      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      enRouteEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      changeExecEmail(booking()),
+    ];
+    for (const e of emails) {
+      for (const part of [
+        'JJ Chauffeuring Services (UK) Ltd',
+        'info@jjchauffeuringservices.com',
+        'www.jjchauffeuringservices.com',
+        '+44 (0)208 959 2999 (24 HOURS)',
+        'intended only for the named recipients',
+        'committed to protecting your personal data',
+      ]) {
+        expect(e.html).toContain(part);
+        expect(e.text).toContain(part);
+      }
+    }
+  });
+
+  it('links the company email and website in the HTML footer', () => {
+    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    expect(e.html).toContain('mailto:info@jjchauffeuringservices.com');
+    expect(e.html).toContain('https://www.jjchauffeuringservices.com');
   });
 
   it('omits only the missing row when a driver has a phone but no PCO on file', () => {
