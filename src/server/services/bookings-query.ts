@@ -9,7 +9,21 @@ import {
 import { type DriverStatus, type DriverStatusRow, deriveDriverStatus } from '@/lib/driver-status';
 import type { Database } from '@/server/db';
 import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
-import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
   'unassigned',
@@ -33,6 +47,22 @@ export async function listBookingsByState(db: Database, state: BookingState): Pr
     .select()
     .from(bookings)
     .where(eq(bookings.state, state))
+    .orderBy(asc(bookings.pickupAt))
+    .limit(500);
+}
+
+/**
+ * Every booking still missing an operator-agreed contract price, across all
+ * days and every live state — the "No price" saved view. A booking stays here
+ * until a price is set (a deliberate £0 counts as priced), because an unpriced
+ * booking blocks the monthly invoice. Cancelled bookings are never invoiced,
+ * so they don't nag.
+ */
+export async function listUnpricedBookings(db: Database): Promise<Booking[]> {
+  return db
+    .select()
+    .from(bookings)
+    .where(and(isNull(bookings.contractPricePence), ne(bookings.state, 'cancelled')))
     .orderBy(asc(bookings.pickupAt))
     .limit(500);
 }

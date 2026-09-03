@@ -548,6 +548,15 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
 
+  // ── The rail's "No price" saved view counts and lists it ──
+  // Seeded bookings are all priced, so the one unpriced booking is Priceless.
+  const noPriceRailItem = page.locator('.rail__item', { hasText: 'No price' });
+  await expect(noPriceRailItem).toContainText('1');
+  await page.goto('/dashboard?savedView=no_price', { waitUntil: 'networkidle' });
+  await expect(page.locator('.page-head__title')).toHaveText('No price');
+  await expect(page.locator('.page-head__sub')).toContainText('1 ticket');
+  await expect(page.getByText('NoPrice Co').first()).toBeVisible();
+
   // ── The unpriced booking runs the whole lifecycle to completed ──
   await gotoSimulator(page);
   await row(page, 'Priceless')
@@ -593,4 +602,9 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).not.toContainText(
     'no price',
   );
+
+  // ── Priced now: the "No price" saved view is empty again ──
+  await page.goto('/dashboard?savedView=no_price', { waitUntil: 'networkidle' });
+  await expect(page.locator('.page-head__sub')).toContainText('0 tickets');
+  await expect(page.locator('.rail__item', { hasText: 'No price' })).toContainText('0');
 });

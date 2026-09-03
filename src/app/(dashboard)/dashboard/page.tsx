@@ -13,14 +13,15 @@ import {
 } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
-import { getDb } from '@/server/db';
-import type { Booking, BookingState } from '@/server/db/schema';
+import { type Database, getDb } from '@/server/db';
+import type { Booking } from '@/server/db/schema';
 import { waitingFee } from '@/server/domain/waiting-fee';
 import {
   type DayCounts,
   driverDispatchData,
   listBookingsByState,
   listBookingsForDay,
+  listUnpricedBookings,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
@@ -34,10 +35,15 @@ export const dynamic = 'force-dynamic';
 const SAVED_VIEW_LABEL: Record<string, string> = {
   unassigned: 'Unassigned tickets',
   needs_review: 'Awaiting review',
+  no_price: 'No price',
 };
-const SAVED_VIEW_STATE: Record<string, BookingState> = {
-  unassigned: 'unassigned',
-  needs_review: 'awaiting_operator_review',
+// Each saved view spans every day: two triage by state, "No price" by the
+// missing contract price (any live state, since an unpriced booking blocks
+// the monthly invoice until an operator fills it in).
+const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
+  unassigned: (db) => listBookingsByState(db, 'unassigned'),
+  needs_review: (db) => listBookingsByState(db, 'awaiting_operator_review'),
+  no_price: (db) => listUnpricedBookings(db),
 };
 
 const UNASSIGNED = 'unassigned';
@@ -139,7 +145,7 @@ export default async function DashboardHome({
       : formatLondonMonth(new Date(`${selectedDay}T12:00:00Z`));
   const q = (params.q ?? '').trim();
   const savedView =
-    params.savedView && SAVED_VIEW_STATE[params.savedView] ? params.savedView : null;
+    params.savedView && SAVED_VIEW_QUERY[params.savedView] ? params.savedView : null;
   // List is the default layout; board is opt-in via ?layout=board.
   const layout = params.layout === 'board' ? 'board' : 'list';
   // Done bookings show by default; the operator can hide them via ?showDone=0.
@@ -153,7 +159,7 @@ export default async function DashboardHome({
 
   const [viewRows, countsMap, drivers, operatorList, dispatch] = await Promise.all([
     savedView
-      ? listBookingsByState(db, SAVED_VIEW_STATE[savedView] as BookingState)
+      ? (SAVED_VIEW_QUERY[savedView] as (db: Database) => Promise<Booking[]>)(db)
       : listBookingsForDay(db, selectedDay),
     monthlyDayCounts(db, visibleMonth),
     listAllDrivers(db),
