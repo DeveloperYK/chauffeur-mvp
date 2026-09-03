@@ -1928,6 +1928,22 @@ a:hover {
   padding: 7px 10px 7px 4px !important;
   box-shadow: none !important;
   font-variant-numeric: tabular-nums;
+  /* Number inputs keep an intrinsic width wider than the narrow inline editors
+     (maxWidth 120–140); without these the input overflows the grid cell and the
+     spinner buttons render over the typed value. */
+  width: 100%;
+  min-width: 0;
+}
+/* Hide the number-input spinner arrows — they crowd the value in the narrow
+   inline editors and money amounts aren't stepped with arrows anyway. */
+.money input::-webkit-outer-spin-button,
+.money input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.money input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* Car picker (radio grid) */
