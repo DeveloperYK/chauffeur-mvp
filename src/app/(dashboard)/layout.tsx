@@ -5,7 +5,7 @@ import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { simulatorEnabled } from '@/server/feature-flags';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import '@/app/console.css';
@@ -15,6 +15,9 @@ export const dynamic = 'force-dynamic';
 const SAVED_VIEWS: SavedView[] = [
   { id: 'unassigned', name: 'Unassigned tickets', vdot: '#8590A2' },
   { id: 'needs_review', name: 'Awaiting review', vdot: '#5243AA', urgent: true },
+  // Bookings still missing a contract price — they block the monthly invoice,
+  // so the rail keeps a running count until an operator prices them.
+  { id: 'no_price', name: 'No price', vdot: '#E56910', urgent: true },
 ];
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -24,19 +27,26 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // it can reach any console page.
   if (session.operator.mustChangePassword) redirect('/change-password');
 
-  const counts: Record<string, number> = { unassigned: 0, needs_review: 0 };
+  const counts: Record<string, number> = { unassigned: 0, needs_review: 0, no_price: 0 };
   const url = env().DATABASE_URL;
   if (url) {
     const { db } = getDb(url);
-    const [u, r] = await Promise.all([
+    const [u, r, p] = await Promise.all([
       db.select({ id: bookings.id }).from(bookings).where(eq(bookings.state, 'unassigned')),
       db
         .select({ id: bookings.id })
         .from(bookings)
         .where(eq(bookings.state, 'awaiting_operator_review')),
+      // Same definition as listUnpricedBookings: no contract price yet, and
+      // not cancelled (cancelled bookings are never invoiced).
+      db
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(and(isNull(bookings.contractPricePence), ne(bookings.state, 'cancelled'))),
     ]);
     counts.unassigned = u.length;
     counts.needs_review = r.length;
+    counts.no_price = p.length;
   }
 
   return (
