@@ -3,6 +3,7 @@
 import { parseMonthString } from '@/lib/dates';
 import { logger } from '@/lib/logger';
 import { parsePoundsFieldToPence } from '@/lib/money';
+import { addressPostcodeErrors } from '@/lib/postcode';
 import { currentSession } from '@/server/auth/current';
 import {
   appUrl,
@@ -476,6 +477,10 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     notes: (formData.get('notes') as string | null) || null,
     operatorNotes: (formData.get('operatorNotes') as string | null) || null,
   };
+
+  // Every address must carry a postcode — see createBookingAction.
+  const postcodeErrors = Object.values(addressPostcodeErrors(raw));
+  if (postcodeErrors.length > 0) return { ok: false, error: postcodeErrors.join('; ') };
 
   const result = await editBooking(raw, op.id, { db: db(), mirror: spreadsheetMirror() });
   if (!result.ok) {

@@ -3,6 +3,7 @@
 import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
+import { hasPostcode, isValidUkPostcode, withPostcode } from '@/lib/postcode';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
@@ -10,6 +11,7 @@ import { AddressAutocomplete } from './address-autocomplete';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
+import { POSTCODE_INVALID_MESSAGE, PostcodeField } from './postcode-field';
 import type { ConsoleBooking } from './types';
 
 /** "YYYY-MM" of a datetime-local value, or null when not yet a full date. */
@@ -33,6 +35,9 @@ interface EditForm {
   distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
+  /** Typed by the operator only when the address itself has no postcode. */
+  pickupPostcode: string;
+  dropoffPostcode: string;
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
@@ -53,6 +58,7 @@ const ROUTE_DEBOUNCE_MS = 600;
 export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBookingModalProps) {
   const [form, setForm] = useState<EditForm | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [postcodeErrors, setPostcodeErrors] = useState<Record<string, string>>({});
   const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   const [isPending, startTransition] = useTransition();
   const routeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +75,8 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         distanceMeters: booking.distanceMeters,
         pickupAddress: booking.pickupAddress,
         dropoffAddress: booking.dropoffAddress,
+        pickupPostcode: '',
+        dropoffPostcode: '',
         passengerFirstName: booking.passengerFirstName,
         passengerLastName: booking.passengerLastName ?? '',
         execMobile: booking.execMobile,
@@ -85,6 +93,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         operatorNotes: booking.operatorNotes ?? '',
       });
       setError(null);
+      setPostcodeErrors({});
       setRouteStatus('idle');
     }
   }, [isOpen, booking?.id]);
@@ -153,16 +162,41 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
   const priceValid =
     priceFieldValid(form.contractPricePounds) && priceFieldValid(form.subcontractorPricePounds);
 
+  const needsPickupPostcode =
+    form.pickupAddress.trim().length > 0 && !hasPostcode(form.pickupAddress);
+  const needsDropoffPostcode =
+    form.serviceType === 'transfer' &&
+    form.dropoffAddress.trim().length > 0 &&
+    !hasPostcode(form.dropoffAddress);
+
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     setError(null);
+    setPostcodeErrors({});
+    // A manual postcode is mandatory whenever the address lacks one — this is
+    // how older bookings saved without a postcode get one on their next edit.
+    const nextPostcodeErrors = {
+      ...(needsPickupPostcode && !isValidUkPostcode(form.pickupPostcode)
+        ? { pickupPostcode: POSTCODE_INVALID_MESSAGE }
+        : {}),
+      ...(needsDropoffPostcode && !isValidUkPostcode(form.dropoffPostcode)
+        ? { dropoffPostcode: POSTCODE_INVALID_MESSAGE }
+        : {}),
+    };
+    if (Object.keys(nextPostcodeErrors).length > 0) {
+      setError('Please fix the highlighted fields.');
+      setPostcodeErrors(nextPostcodeErrors);
+      return;
+    }
+    const pickupAddress = withPostcode(form.pickupAddress, form.pickupPostcode);
+    const dropoffAddress = withPostcode(form.dropoffAddress, form.dropoffPostcode);
     const fd = new FormData();
     fd.set('bookingId', booking.id);
     fd.set('serviceType', form.serviceType);
     fd.set('pickupAt', form.pickupAt);
     fd.set('expectedDurationMinutes', String(form.expectedDurationMinutes));
-    fd.set('pickupAddress', form.pickupAddress);
-    fd.set('dropoffAddress', form.serviceType === 'transfer' ? form.dropoffAddress : '');
+    fd.set('pickupAddress', pickupAddress);
+    fd.set('dropoffAddress', form.serviceType === 'transfer' ? dropoffAddress : '');
     if (form.serviceType === 'transfer' && form.distanceMeters != null) {
       fd.set('distanceMeters', String(form.distanceMeters));
     }
@@ -268,6 +302,14 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 />
               </div>
             </div>
+            {needsPickupPostcode ? (
+              <PostcodeField
+                value={form.pickupPostcode}
+                onChange={(v) => set('pickupPostcode', v)}
+                ariaLabel="Pickup postcode"
+                error={postcodeErrors.pickupPostcode}
+              />
+            ) : null}
 
             {form.serviceType === 'transfer' ? (
               <>
@@ -291,6 +333,14 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     </div>
                   </div>
                 </div>
+                {needsDropoffPostcode ? (
+                  <PostcodeField
+                    value={form.dropoffPostcode}
+                    onChange={(v) => set('dropoffPostcode', v)}
+                    ariaLabel="Dropoff postcode"
+                    error={postcodeErrors.dropoffPostcode}
+                  />
+                ) : null}
                 <div className="field">
                   {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
                   <label>Duration (min)</label>

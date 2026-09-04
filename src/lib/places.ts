@@ -9,10 +9,19 @@
  *
  * We use the Autocomplete *Data* API (`AutocompleteSuggestion`) rather than the
  * legacy `Autocomplete` widget (deprecated for new API keys, March 2025) so we
- * can render our own dropdown styled to the console. Predictions carry enough
- * text to fill the booking's free-text address field directly, so we never make
- * a billable Place Details call.
+ * can render our own dropdown styled to the console.
+ *
+ * Prediction text never carries a postcode ("…, Euston Road, London, UK"), and
+ * drivers navigate by postcode, so choosing an option makes ONE Place Details
+ * call for the `postalCode` field. Requests are grouped under an Autocomplete
+ * *session token*: every keystroke prediction in the session is then free and
+ * only the single details call is billed (Essentials SKU), which keeps the cost
+ * at or below the old per-keystroke pricing.
  */
+
+import { withPostcode } from './postcode';
+
+export { withPostcode };
 
 export interface AddressSuggestion {
   /** Google `placeId` — stable React key for the option. */
@@ -23,7 +32,22 @@ export interface AddressSuggestion {
   secondary: string;
   /** The full string written into the booking field when the option is chosen. */
   full: string;
+  /**
+   * Lazily builds a Place bound to this prediction (and its session) so the
+   * postcode can be fetched on selection. Absent when Places is unavailable.
+   */
+  toPlace?: () => PlaceDetailsSource;
 }
+
+/** The slice of `google.maps.places.Place` we need to read a postcode. */
+export interface PlaceDetailsSource {
+  fetchFields(request: { fields: string[] }): Promise<{
+    place: { postalCode?: string | null };
+  }>;
+}
+
+/** Opaque Autocomplete session token; `null` when Places is unavailable. */
+export type PlacesSessionToken = google.maps.places.AutocompleteSessionToken | null;
 
 /** Minimum characters before we hit the Places API (cost + noise control). */
 export const MIN_QUERY_LENGTH = 3;
@@ -42,6 +66,7 @@ export interface RawPlacePrediction {
   text?: { text?: string };
   mainText?: { text?: string };
   secondaryText?: { text?: string };
+  toPlace?: () => PlaceDetailsSource;
 }
 
 /** Map a Google `PlacePrediction` to our flat, render-ready suggestion. */
@@ -49,7 +74,25 @@ export function toAddressSuggestion(p: RawPlacePrediction): AddressSuggestion {
   const full = p.text?.text?.trim() ?? '';
   const primary = p.mainText?.text?.trim() || full;
   const secondary = p.secondaryText?.text?.trim() ?? '';
-  return { id: p.placeId ?? full, primary, secondary, full };
+  const base = { id: p.placeId ?? full, primary, secondary, full };
+  // `toPlace` must be invoked as a method on the prediction — bind it.
+  return p.toPlace ? { ...base, toPlace: () => p.toPlace?.() as PlaceDetailsSource } : base;
+}
+
+/**
+ * The text to write into the booking once an option is chosen: the prediction
+ * text plus the postcode from Place Details. Never throws — any failure (no
+ * Places, quota, no postcode on the place) falls back to the prediction text so
+ * the operator is never blocked.
+ */
+export async function resolveSelectedAddress(s: AddressSuggestion): Promise<string> {
+  if (!s.toPlace) return s.full;
+  try {
+    const { place } = await s.toPlace().fetchFields({ fields: ['postalCode'] });
+    return withPostcode(s.full, place.postalCode);
+  } catch {
+    return s.full;
+  }
 }
 
 /** Map an array of predictions, dropping any with no usable text. */
@@ -73,6 +116,20 @@ async function loadPlacesLibrary(): Promise<typeof google.maps.places | null> {
 }
 
 /**
+ * Start a new Autocomplete session. One token spans the keystrokes leading up to
+ * a selection plus that selection's Place Details call; Google bills the whole
+ * session once. Resolves to `null` when Places is unavailable.
+ */
+export async function createPlacesSessionToken(): Promise<PlacesSessionToken> {
+  try {
+    const places = await loadPlacesLibrary();
+    return places?.AutocompleteSessionToken ? new places.AutocompleteSessionToken() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch UK address predictions for `input`. Resolves to `[]` (never throws) when
  * Places is unavailable or the request is aborted, so callers can render a plain
  * input unchanged.
@@ -80,6 +137,7 @@ async function loadPlacesLibrary(): Promise<typeof google.maps.places | null> {
 export async function fetchAddressSuggestions(
   input: string,
   signal?: AbortSignal,
+  sessionToken?: PlacesSessionToken,
 ): Promise<AddressSuggestion[]> {
   try {
     const places = await loadPlacesLibrary();
@@ -88,6 +146,7 @@ export async function fetchAddressSuggestions(
     const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
       input,
       includedRegionCodes: INCLUDED_REGION_CODES,
+      ...(sessionToken ? { sessionToken } : {}),
     });
     if (signal?.aborted) return [];
 
