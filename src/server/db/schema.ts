@@ -167,6 +167,9 @@ export const drivers = pgTable(
     // Nullable in the DB for drivers created before the field existed, but the
     // driver form requires it on every create/edit.
     pcoNumber: text('pco_number'),
+    // The VEHICLE's PCO licence number, stored for compliance only. Internal:
+    // never shown to the exec, the driver link, or the spreadsheet mirror.
+    carPcoNumber: text('car_pco_number'),
     whatsappNumber: text('whatsapp_number').notNull(),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

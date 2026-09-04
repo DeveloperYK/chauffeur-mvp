@@ -64,7 +64,21 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
         </Field>
 
         <Field
-          label="PCO number"
+          label="Car PCO"
+          helper="The vehicle's PCO licence number. Internal only — never shown to the exec."
+        >
+          <Input
+            type="text"
+            name="carPcoNumber"
+            maxLength={20}
+            defaultValue={driver?.carPcoNumber ?? ''}
+          />
+        </Field>
+      </div>
+
+      <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field
+          label="Driver PCO"
           required
           helper="The driver's PCO licence number. Shown to the exec in the email."
         >
@@ -76,21 +90,20 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
             defaultValue={driver?.pcoNumber ?? ''}
           />
         </Field>
-      </div>
 
-      <Field
-        label="WhatsApp number"
-        required
-        helper="International format, with country code: e.g. +44 7911 123 456."
-        className="md:col-span-2"
-      >
-        <Input
-          type="tel"
-          name="whatsappNumber"
+        <Field
+          label="WhatsApp number"
           required
-          defaultValue={driver?.whatsappNumber ?? ''}
-        />
-      </Field>
+          helper="International format, with country code: e.g. +44 7911 123 456."
+        >
+          <Input
+            type="tel"
+            name="whatsappNumber"
+            required
+            defaultValue={driver?.whatsappNumber ?? ''}
+          />
+        </Field>
+      </div>
 
       <div className="md:col-span-2 flex justify-end border-t border-border pt-4">
         <Button variant="primary" type="submit">

@@ -99,7 +99,7 @@ describe('services/email-templates', () => {
   it('shows the driver PCO number and contact number when provided, in both emails', () => {
     const driver = { name: 'Marcus Bell', pcoNumber: '15472', phone: '+447852188558' };
     const confirmed = assignedEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
-    expect(confirmed.html).toContain('PCO number');
+    expect(confirmed.html).toContain('Driver PCO');
     expect(confirmed.html).toContain('15472');
     expect(confirmed.html).toContain('Driver contact');
     expect(confirmed.html).toContain('+447852188558');
@@ -107,16 +107,16 @@ describe('services/email-templates', () => {
     expect(confirmed.text).toContain('+447852188558');
 
     const enRoute = enRouteEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
-    expect(enRoute.html).toContain('PCO number');
+    expect(enRoute.html).toContain('Driver PCO');
     expect(enRoute.html).toContain('15472');
     expect(enRoute.text).toContain('+447852188558');
   });
 
   it('omits the PCO and contact rows when the driver has neither (legacy driver)', () => {
     const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
-    expect(e.html).not.toContain('PCO number');
+    expect(e.html).not.toContain('Driver PCO');
     expect(e.html).not.toContain('Driver contact');
-    expect(e.text).not.toContain('PCO number');
+    expect(e.text).not.toContain('Driver PCO');
   });
 
   it('includes the company signature and confidentiality notice in every email footer', () => {
@@ -152,7 +152,7 @@ describe('services/email-templates', () => {
       { name: 'Marcus Bell', pcoNumber: null, phone: '+447852188558' },
       'Black Mercedes S-Class',
     );
-    expect(e.html).not.toContain('PCO number');
+    expect(e.html).not.toContain('Driver PCO');
     expect(e.html).toContain('Driver contact');
     expect(e.text).toContain('+447852188558');
   });

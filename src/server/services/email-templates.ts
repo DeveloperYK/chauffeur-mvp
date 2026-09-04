@@ -29,7 +29,7 @@ type NamedDriver = {
 function driverRows(driver: NamedDriver): { label: string; value: string }[] {
   return [
     { label: 'Driver', value: driver.name },
-    ...(driver.pcoNumber?.trim() ? [{ label: 'PCO number', value: driver.pcoNumber.trim() }] : []),
+    ...(driver.pcoNumber?.trim() ? [{ label: 'Driver PCO', value: driver.pcoNumber.trim() }] : []),
     ...(driver.phone?.trim() ? [{ label: 'Driver contact', value: driver.phone.trim() }] : []),
   ];
 }
