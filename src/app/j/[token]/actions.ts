@@ -82,6 +82,10 @@ export async function confirmChangeAction(formData: FormData): Promise<void> {
     db: db(),
     secret: driverLinkSecret(),
     mirror: spreadsheetMirror(),
+    // Without these the auto exec-email on an exec-relevant change silently
+    // skips — the phone-attest path in console-actions passes the same pair.
+    notifications: notifications(),
+    email: email(),
   });
 
   if (!result.ok) {

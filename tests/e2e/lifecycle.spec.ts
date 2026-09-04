@@ -447,6 +447,71 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY PHONE');
 });
 
+test('mid-flight change: driver confirms via the change link, exec is emailed the update', async ({
+  page,
+}) => {
+  // Fresh data; force LEGO → assigned and onto today's board.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="state"]').selectOption('assigned');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Set' }).click());
+  await gotoSimulator(page);
+  await row(page, LEGO).locator('select[name="scenario"]').selectOption('about_to_start');
+  await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
+  await expectSimState(page, LEGO, 'Assigned');
+
+  // ── Console: an exec-facing edit (pickup time) with an exec email on file ──
+  await openBookingPanel(page, LEGO);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
+  const editModal = page.locator('.modal.is-open');
+  await expect(editModal).toBeVisible();
+  const pickupInput = editModal.locator('.field', { hasText: 'Pickup time' }).locator('input');
+  const current = await pickupInput.inputValue(); // "YYYY-MM-DDTHH:MM"
+  const shifted = new Date(`${current}:00`);
+  shifted.setMinutes(shifted.getMinutes() + 30);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  await pickupInput.fill(
+    `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}-${pad(shifted.getDate())}T${pad(shifted.getHours())}:${pad(shifted.getMinutes())}`,
+  );
+  await editModal
+    .locator('.field', { hasText: 'Exec email' })
+    .locator('input')
+    .fill('exec-change@example.com');
+  await editModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking updated/i);
+
+  // ── Operator sends the change-confirm link to the driver ──
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Send change link/i })
+    .click();
+  const linkModal = page.locator('.modal.is-open');
+  await expect(linkModal).toContainText('Change confirmation link');
+  const changeUrl = (await linkModal.getByText(/https?:\/\//).textContent())?.trim() ?? '';
+  expect(changeUrl).toMatch(/\/j\//);
+
+  // ── Driver opens the link and confirms the new details ──
+  await page.goto(changeUrl, { waitUntil: 'networkidle' });
+  await expect(page.getByText('Updated job for')).toBeVisible();
+  await page.getByRole('button', { name: /Confirm the new details/i }).click();
+  await expect(page.getByRole('heading', { name: 'Change confirmed' })).toBeVisible();
+
+  // ── Console: confirmed by the driver, and the exec was emailed the update ──
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY DRIVER');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Exec messages/ })
+    .click();
+  await expect(page.locator('.panel.is-open')).toContainText('Booking updated');
+});
+
 test('operator-attested assign: confirm a driver by phone, then reassign by phone', async ({
   page,
 }) => {
