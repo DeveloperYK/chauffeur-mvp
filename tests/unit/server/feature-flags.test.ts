@@ -1,4 +1,4 @@
-import { isSimulatorEnabled } from '@/server/feature-flags';
+import { isSampleGeneratorEnabled, isSimulatorEnabled } from '@/server/feature-flags';
 import { describe, expect, it } from 'vitest';
 
 describe('isSimulatorEnabled', () => {
@@ -41,5 +41,39 @@ describe('isSimulatorEnabled', () => {
     expect(
       isSimulatorEnabled({ NODE_ENV: 'production', SIMULATOR_ENABLED: false, AUTH_DISABLED: true }),
     ).toBe(false);
+  });
+});
+
+describe('isSampleGeneratorEnabled', () => {
+  // The "Generate" button on the new-booking modal fills the form with made-up
+  // passengers and prices. It is test tooling, gated exactly like the simulator.
+  it('is on outside production', () => {
+    expect(
+      isSampleGeneratorEnabled({
+        NODE_ENV: 'development',
+        SIMULATOR_ENABLED: false,
+        AUTH_DISABLED: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('is OFF in real production (auth enforced), whatever the flags say', () => {
+    expect(
+      isSampleGeneratorEnabled({
+        NODE_ENV: 'production',
+        SIMULATOR_ENABLED: true,
+        AUTH_DISABLED: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('is on in staging (production build, opted in, auth disabled)', () => {
+    expect(
+      isSampleGeneratorEnabled({
+        NODE_ENV: 'production',
+        SIMULATOR_ENABLED: true,
+        AUTH_DISABLED: true,
+      }),
+    ).toBe(true);
   });
 });

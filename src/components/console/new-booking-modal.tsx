@@ -21,6 +21,8 @@ interface NewBookingModalProps {
   meName: string;
   onClose: () => void;
   onCreated: (bookingDay?: string) => void;
+  /** Test-only: fills the form with sample data. Hidden in real production. */
+  showSampleGenerator?: boolean;
 }
 
 interface NewForm {
@@ -134,7 +136,13 @@ function defaultDateTime(offsetH = 26): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBookingModalProps) {
+export function NewBookingModal({
+  isOpen,
+  meName,
+  onClose,
+  onCreated,
+  showSampleGenerator = false,
+}: NewBookingModalProps) {
   const [form, setForm] = useState<NewForm>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -251,6 +259,15 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
       operatorNotes: s.operatorNotes,
     });
     setError(null);
+  };
+
+  /** Wipe every field back to a blank form (pickup time resets to the default). */
+  const clearForm = () => {
+    if (routeTimer.current) clearTimeout(routeTimer.current);
+    setForm({ ...EMPTY, pickupAt: defaultDateTime() });
+    setRouteStatus('idle');
+    setError(null);
+    setFieldErrors({});
   };
 
   const submit = (ev: React.FormEvent) => {
@@ -666,8 +683,13 @@ export function NewBookingModal({ isOpen, meName, onClose, onCreated }: NewBooki
             Created by <strong>{meName}</strong>. Lands in <strong>Unassigned</strong>.
           </span>
           <span className="spacer" />
-          <button type="button" className="btn btn--success" onClick={generateSample}>
-            <Icon.Reset /> Generate
+          {showSampleGenerator ? (
+            <button type="button" className="btn btn--success" onClick={generateSample}>
+              <Icon.Reset /> Generate
+            </button>
+          ) : null}
+          <button type="button" className="btn" onClick={clearForm}>
+            <Icon.Reset /> Clear
           </button>
           <button type="button" className="btn" onClick={onClose}>
             Cancel

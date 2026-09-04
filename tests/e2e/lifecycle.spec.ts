@@ -588,6 +588,14 @@ test('optional pricing: a booking created without a price is flagged until one i
   const modal = page.locator('.modal.is-open');
   await expect(modal.locator('.modal__title')).toHaveText('Create booking');
 
+  // ── Clear wipes whatever has been typed so far ──
+  const passengerInput = modal.locator('.field', { hasText: 'Passenger' }).locator('input').first();
+  await passengerInput.fill('Scratch');
+  await modal.locator('input[aria-label="Customer account"]').fill('Scratch Ltd');
+  await modal.getByRole('button', { name: 'Clear' }).click();
+  await expect(passengerInput).toHaveValue('');
+  await expect(modal.locator('input[aria-label="Customer account"]')).toHaveValue('');
+
   await modal.locator('input[aria-label="Pickup address"]').fill('1 Test Street, London');
   await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London');
   await modal
