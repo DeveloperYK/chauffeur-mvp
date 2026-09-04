@@ -2,6 +2,7 @@
 
 import { handToBackfillAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { penceToPoundsInput } from '@/lib/money';
 import { useEffect, useState, useTransition } from 'react';
 import { fmtTimeWithDay, passengerName } from './format';
 import { Icon } from './icons';
@@ -18,7 +19,8 @@ interface BackfillModalProps {
  * Hand an unassigned booking to a backfill (subcontractor) driver sourced from
  * the WhatsApp group. The operator records who is covering it — name, phone,
  * car — and the booking moves to Assigned, flagged as backfill. The exec gets
- * the usual assignment confirmation naming the backfill driver.
+ * the usual assignment confirmation naming the backfill driver. Driver pay
+ * starts at the ticket's subcontractor price when one was agreed.
  */
 export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: BackfillModalProps) {
   const [name, setName] = useState('');
@@ -34,13 +36,14 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
       setName('');
       setPhone('');
       setCar('');
-      setPay('');
+      setPay(penceToPoundsInput(booking?.subcontractorPricePence));
       setError(null);
     }
   }, [isOpen, booking?.id]);
 
   if (!booking) return null;
 
+  const defaultedPay = penceToPoundsInput(booking.subcontractorPricePence);
   const payPounds = Number.parseFloat(pay);
   const payValid = Number.isFinite(payPounds) && payPounds > 0;
   const valid =
@@ -99,8 +102,11 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
             </label>
             <div className="ctrl">
               <input
+                type="text"
                 name="backfillDriverName"
                 value={name}
+                placeholder="e.g. Dave Smith"
+                autoComplete="off"
                 onChange={(e) => setName(e.target.value)}
                 // biome-ignore lint/a11y/noAutofocus: focus the first field on open
                 autoFocus
@@ -115,8 +121,11 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
             </label>
             <div className="ctrl">
               <input
+                type="tel"
                 name="backfillDriverPhone"
                 value={phone}
+                placeholder="07911 123456"
+                autoComplete="off"
                 onChange={(e) => setPhone(e.target.value)}
               />
             </div>
@@ -128,7 +137,14 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
               Car<span className="req">*</span>
             </label>
             <div className="ctrl">
-              <input name="backfillCar" value={car} onChange={(e) => setCar(e.target.value)} />
+              <input
+                type="text"
+                name="backfillCar"
+                value={car}
+                placeholder="e.g. Black Mercedes S-Class"
+                autoComplete="off"
+                onChange={(e) => setCar(e.target.value)}
+              />
             </div>
           </div>
 
@@ -149,6 +165,11 @@ export function BackfillModal({ booking, isOpen, onClose, onHandedOff }: Backfil
                   onChange={(e) => setPay(e.target.value)}
                 />
               </div>
+              {defaultedPay ? (
+                <div className="hint">
+                  Pre-filled from the ticket's subcontractor price (£{defaultedPay}).
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
