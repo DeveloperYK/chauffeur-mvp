@@ -708,3 +708,30 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.page-head__sub')).toContainText('0 tickets');
   await expect(page.locator('.rail__item', { hasText: 'No price' })).toContainText('0');
 });
+
+test('board remembers the operator’s selected day across a visit to another tab', async ({
+  page,
+}) => {
+  // Pick a non-today day (a week out) on the board.
+  const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const day = future.toISOString().slice(0, 10);
+  await page.goto(`/dashboard?date=${day}`, { waitUntil: 'networkidle' });
+
+  // Visit another tab, then come back via the rail's Board link.
+  await page.locator('.rail').getByRole('link', { name: 'Drivers' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/drivers/);
+  await page.locator('.rail').getByRole('link', { name: 'Board' }).click();
+  await expect(page).toHaveURL(new RegExp(`date=${day}`));
+
+  // The topbar brand link restores the same day.
+  await page.locator('.rail').getByRole('link', { name: 'Invoicing' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/invoicing/);
+  await page.locator('.topbar__brand').click();
+  await expect(page).toHaveURL(new RegExp(`date=${day}`));
+
+  // A saved-view visit (also /dashboard, no date) must not clobber the memory.
+  await page.locator('.rail__item', { hasText: 'Unassigned tickets' }).click();
+  await expect(page).toHaveURL(/savedView=unassigned/);
+  await page.locator('.rail').getByRole('link', { name: 'Board' }).click();
+  await expect(page).toHaveURL(new RegExp(`date=${day}`));
+});

@@ -1,5 +1,6 @@
 'use client';
-
+import { BOARD_QUERY_STORAGE_KEY, boardHrefFrom } from '@/lib/board-day';
+import { londonTodayString } from '@/lib/dates';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Avatar } from './avatar';
@@ -10,6 +11,20 @@ export function Topbar({ me }: { me: { id: string; name: string } }) {
   const router = useRouter();
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // The brand link goes back to the board on the operator's remembered day
+  // (written by the rail while on the board). Plain /dashboard otherwise.
+  const [brandHref, setBrandHref] = useState('/dashboard');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-read the stored board day after every navigation (the rail rewrites it while on the board)
+  useEffect(() => {
+    try {
+      setBrandHref(
+        boardHrefFrom(sessionStorage.getItem(BOARD_QUERY_STORAGE_KEY), londonTodayString()),
+      );
+    } catch {
+      setBrandHref('/dashboard');
+    }
+  }, [pathname]);
 
   // Open the create-booking modal. On the board we have a live console shell
   // listening for the event (instant); elsewhere we navigate to the board with
@@ -41,7 +56,7 @@ export function Topbar({ me }: { me: { id: string; name: string } }) {
 
   return (
     <header className="topbar">
-      <a className="topbar__brand" href="/dashboard">
+      <a className="topbar__brand" href={brandHref}>
         <div className="topbar__mark">JJ</div>
         <div className="topbar__name">
           JJ Chauffeuring<small>v1</small>
