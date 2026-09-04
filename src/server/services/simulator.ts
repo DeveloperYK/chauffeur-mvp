@@ -62,6 +62,8 @@ const SAMPLE_BOOKINGS = [
     pickupOffsetHours: 26,
     duration: 90,
     pickupAddress: '11 Belsize Park Gardens, London NW3 4JJ',
+    // Deliberately no postcode: stands in for bookings saved before postcodes
+    // were mandatory, so the console's "add a postcode on edit" path is exercised.
     dropoffAddress: 'London Heathrow Airport, Terminal 5',
     passengerFirstName: 'Eric',
     passengerLastName: 'French',
@@ -74,7 +76,7 @@ const SAMPLE_BOOKINGS = [
     pickupOffsetHours: 30,
     duration: 60,
     pickupAddress: '1 Goddard Place, London N19 5GT',
-    dropoffAddress: 'London Heathrow Airport, Terminal 4',
+    dropoffAddress: 'London Heathrow Airport, Terminal 4, Hounslow TW6 3XA',
     passengerFirstName: 'Martin',
     passengerLastName: 'Finch',
     execMobile: '+447400123456',
@@ -86,7 +88,7 @@ const SAMPLE_BOOKINGS = [
     pickupOffsetHours: 48,
     duration: 120,
     pickupAddress: 'The Shard, London SE1 9SG',
-    dropoffAddress: 'Cambridge, UK',
+    dropoffAddress: 'Cambridge Station, Station Road, Cambridge CB1 2JW',
     passengerFirstName: 'Sophia',
     passengerLastName: 'Lefevre',
     execMobile: '+33612345678',

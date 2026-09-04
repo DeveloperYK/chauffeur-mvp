@@ -1,9 +1,13 @@
 import {
+  type AddressSuggestion,
   MIN_QUERY_LENGTH,
+  type PlaceDetailsSource,
   type RawPlacePrediction,
+  resolveSelectedAddress,
   shouldQueryPlaces,
   toAddressSuggestion,
   toAddressSuggestions,
+  withPostcode,
 } from '@/lib/places';
 import { describe, expect, it } from 'vitest';
 
@@ -107,5 +111,110 @@ describe('toAddressSuggestions', () => {
 
   it('returns an empty array for empty input', () => {
     expect(toAddressSuggestions([])).toEqual([]);
+  });
+});
+
+describe('withPostcode', () => {
+  // Happy paths.
+  it('appends the postcode when the prediction text lacks one', () => {
+    expect(
+      withPostcode('London St Pancras International, Euston Road, London, UK', 'N1C 4QP'),
+    ).toBe('London St Pancras International, Euston Road, London, N1C 4QP');
+  });
+
+  it('strips a trailing "United Kingdom" before appending', () => {
+    expect(withPostcode('The Connaught, Carlos Place, London, United Kingdom', 'W1K 2AL')).toBe(
+      'The Connaught, Carlos Place, London, W1K 2AL',
+    );
+  });
+
+  it('appends when there is no country suffix at all', () => {
+    expect(withPostcode('Heathrow Terminal 5', 'TW6 2GA')).toBe('Heathrow Terminal 5, TW6 2GA');
+  });
+
+  // Unhappy paths / no-ops.
+  it('leaves the text unchanged when the postcode is already present', () => {
+    expect(withPostcode('1 Embankment Place, WC2N 6RH, UK', 'WC2N 6RH')).toBe(
+      '1 Embankment Place, WC2N 6RH, UK',
+    );
+  });
+
+  it('detects an existing postcode regardless of case and spacing', () => {
+    expect(withPostcode('1 Embankment Place, wc2n6rh', 'WC2N 6RH')).toBe(
+      '1 Embankment Place, wc2n6rh',
+    );
+  });
+
+  it('returns the text unchanged when the postcode is missing or blank', () => {
+    expect(withPostcode('Somewhere, London, UK', null)).toBe('Somewhere, London, UK');
+    expect(withPostcode('Somewhere, London, UK', undefined)).toBe('Somewhere, London, UK');
+    expect(withPostcode('Somewhere, London, UK', '   ')).toBe('Somewhere, London, UK');
+  });
+});
+
+describe('resolveSelectedAddress', () => {
+  const base: AddressSuggestion = {
+    id: 'pid-1',
+    primary: 'London St Pancras International',
+    secondary: 'Euston Road, London, UK',
+    full: 'London St Pancras International, Euston Road, London, UK',
+  };
+
+  const fakePlace = (postalCode: string | null): PlaceDetailsSource => ({
+    fetchFields: async () => ({ place: { postalCode } }),
+  });
+
+  // Happy paths.
+  it('appends the postcode returned by Place Details', async () => {
+    const s = { ...base, toPlace: () => fakePlace('N1C 4QP') };
+    await expect(resolveSelectedAddress(s)).resolves.toBe(
+      'London St Pancras International, Euston Road, London, N1C 4QP',
+    );
+  });
+
+  it('requests only the postal code field', async () => {
+    let requested: string[] = [];
+    const s = {
+      ...base,
+      toPlace: (): PlaceDetailsSource => ({
+        fetchFields: async (req) => {
+          requested = req.fields;
+          return { place: { postalCode: 'N1C 4QP' } };
+        },
+      }),
+    };
+    await resolveSelectedAddress(s);
+    expect(requested).toEqual(['postalCode']);
+  });
+
+  it('keeps the text unchanged when the postcode is already in it', async () => {
+    const s = {
+      ...base,
+      full: '1 Embankment Place, WC2N 6RH, UK',
+      toPlace: () => fakePlace('WC2N 6RH'),
+    };
+    await expect(resolveSelectedAddress(s)).resolves.toBe('1 Embankment Place, WC2N 6RH, UK');
+  });
+
+  // Unhappy paths — never block the operator; fall back to the prediction text.
+  it('falls back to the prediction text when the suggestion cannot resolve a place', async () => {
+    await expect(resolveSelectedAddress(base)).resolves.toBe(base.full);
+  });
+
+  it('falls back when Place Details returns no postcode', async () => {
+    const s = { ...base, toPlace: () => fakePlace(null) };
+    await expect(resolveSelectedAddress(s)).resolves.toBe(base.full);
+  });
+
+  it('falls back when Place Details throws', async () => {
+    const s = {
+      ...base,
+      toPlace: (): PlaceDetailsSource => ({
+        fetchFields: async () => {
+          throw new Error('quota');
+        },
+      }),
+    };
+    await expect(resolveSelectedAddress(s)).resolves.toBe(base.full);
   });
 });

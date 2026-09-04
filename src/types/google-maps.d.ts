@@ -38,9 +38,26 @@ declare global {
   }
 
   namespace google.maps.places {
+    /** Groups keystroke predictions + the final details call into one billable session. */
+    class AutocompleteSessionToken {}
+
     interface FetchAutocompleteSuggestionsRequest {
       input: string;
       includedRegionCodes?: string[];
+      sessionToken?: AutocompleteSessionToken;
+    }
+
+    interface FetchFieldsRequest {
+      fields: string[];
+    }
+
+    /** Only the Place Details fields we read. */
+    interface PlaceFields {
+      postalCode?: string | null;
+    }
+
+    interface Place extends PlaceFields {
+      fetchFields(request: FetchFieldsRequest): Promise<{ place: PlaceFields }>;
     }
 
     interface PlacePrediction {
@@ -48,6 +65,8 @@ declare global {
       text?: { text?: string };
       mainText?: { text?: string };
       secondaryText?: { text?: string };
+      /** Builds a Place carrying this prediction's session token. */
+      toPlace?(): Place;
     }
 
     interface AutocompleteSuggestionResult {

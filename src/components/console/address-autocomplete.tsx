@@ -1,6 +1,13 @@
 'use client';
 
-import { type AddressSuggestion, fetchAddressSuggestions, shouldQueryPlaces } from '@/lib/places';
+import {
+  type AddressSuggestion,
+  type PlacesSessionToken,
+  createPlacesSessionToken,
+  fetchAddressSuggestions,
+  resolveSelectedAddress,
+  shouldQueryPlaces,
+} from '@/lib/places';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 interface AddressAutocompleteProps {
@@ -19,8 +26,10 @@ const BLUR_CLOSE_MS = 120;
  * Address field with Google Places (New) autocomplete. Renders an ordinary
  * controlled `<input>` (so it pre-fills cleanly when editing) plus a dropdown of
  * UK address suggestions. Manual typing is always preserved — selecting a
- * suggestion just fills the field. When Places is unavailable (no API key, SSR,
- * or a failed lookup) it behaves exactly like a plain text input.
+ * suggestion fills the field immediately with the prediction text, then swaps in
+ * the same text with the postcode appended once Place Details answers (drivers
+ * navigate by postcode). When Places is unavailable (no API key, SSR, or a
+ * failed lookup) it behaves exactly like a plain text input.
  */
 export function AddressAutocomplete({
   value,
@@ -35,6 +44,11 @@ export function AddressAutocomplete({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blurRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** One session spans the keystrokes up to a selection; renewed after each pick. */
+  const sessionRef = useRef<Promise<PlacesSessionToken> | null>(null);
+  /** Latest field value, so a late postcode never clobbers text typed after the pick. */
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const listboxId = useId();
 
   // Cancel any in-flight timers/requests on unmount.
@@ -62,7 +76,12 @@ export function AddressAutocomplete({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const results = await fetchAddressSuggestions(input, controller.signal);
+      sessionRef.current ??= createPlacesSessionToken();
+      const results = await fetchAddressSuggestions(
+        input,
+        controller.signal,
+        await sessionRef.current,
+      );
       if (controller.signal.aborted) return;
 
       setSuggestions(results);
@@ -81,6 +100,11 @@ export function AddressAutocomplete({
     setOpen(false);
     setSuggestions([]);
     setActiveIndex(-1);
+    // The details call closes this session; the next keystroke starts a fresh one.
+    sessionRef.current = null;
+    void resolveSelectedAddress(s).then((withPostcode) => {
+      if (valueRef.current === s.full) onChange(withPostcode);
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
