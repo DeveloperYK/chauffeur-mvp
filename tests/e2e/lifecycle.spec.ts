@@ -144,11 +144,17 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // Drive the driver-side accept by opening one driver's link.
   await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Accept job' }).click();
-  // Wait for the accept to land (driver sees the confirmation) before re-checking.
-  await expect(page.getByRole('heading', { name: 'Job accepted' })).toBeVisible();
-  // The confirmation hands the driver both ways back in: the persistent link
-  // and a prefilled Google Calendar event that links to it.
-  await expect(page.getByRole('link', { name: 'View job details' })).toBeVisible();
+  // Accepting lands the driver straight on their job view: a "Job accepted"
+  // banner that tells them this link can be reopened any time, above the
+  // full job details (no separate confirmation page to click through).
+  const acceptedBanner = page.getByRole('status');
+  await expect(acceptedBanner).toContainText('Job accepted');
+  await expect(acceptedBanner).toContainText(/reopen/i);
+  await expect(page.getByText('Your job', { exact: true })).toBeVisible();
+  await expect(page.getByText('CONFIRMED - YOUR JOB')).toBeVisible();
+  await expect(page.getByText('Pickup ·')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View job details' })).toHaveCount(0);
+  // The view hands the driver a prefilled calendar event that links back here.
   await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute(
     'href',
     /calendar\.google\.com\/calendar\/render\?action=TEMPLATE/,
@@ -173,6 +179,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.getByText('CONFIRMED - YOUR JOB')).toBeVisible();
   await expect(page.getByText('Pickup ·')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toBeVisible();
+  // The one-off "Job accepted" banner does not follow the driver on revisits.
+  await expect(page.getByRole('status')).toHaveCount(0);
 
   // New driver accepted → back to assigned.
   await gotoSimulator(page);
