@@ -47,14 +47,20 @@ export default async function DriverLinkPage({
   const search = await searchParams;
 
   if (search.status === 'accepted') {
-    // Load the job so the confirmation can hand the driver their two ways back
-    // in: this link, and a prefilled calendar event that links to it.
+    // Land the driver straight on their job view with a one-off "accepted"
+    // banner, so the details they need are in front of them immediately and
+    // they learn this same link brings them back here any time.
     const job = await previewDriverJob(token, {
       db: db(),
       secret: driverLinkSecret(),
       appUrl: appUrl(),
     });
-    const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
+    if (job.ok) {
+      const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
+      return (
+        <DriverJobView booking={job.booking} driver={job.driver} jobUrl={jobUrl} justAccepted />
+      );
+    }
     return (
       <Stage>
         <div className="ph-center">
@@ -67,25 +73,6 @@ export default async function DriverLinkPage({
             reopen it any time to see the job details.
           </p>
         </div>
-        {job.ok ? (
-          <>
-            <a href={jobUrl} className="btn btn--lg btn--block" style={{ marginTop: 12 }}>
-              View job details
-            </a>
-            <a
-              href={driverJobCalendarUrl(job.booking, jobUrl)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn--block"
-              style={{ marginTop: 6 }}
-            >
-              Add to Google Calendar
-            </a>
-            <a href={`${jobUrl}/calendar`} className="btn btn--block" style={{ marginTop: 6 }}>
-              Add to Apple Calendar
-            </a>
-          </>
-        ) : null}
       </Stage>
     );
   }
@@ -343,15 +330,30 @@ function DriverJobView({
   booking,
   driver,
   jobUrl,
+  justAccepted = false,
 }: {
   booking: JobBooking;
   driver: JobDriver;
   jobUrl: string;
+  /** Shown once, straight after the driver taps Accept. */
+  justAccepted?: boolean;
 }) {
   const passengerName = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
   const status = jobStatus(booking.state);
   return (
     <Stage>
+      {justAccepted ? (
+        <output className="ph-accepted">
+          <div className="ph-check">
+            <Icon.Check />
+          </div>
+          <strong>Job accepted</strong>
+          <p className="you">
+            The operator and the passenger have been notified. <strong>Keep this link</strong> — you
+            can reopen it any time to see these job details.
+          </p>
+        </output>
+      ) : null}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Avatar name={driver.name} id={driver.id} size={36} />
         <div>

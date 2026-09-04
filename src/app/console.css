@@ -2694,6 +2694,22 @@ a:hover {
   width: 28px;
   height: 28px;
 }
+.public-card .ph-accepted {
+  display: block;
+  text-align: center;
+  padding: 12px 12px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--r);
+  background: var(--lz-green-bg);
+}
+.public-card .ph-accepted > strong {
+  display: block;
+  font-size: 15px;
+  color: var(--lz-green-fg);
+}
+.public-card .ph-accepted .you {
+  margin: 4px 0 0;
+}
 .public-card .ph-error {
   margin: 12px 0 0;
   padding: 10px 12px;
