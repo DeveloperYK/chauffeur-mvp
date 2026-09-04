@@ -75,6 +75,7 @@ const driver: Driver = {
   carColour: 'Black',
   numberPlate: null,
   pcoNumber: '112233',
+  carPcoNumber: null,
   whatsappNumber: '+447911000001',
   active: true,
   createdAt: new Date(),

@@ -80,6 +80,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       carColour: 'Black',
       numberPlate: null,
       pcoNumber: '112233',
+      carPcoNumber: null,
       whatsappNumber: '+447911000001',
       active: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),

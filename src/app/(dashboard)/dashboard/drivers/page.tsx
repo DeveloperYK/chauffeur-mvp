@@ -227,7 +227,12 @@ function DriverRoster({
           <div className="dt-row dt-row--load" key={d.id}>
             <span className="name">
               <Avatar name={d.name} id={d.id} size={26} />
-              <span>{d.name}</span>
+              <span>
+                {d.name}
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)' }}>
+                  {d.pcoNumber ? `Driver PCO ${d.pcoNumber}` : 'No driver PCO on file'}
+                </span>
+              </span>
             </span>
             <span>
               <span className={`vc-tag ${d.vehicleClass}`}>
@@ -237,7 +242,7 @@ function DriverRoster({
             <span className="car" title={carDescription(d.car, d.carColour)}>
               {carLabel(d.car)}
               <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)' }}>
-                {d.pcoNumber ? `PCO ${d.pcoNumber}` : 'No PCO on file'}
+                {d.carPcoNumber ? `Vehicle PCO ${d.carPcoNumber}` : 'No vehicle PCO on file'}
               </span>
             </span>
             <span className="ws">{d.whatsappNumber}</span>
