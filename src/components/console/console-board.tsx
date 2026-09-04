@@ -47,6 +47,8 @@ interface ConsoleBoardProps {
   initialNewOpen?: boolean;
   /** Open the detail panel for this booking on mount (deep link, e.g. ?booking=<id>). */
   initialSelectedId?: string | null;
+  /** Show the test-only "Generate sample" button on the new-booking modal. Never in real production. */
+  showSampleGenerator?: boolean;
 }
 
 export function ConsoleBoard({
@@ -60,6 +62,7 @@ export function ConsoleBoard({
   isPast,
   initialNewOpen = false,
   initialSelectedId = null,
+  showSampleGenerator = false,
 }: ConsoleBoardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -378,6 +381,7 @@ export function ConsoleBoard({
         meName={me.name}
         onClose={() => setNewOpen(false)}
         onCreated={handleCreated}
+        showSampleGenerator={showSampleGenerator}
       />
 
       <div className="toast-stack">

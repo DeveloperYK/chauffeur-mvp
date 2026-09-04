@@ -22,3 +22,19 @@ export function isSimulatorEnabled(
 export function simulatorEnabled(): boolean {
   return isSimulatorEnabled(env());
 }
+
+/**
+ * The "Generate" button on the new-booking modal fills the form with made-up
+ * sample passengers, addresses and prices. It exists purely for testing, so it
+ * follows the simulator's rule and can never appear in real production.
+ */
+export function isSampleGeneratorEnabled(
+  e: Pick<Env, 'NODE_ENV' | 'SIMULATOR_ENABLED' | 'AUTH_DISABLED'>,
+): boolean {
+  return isSimulatorEnabled(e);
+}
+
+/** Runtime check using the validated environment. */
+export function sampleGeneratorEnabled(): boolean {
+  return isSampleGeneratorEnabled(env());
+}

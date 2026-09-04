@@ -16,6 +16,7 @@ import { currentSession } from '@/server/auth/current';
 import { type Database, getDb } from '@/server/db';
 import type { Booking } from '@/server/db/schema';
 import { waitingFee } from '@/server/domain/waiting-fee';
+import { sampleGeneratorEnabled } from '@/server/feature-flags';
 import {
   type DayCounts,
   driverDispatchData,
@@ -423,6 +424,7 @@ export default async function DashboardHome({
         isPast={isPast}
         initialNewOpen={params.new === '1'}
         initialSelectedId={params.booking ?? null}
+        showSampleGenerator={sampleGeneratorEnabled()}
       />
     </>
   );

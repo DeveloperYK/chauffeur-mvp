@@ -175,6 +175,18 @@ export async function resetAllData(db: Database): Promise<void> {
  *   - in_progress → awaiting_driver_form (set pickup to now - duration)
  *   - 24h no-accept flag (set created_at to 25 hours ago)
  */
+/**
+ * Real bookings are entered through a minute-precision picker, so pickup_at
+ * never carries seconds. The simulator must match: the completion form works
+ * in whole minutes and derives waiting time from the pickup, so stray seconds
+ * make that derivation round down unpredictably.
+ */
+function wholeMinute(d: Date): Date {
+  const copy = new Date(d.getTime());
+  copy.setSeconds(0, 0);
+  return copy;
+}
+
 export async function fastForwardBooking(
   db: Database,
   bookingId: string,
@@ -183,7 +195,7 @@ export async function fastForwardBooking(
   const now = new Date();
 
   if (scenario === 'about_to_start') {
-    const pickup = new Date(now.getTime() + 30 * 60 * 1000); // 30 min in future
+    const pickup = wholeMinute(new Date(now.getTime() + 30 * 60 * 1000)); // 30 min in future
     await db
       .update(bookings)
       .set({ pickupAt: pickup, updatedAt: now })
@@ -195,7 +207,7 @@ export async function fastForwardBooking(
     const [b] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
     if (!b) return;
     // pickup 2h ago and duration matches → expected_end is in the past
-    const pickup = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const pickup = wholeMinute(new Date(now.getTime() - 2 * 60 * 60 * 1000));
     await db
       .update(bookings)
       .set({ pickupAt: pickup, updatedAt: now })
