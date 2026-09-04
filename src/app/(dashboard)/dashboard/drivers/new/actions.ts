@@ -25,6 +25,7 @@ export async function newDriverAction(formData: FormData): Promise<void> {
       carColour: String(formData.get('carColour') ?? ''),
       numberPlate: String(formData.get('numberPlate') ?? '').trim() || null,
       pcoNumber: String(formData.get('pcoNumber') ?? ''),
+      carPcoNumber: String(formData.get('carPcoNumber') ?? '').trim() || null,
       whatsappNumber: String(formData.get('whatsappNumber') ?? ''),
     },
     { db, operatorId: session.operator.id },

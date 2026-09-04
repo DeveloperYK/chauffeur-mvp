@@ -16,6 +16,9 @@ export const createDriverSchema = z
     // PCO licence number, shown to the exec in the email. Required on every
     // create/edit (the DB column stays nullable for pre-existing rows).
     pcoNumber: z.string().trim().min(1).max(20),
+    // The vehicle's PCO licence number — compliance-only, never exposed
+    // outside the operator console. Optional: legacy rows predate the field.
+    carPcoNumber: z.string().trim().max(20).optional().nullable(),
     whatsappNumber: phoneSchema,
   })
   .strict();
@@ -46,12 +49,16 @@ export async function createDriver(
   }
 
   try {
-    // Normalise the optional plate to null (not undefined) for the insert —
+    // Normalise the optional fields to null (not undefined) for the insert —
     // exactOptionalPropertyTypes forbids `undefined` in Drizzle's values type.
-    const { numberPlate, ...rest } = parsed.data;
+    const { numberPlate, carPcoNumber, ...rest } = parsed.data;
     const [inserted] = await deps.db
       .insert(drivers)
-      .values({ ...rest, numberPlate: numberPlate ?? null })
+      .values({
+        ...rest,
+        numberPlate: numberPlate ?? null,
+        carPcoNumber: carPcoNumber?.trim() || null,
+      })
       .returning();
     if (!inserted) throw new Error('insert returned no row');
     await recordAuditEvent(deps.db, {
@@ -68,6 +75,7 @@ export async function createDriver(
         carColour: inserted.carColour,
         numberPlate: inserted.numberPlate,
         pcoNumber: inserted.pcoNumber,
+        carPcoNumber: inserted.carPcoNumber,
       },
     });
     return { ok: true, driver: inserted };
@@ -105,6 +113,8 @@ export async function updateDriver(
   for (const [k, v] of Object.entries(parsed.data)) {
     if (v !== undefined) patch[k] = v;
   }
+  // A cleared car PCO comes through as an empty string — store null instead.
+  if (typeof patch.carPcoNumber === 'string') patch.carPcoNumber = patch.carPcoNumber || null;
 
   try {
     const [updated] = await deps.db
@@ -127,6 +137,7 @@ export async function updateDriver(
         carColour: existing.carColour,
         numberPlate: existing.numberPlate,
         pcoNumber: existing.pcoNumber,
+        carPcoNumber: existing.carPcoNumber,
         active: existing.active,
       },
       after: {
@@ -136,6 +147,7 @@ export async function updateDriver(
         carColour: updated.carColour,
         numberPlate: updated.numberPlate,
         pcoNumber: updated.pcoNumber,
+        carPcoNumber: updated.carPcoNumber,
         active: updated.active,
       },
     });

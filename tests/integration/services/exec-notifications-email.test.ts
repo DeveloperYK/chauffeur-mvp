@@ -118,7 +118,23 @@ describe('services/exec-notifications email channel (integration)', () => {
     const sent = emailer.sent[0];
     expect(sent?.text).toContain(driver.pcoNumber ?? '');
     expect(sent?.text).toContain(driver.whatsappNumber);
-    expect(sent?.html).toContain('PCO number');
+    expect(sent?.html).toContain('Driver PCO');
+  });
+
+  it('never exposes the internal car PCO number to the exec', async () => {
+    // The seeded driver has a car PCO on file — it is compliance-only data and
+    // must not leak into the exec-facing email in any form.
+    expect(driver.carPcoNumber).toBeTruthy();
+    const booking = await seedAssigned('exec@example.com');
+    const ctx = await buildExecContextForBooking(db, booking, 'assigned');
+    expect(ctx).not.toBeNull();
+    if (!ctx) return;
+
+    await sendExecNotification(emailDeps(), ctx);
+    const sent = emailer.sent[0];
+    expect(sent?.html).not.toContain(driver.carPcoNumber ?? '');
+    expect(sent?.text).not.toContain(driver.carPcoNumber ?? '');
+    expect(sent?.html).not.toContain('Vehicle PCO');
   });
 
   it('records a failed row + failed booking when the provider rejects', async () => {

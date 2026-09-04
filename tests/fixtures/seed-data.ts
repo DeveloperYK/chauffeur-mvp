@@ -71,6 +71,7 @@ export interface DriverOverrides {
   car?: string;
   carColour?: string;
   pcoNumber?: string | null;
+  carPcoNumber?: string | null;
   whatsappNumber?: string;
   active?: boolean;
 }
@@ -82,6 +83,7 @@ export const DriverFactory = {
     car: 'Mercedes S-Class',
     carColour: 'Black',
     pcoNumber: '112233',
+    carPcoNumber: 'CAR445511',
     whatsappNumber: '+447911000001',
     active: true,
     ...overrides,

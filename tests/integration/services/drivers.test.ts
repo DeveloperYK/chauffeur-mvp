@@ -111,6 +111,43 @@ describe('services/drivers (integration)', () => {
     expect(result.driver.numberPlate).toBeNull();
   });
 
+  it('persists the optional car PCO number and records it in the audit trail', async () => {
+    const result = await createDriver(valid({ carPcoNumber: 'CAR88121' }), { db, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.driver.carPcoNumber).toBe('CAR88121');
+
+    const events = await db.select().from(auditEvents);
+    expect((events[0]?.after as Record<string, unknown>)?.carPcoNumber).toBe('CAR88121');
+  });
+
+  it('leaves the car PCO number null when omitted', async () => {
+    const result = await createDriver(valid(), { db, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.driver.carPcoNumber).toBeNull();
+  });
+
+  it('updates the car PCO number and records before/after in the audit trail', async () => {
+    const created = await createDriver(valid({ carPcoNumber: 'CAR11111' }), { db, operatorId });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const updated = await updateDriver(
+      created.driver.id,
+      { carPcoNumber: 'CAR22222' },
+      { db, operatorId },
+    );
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.driver.carPcoNumber).toBe('CAR22222');
+
+    const events = await db.select().from(auditEvents);
+    const update = events.find((e) => e.action === 'update');
+    expect((update?.before as Record<string, unknown>)?.carPcoNumber).toBe('CAR11111');
+    expect((update?.after as Record<string, unknown>)?.carPcoNumber).toBe('CAR22222');
+  });
+
   it('rejects invalid vehicle class', async () => {
     const result = await createDriver(valid({ vehicleClass: 'platinum' }), { db, operatorId });
     expect(result.ok).toBe(false);
