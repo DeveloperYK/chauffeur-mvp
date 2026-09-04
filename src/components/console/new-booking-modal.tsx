@@ -4,12 +4,14 @@ import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
 import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { PHONE_HINT } from '@/lib/phone';
+import { hasPostcode, isValidUkPostcode, withPostcode } from '@/lib/postcode';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { Icon } from './icons';
+import { POSTCODE_INVALID_MESSAGE, PostcodeField } from './postcode-field';
 
 /** "YYYY-MM" of a datetime-local value, or null when not yet a full date. */
 function monthOf(pickupAt: string): string | null {
@@ -34,6 +36,9 @@ interface NewForm {
   distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
+  /** Typed by the operator only when the address itself has no postcode. */
+  pickupPostcode: string;
+  dropoffPostcode: string;
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
@@ -61,6 +66,8 @@ const EMPTY: NewForm = {
   distanceMeters: null,
   pickupAddress: '',
   dropoffAddress: '',
+  pickupPostcode: '',
+  dropoffPostcode: '',
   passengerFirstName: '',
   passengerLastName: '',
   execMobile: '',
@@ -81,6 +88,8 @@ const SAMPLES: Array<
     | 'distanceMeters'
     | 'travelMode'
     | 'travelRef'
+    | 'pickupPostcode'
+    | 'dropoffPostcode'
   > & {
     durationMin: number;
   }
@@ -269,18 +278,40 @@ export function NewBookingModal({
     setError(null);
     setFieldErrors({});
   };
+  const needsPickupPostcode =
+    form.pickupAddress.trim().length > 0 && !hasPostcode(form.pickupAddress);
+  const needsDropoffPostcode =
+    form.serviceType === 'transfer' &&
+    form.dropoffAddress.trim().length > 0 &&
+    !hasPostcode(form.dropoffAddress);
 
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     setError(null);
     setFieldErrors({});
+    // A manual postcode is mandatory whenever the address lacks one.
+    const postcodeErrors = {
+      ...(needsPickupPostcode && !isValidUkPostcode(form.pickupPostcode)
+        ? { pickupPostcode: POSTCODE_INVALID_MESSAGE }
+        : {}),
+      ...(needsDropoffPostcode && !isValidUkPostcode(form.dropoffPostcode)
+        ? { dropoffPostcode: POSTCODE_INVALID_MESSAGE }
+        : {}),
+    };
+    if (Object.keys(postcodeErrors).length > 0) {
+      setError('Please fix the highlighted fields.');
+      setFieldErrors(postcodeErrors);
+      return;
+    }
+    const pickupAddress = withPostcode(form.pickupAddress, form.pickupPostcode);
+    const dropoffAddress = withPostcode(form.dropoffAddress, form.dropoffPostcode);
     const fd = new FormData();
     fd.set('serviceType', form.serviceType);
     fd.set('pickupAt', form.pickupAt);
     fd.set('expectedDurationMinutes', String(form.expectedDurationMinutes));
-    fd.set('pickupAddress', form.pickupAddress);
+    fd.set('pickupAddress', pickupAddress);
     // Hourly hire has no destination; the server stores null.
-    fd.set('dropoffAddress', form.serviceType === 'transfer' ? form.dropoffAddress : '');
+    fd.set('dropoffAddress', form.serviceType === 'transfer' ? dropoffAddress : '');
     if (form.serviceType === 'transfer' && form.distanceMeters != null) {
       fd.set('distanceMeters', String(form.distanceMeters));
     }
@@ -396,6 +427,14 @@ export function NewBookingModal({
                 ) : null}
               </div>
             </div>
+            {needsPickupPostcode ? (
+              <PostcodeField
+                value={form.pickupPostcode}
+                onChange={(v) => set('pickupPostcode', v)}
+                ariaLabel="Pickup postcode"
+                error={fieldErrors.pickupPostcode}
+              />
+            ) : null}
 
             {form.serviceType === 'transfer' ? (
               <>
@@ -425,6 +464,14 @@ export function NewBookingModal({
                     ) : null}
                   </div>
                 </div>
+                {needsDropoffPostcode ? (
+                  <PostcodeField
+                    value={form.dropoffPostcode}
+                    onChange={(v) => set('dropoffPostcode', v)}
+                    ariaLabel="Dropoff postcode"
+                    error={fieldErrors.dropoffPostcode}
+                  />
+                ) : null}
                 <div className="field">
                   {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
                   <label>Duration (min)</label>

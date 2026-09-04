@@ -19,6 +19,10 @@
  * at or below the old per-keystroke pricing.
  */
 
+import { withPostcode } from './postcode';
+
+export { withPostcode };
+
 export interface AddressSuggestion {
   /** Google `placeId` — stable React key for the option. */
   id: string;
@@ -73,23 +77,6 @@ export function toAddressSuggestion(p: RawPlacePrediction): AddressSuggestion {
   const base = { id: p.placeId ?? full, primary, secondary, full };
   // `toPlace` must be invoked as a method on the prediction — bind it.
   return p.toPlace ? { ...base, toPlace: () => p.toPlace?.() as PlaceDetailsSource } : base;
-}
-
-/** Trailing country suffixes Google appends to every GB prediction — pure noise here. */
-const COUNTRY_SUFFIX = /,\s*(uk|united kingdom)\s*$/i;
-
-const normalisePostcode = (value: string): string => value.replace(/\s+/g, '').toUpperCase();
-
-/**
- * Append `postcode` to a prediction's text unless it is already present (any
- * case/spacing). The country suffix is dropped in favour of the postcode. With
- * no postcode the text is returned untouched.
- */
-export function withPostcode(full: string, postcode: string | null | undefined): string {
-  const pc = postcode?.trim() ?? '';
-  if (pc.length === 0) return full;
-  if (normalisePostcode(full).includes(normalisePostcode(pc))) return full;
-  return `${full.replace(COUNTRY_SUFFIX, '')}, ${pc.toUpperCase()}`;
 }
 
 /**

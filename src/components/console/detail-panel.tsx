@@ -21,6 +21,7 @@ import {
 import { bookingRef } from '@/lib/booking-ref';
 import { formatMiles } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { hasPostcode } from '@/lib/postcode';
 import { travelRefLabel } from '@/lib/travel-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
@@ -705,10 +706,16 @@ export function DetailPanel({
                   <div className="route__cell">
                     <div className="route__lbl">Pickup</div>
                     <div className="route__addr">{booking.pickupAddress}</div>
+                    {hasPostcode(booking.pickupAddress) ? null : (
+                      <span className="route__nopc">No postcode — edit to add</span>
+                    )}
                   </div>
                   <div className="route__cell">
                     <div className="route__lbl">Drop-off</div>
                     <div className="route__addr">{booking.dropoffAddress}</div>
+                    {!booking.dropoffAddress || hasPostcode(booking.dropoffAddress) ? null : (
+                      <span className="route__nopc">No postcode — edit to add</span>
+                    )}
                   </div>
                 </div>
               </div>

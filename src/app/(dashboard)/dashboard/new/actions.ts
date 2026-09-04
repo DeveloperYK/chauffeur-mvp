@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { fieldErrorsFromIssues } from '@/lib/form-errors';
 import { logger } from '@/lib/logger';
 import { parsePoundsFieldToPence } from '@/lib/money';
+import { addressPostcodeErrors } from '@/lib/postcode';
 import { currentSession } from '@/server/auth/current';
 import { spreadsheetMirror } from '@/server/composition';
 import { getDb } from '@/server/db';
@@ -70,6 +71,13 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     assignedDriverId: assignedDriverId ? String(assignedDriverId) : null,
     markAsAccepted,
   };
+
+  // Every address must carry a postcode (drivers navigate by it). Checked here,
+  // at the operator-form boundary, so simulator/seed data is unaffected.
+  const postcodeErrors = addressPostcodeErrors(raw);
+  if (Object.keys(postcodeErrors).length > 0) {
+    return { error: 'Please fix the highlighted fields.', fieldErrors: postcodeErrors };
+  }
 
   const { db } = getDb(url);
   const result = await createBooking(raw, {

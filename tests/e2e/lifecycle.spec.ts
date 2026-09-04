@@ -427,6 +427,11 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(editModal).toBeVisible();
   // Duration is a driver-facing field, so editing it is a material change.
   await editModal.locator('.field', { hasText: 'Duration (min)' }).locator('input').fill('200');
+  // LEGO's seeded destination has no postcode (a pre-postcode-rule booking), so
+  // the edit form insists on one before it will save.
+  await editModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(editModal.locator('.err').first()).toContainText('valid UK postcode');
+  await editModal.locator('input[aria-label="Dropoff postcode"]').fill('TW6 2GA');
   await editModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
@@ -466,9 +471,13 @@ test('mid-flight change: driver confirms via the change link, exec is emailed th
 
   // ── Console: an exec-facing edit (pickup time) with an exec email on file ──
   await openBookingPanel(page, LEGO);
+  // The panel flags the seeded destination that has no postcode.
+  await expect(page.locator('.panel.is-open .route__nopc')).toHaveCount(1);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
   const editModal = page.locator('.modal.is-open');
   await expect(editModal).toBeVisible();
+  // The mandatory postcode field is already showing for the postcode-less destination.
+  await editModal.locator('input[aria-label="Dropoff postcode"]').fill('tw6 2ga');
   const pickupInput = editModal.locator('.field', { hasText: 'Pickup time' }).locator('input');
   const current = await pickupInput.inputValue(); // "YYYY-MM-DDTHH:MM"
   const shifted = new Date(`${current}:00`);
@@ -487,6 +496,9 @@ test('mid-flight change: driver confirms via the change link, exec is emailed th
   // ── Operator sends the change-confirm link to the driver ──
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
+  // The manual postcode was normalised and appended; the flag is gone.
+  await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('TW6 2GA');
+  await expect(page.locator('.panel.is-open .route__nopc')).toHaveCount(0);
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Send change link/i })
@@ -596,8 +608,12 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(passengerInput).toHaveValue('');
   await expect(modal.locator('input[aria-label="Customer account"]')).toHaveValue('');
 
+  // Addresses typed without a postcode surface a mandatory Postcode field each;
+  // the form refuses to submit until both are filled with a valid UK postcode.
   await modal.locator('input[aria-label="Pickup address"]').fill('1 Test Street, London');
   await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London');
+  await expect(modal.locator('input[aria-label="Pickup postcode"]')).toBeVisible();
+  await expect(modal.locator('input[aria-label="Dropoff postcode"]')).toBeVisible();
   await modal
     .locator('.field', { hasText: 'Passenger' })
     .locator('input')
@@ -613,10 +629,21 @@ test('optional pricing: a booking created without a price is flagged until one i
   // Capture the subcontractor quote; the contract price is deliberately left blank.
   await modal.locator('.field', { hasText: 'Subcontractor price' }).locator('input').fill('90');
   await modal.getByRole('button', { name: 'Create booking' }).click();
+  await expect(modal.locator('.err').first()).toContainText('valid UK postcode');
+  await modal.locator('input[aria-label="Pickup postcode"]').fill('sw1a 1aa');
+  await modal.locator('input[aria-label="Dropoff postcode"]').fill('W1K 2AL');
+  // An address that already carries a postcode needs no manual field.
+  await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London W1K 2AL');
+  await expect(modal.locator('input[aria-label="Dropoff postcode"]')).toHaveCount(0);
+  await modal.getByRole('button', { name: 'Create booking' }).click();
   await expect(page.locator('.modal.is-open')).toHaveCount(0);
 
   // ── The board flags the unpriced booking, the panel spells it out ──
   await openBookingPanel(page, 'Priceless');
+  // Both ends show their postcode (the manual one was normalised on save).
+  await expect(page.locator('.panel.is-open .route__addr').first()).toContainText('SW1A 1AA');
+  await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('W1K 2AL');
+  await expect(page.locator('.panel.is-open .route__nopc')).toHaveCount(0);
   await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
