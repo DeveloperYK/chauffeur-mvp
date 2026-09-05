@@ -25,7 +25,6 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
-import { sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
 
 export interface BackfillDeps {
@@ -125,18 +124,8 @@ export async function handToBackfill(
     },
   });
 
-  // Confirm the exec — same message as a normal accept, naming the backfill
-  // driver and the car they're bringing. Recorded so a failed send isn't silent.
-  await sendExecNotification(
-    { db: deps.db, notifications: deps.notifications, email: deps.email },
-    {
-      booking: updated,
-      kind: 'assigned',
-      driverName: name,
-      car,
-      driverPhone: updated.backfillDriverPhone,
-    },
-  );
+  // The exec is NOT emailed automatically — the operator sends the
+  // confirmation emails from the console.
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 

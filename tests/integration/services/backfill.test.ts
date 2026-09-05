@@ -88,13 +88,10 @@ describe('services/backfill (integration)', () => {
       expect(b?.backfillDriverPhone).toBe('+447911123456');
     });
 
-    it('sends the exec the assignment SMS naming the backfill driver and car', async () => {
+    it('does not message the exec — the operator sends the emails manually', async () => {
       const id = await seedUnassigned();
       await handToBackfill(id, validInput, operatorId, deps());
-      expect(notifications.sent.length).toBe(1);
-      expect(notifications.sent[0]?.to).toBe('+447911999999');
-      expect(notifications.sent[0]?.body).toContain('Dave Smith');
-      expect(notifications.sent[0]?.body).toContain('BMW 5 Series');
+      expect(notifications.sent.length).toBe(0);
     });
 
     it('mirrors the booking with the backfill name in the Driver Name column', async () => {

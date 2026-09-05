@@ -155,12 +155,10 @@ describe('services/dispatch (integration)', () => {
     expect(r.booking.state).toBe('assigned');
     expect(r.booking.assignedDriverId).toBe(driverId);
 
-    // SMS: only the exec confirmation on accept (dispatch link is not auto-texted).
-    // The confirmation names the driver and their car + colour for identification.
-    expect(notifications.sent.length).toBe(1);
-    expect(notifications.sent[0]?.to).toBe('+447911999999');
-    expect(notifications.sent[0]?.body).toContain('Tom');
-    expect(notifications.sent[0]?.body).toContain('Black Mercedes S-Class');
+    // No automatic messages at all on accept: the dispatch link is not
+    // auto-texted and the exec confirmation is now sent manually by the
+    // operator from the console.
+    expect(notifications.sent.length).toBe(0);
 
     // jti consumed
     expect((await db.select().from(consumedTokens)).length).toBe(1);
@@ -340,9 +338,9 @@ describe('services/dispatch (integration)', () => {
       expect(acc.booking.state).toBe('assigned');
       expect(acc.booking.assignedDriverId).toBe(secondDriverId);
 
-      // Exec gets the standard confirmation with the new driver on accept.
-      const toExec = notifications.sent.find((m) => m.to === '+447911999999');
-      expect(toExec?.body).toContain('Marcus');
+      // The exec is NOT auto-messaged on the new accept — the operator sends
+      // the emails manually from the console.
+      expect(notifications.sent.find((m) => m.to === '+447911999999')).toBeUndefined();
 
       // Audit shows a normal accept for the new driver (not a bespoke swap).
       const events = await db.select().from(auditEvents);

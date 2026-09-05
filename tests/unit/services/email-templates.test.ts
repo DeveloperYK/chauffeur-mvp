@@ -1,5 +1,10 @@
 import type { Booking } from '@/server/db/schema';
-import { assignedEmail, changeExecEmail, enRouteEmail } from '@/server/services/email-templates';
+import {
+  assignedEmail,
+  changeExecEmail,
+  driverDetailsEmail,
+  renderCustomExecEmail,
+} from '@/server/services/email-templates';
 import { describe, expect, it } from 'vitest';
 
 function booking(overrides: Partial<Booking> = {}): Booking {
@@ -46,13 +51,13 @@ describe('services/email-templates', () => {
     expect(confirmed.html).toContain('AB12 CDE');
     expect(confirmed.text).toContain('AB12 CDE');
 
-    const enRoute = enRouteEmail(
+    const details = driverDetailsEmail(
       booking(),
       { name: 'Marcus Bell' },
       'Black Mercedes S-Class',
       'AB12 CDE',
     );
-    expect(enRoute.text).toContain('AB12 CDE');
+    expect(details.text).toContain('AB12 CDE');
   });
 
   it('omits the number-plate row when the driver has none', () => {
@@ -61,12 +66,60 @@ describe('services/email-templates', () => {
     expect(e.text).not.toContain('Number plate');
   });
 
-  it('enRouteEmail renders a branded en-route message with the pickup time', () => {
-    const e = enRouteEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
-    expect(e.subject.toLowerCase()).toContain('on the way');
-    expect(e.html).toContain('Your driver is on the way');
+  it('driverDetailsEmail renders a branded driver-details message', () => {
+    const e = driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    expect(e.subject.toLowerCase()).toContain('driver details');
+    expect(e.html).toContain('Your driver details');
     expect(e.text).toContain('Marcus Bell');
     expect(e.html).toContain('14:00');
+  });
+
+  it('assignedEmail without a driver omits every driver and vehicle row', () => {
+    const e = assignedEmail(booking(), null, 'Black Mercedes S-Class', 'AB12 CDE');
+    expect(e.subject.toLowerCase()).toContain('confirmed');
+    for (const absent of ['Driver', 'Vehicle', 'Number plate', 'AB12 CDE']) {
+      expect(e.text).not.toContain(absent);
+    }
+    expect(e.text).toContain('Eric French');
+    expect(e.text).toContain('Heathrow Terminal 5');
+  });
+
+  it('never says the driver will be in touch (client asked for it removed)', () => {
+    for (const e of [
+      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      assignedEmail(booking(), null, ''),
+      driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+    ]) {
+      expect(e.text.toLowerCase()).not.toContain('in touch');
+      expect(e.html.toLowerCase()).not.toContain('in touch');
+    }
+  });
+
+  it('exposes an editable draft body without the brand header or footer', () => {
+    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    expect(e.draft).toContain('Marcus Bell');
+    expect(e.draft).toContain('Heathrow Terminal 5');
+    expect(e.draft).not.toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(e.draft).not.toContain('intended only for the named recipients');
+  });
+
+  it('renderCustomExecEmail wraps operator-edited text in the branded shell', () => {
+    const e = renderCustomExecEmail('Custom subject', 'Hello Eric,\n\nSee you at 2pm.');
+    expect(e.subject).toBe('Custom subject');
+    expect(e.html).toContain('<!doctype html>');
+    expect(e.html).toContain('Hello Eric,');
+    expect(e.html).toContain('See you at 2pm.');
+    // Branding + signature are appended automatically.
+    expect(e.html).toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(e.text).toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(e.text).toContain('See you at 2pm.');
+  });
+
+  it('renderCustomExecEmail HTML-escapes the operator-edited body', () => {
+    const e = renderCustomExecEmail('S', '<script>alert(1)</script> hello');
+    expect(e.html).not.toContain('<script>alert(1)</script>');
+    expect(e.html).toContain('&lt;script&gt;');
+    expect(e.text).toContain('<script>alert(1)</script> hello');
   });
 
   it('shows "As directed" for an hourly hire instead of a destination', () => {
@@ -106,10 +159,10 @@ describe('services/email-templates', () => {
     expect(confirmed.text).toContain('15472');
     expect(confirmed.text).toContain('+447852188558');
 
-    const enRoute = enRouteEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
-    expect(enRoute.html).toContain('Driver PCO');
-    expect(enRoute.html).toContain('15472');
-    expect(enRoute.text).toContain('+447852188558');
+    const details = driverDetailsEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
+    expect(details.html).toContain('Driver PCO');
+    expect(details.html).toContain('15472');
+    expect(details.text).toContain('+447852188558');
   });
 
   it('omits the PCO and contact rows when the driver has neither (legacy driver)', () => {
@@ -122,8 +175,9 @@ describe('services/email-templates', () => {
   it('includes the company signature and confidentiality notice in every email footer', () => {
     const emails = [
       assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
-      enRouteEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
       changeExecEmail(booking()),
+      renderCustomExecEmail('S', 'body'),
     ];
     for (const e of emails) {
       for (const part of [

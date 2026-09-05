@@ -27,6 +27,7 @@ import {
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
+import { type ExecEmailSends, execEmailSendMap } from '@/server/services/exec-notifications';
 import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
@@ -55,6 +56,7 @@ const UNASSIGNED = 'unassigned';
 function toConsoleBooking(
   b: Booking,
   openOffers: { driverId: string; driverName: string }[] = [],
+  emailSends?: Map<string, ExecEmailSends>,
 ): ConsoleBooking {
   return {
     id: b.id,
@@ -73,6 +75,8 @@ function toConsoleBooking(
     execMobile: b.execMobile,
     execEmail: b.execEmail,
     bookedByName: b.bookedByName,
+    confirmationEmailSentAt: emailSends?.get(b.id)?.confirmationSentAt?.toISOString() ?? null,
+    driverDetailsEmailSentAt: emailSends?.get(b.id)?.driverDetailsSentAt?.toISOString() ?? null,
     bookedByPhone: b.bookedByPhone,
     bookedByEmail: b.bookedByEmail,
     clientName: b.clientName,
@@ -267,9 +271,16 @@ export default async function DashboardHome({
   const unassignedIds = filtered.filter((b) => b.state === 'unassigned').map((b) => b.id);
   const offersByBooking = await openOffersForBookings(db, unassignedIds);
 
+  // Which of the two operator emails each booking has had — drives the
+  // "email not sent" flags on cards and in the panel.
+  const emailSends = await execEmailSendMap(
+    db,
+    filtered.map((b) => b.id),
+  );
+
   // Serialize for the client console shell.
   const consoleBookings: ConsoleBooking[] = filtered.map((b) =>
-    toConsoleBooking(b, offersByBooking.get(b.id) ?? []),
+    toConsoleBooking(b, offersByBooking.get(b.id) ?? [], emailSends),
   );
   const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
     id: d.id,

@@ -57,6 +57,13 @@ export interface RenderedEmail {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Operator-editable body: the message content (intro, details, closing)
+   * WITHOUT the brand header, signature or confidentiality notice — those are
+   * re-applied automatically when the edited draft is sent (see
+   * renderCustomExecEmail). Pre-fills the console's send-email form.
+   */
+  draft: string;
 }
 
 interface Layout {
@@ -90,6 +97,12 @@ function destination(b: Booking): string {
   if (b.serviceType === 'hourly')
     return `As directed — ${formatHireDuration(b.expectedDurationMinutes)}`;
   return b.dropoffAddress ?? 'As directed';
+}
+
+/** The editable draft body for a layout: content only, no brand or footer. */
+function renderDraft({ intro, rows, closing }: Layout): string {
+  const lines = rows.map((r) => `${r.label}: ${r.value}`);
+  return [intro, '', ...lines, '', closing].join('\n');
 }
 
 function renderText({ heading, intro, rows, closing }: Layout): string {
@@ -146,10 +159,14 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
   ].join('');
 }
 
-/** Exec — booking confirmed once a driver accepts. */
+/**
+ * Exec — booking confirmation, sent by the operator from the console. Works
+ * with or without a driver: before one is assigned the email simply carries no
+ * driver or vehicle rows.
+ */
 export function assignedEmail(
   booking: Booking,
-  driver: NamedDriver,
+  driver: NamedDriver | null,
   car: string,
   plate?: string | null,
 ): RenderedEmail {
@@ -157,39 +174,45 @@ export function assignedEmail(
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
     heading: 'Booking confirmed',
-    intro: 'Your chauffeur is booked and confirmed. The details are below.',
+    intro: driver
+      ? 'Your chauffeur is booked and confirmed. The details are below.'
+      : 'Your booking is confirmed. The details are below.',
     rows: [
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Date & time', value: when },
-      ...driverRows(driver),
-      ...(car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
-      ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
+      ...(driver ? driverRows(driver) : []),
+      ...(driver && car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
+      ...(driver && plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup', value: booking.pickupAddress },
       { label: 'Destination', value: destination(booking) },
     ],
-    closing:
-      'Your driver will be in touch on arrival. To make any changes, please contact our team.',
+    closing: 'To make any changes, please contact our team.',
   };
   return {
-    subject: `Chauffeur confirmed — ${ref} · ${when}`,
+    subject: `Booking confirmed — ${ref} · ${when}`,
     html: renderHtml(layout),
     text: renderText(layout),
+    draft: renderDraft(layout),
   };
 }
 
-/** Exec — driver is on the way (clock fires ~1h before pickup). */
-export function enRouteEmail(
+/**
+ * Exec — driver details (the secondary confirmation, sent by the operator once
+ * a driver is on the job).
+ */
+export function driverDetailsEmail(
   booking: Booking,
   driver: NamedDriver,
   car: string,
   plate?: string | null,
 ): RenderedEmail {
   const ref = bookingRef(booking.seq);
+  const when = formatLondonDateTimeShort(booking.pickupAt);
   const time = formatLondonTimeOfDay(booking.pickupAt);
   const layout: Layout = {
-    heading: 'Your driver is on the way',
-    intro: `Your driver ${driver.name} is now on the way for your ${time} pickup.`,
+    heading: 'Your driver details',
+    intro: `Your driver for this trip is ${driver.name} — their details are below.`,
     rows: [
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
@@ -198,14 +221,66 @@ export function enRouteEmail(
       ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup time', value: time },
       { label: 'Pickup', value: booking.pickupAddress },
+      { label: 'Destination', value: destination(booking) },
     ],
-    closing: 'They will meet you at the pickup point shortly. Safe travels.',
+    closing: 'To make any changes, please contact our team.',
   };
   return {
-    subject: `Your driver is on the way — ${ref} · ${time}`,
+    subject: `Your driver details — ${ref} · ${when}`,
     html: renderHtml(layout),
     text: renderText(layout),
+    draft: renderDraft(layout),
   };
+}
+
+/**
+ * Wrap an operator-edited draft in the branded shell: JJ header, the edited
+ * text as escaped paragraphs, then the standard signature + confidentiality
+ * footer. Gives the operator full control of the words while keeping every
+ * email on brand.
+ */
+export function renderCustomExecEmail(subject: string, bodyText: string): RenderedEmail {
+  const brand = escapeHtml(SMS_BRAND_NAME);
+  const paragraphs = bodyText
+    .split(/\n{2,}/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map(
+      (para) =>
+        `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#374151;white-space:pre-line;">${escapeHtml(para)}</p>`,
+    )
+    .join('');
+  const html = [
+    '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f5;padding:24px;">',
+    '<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">',
+    `<div style="padding:18px 28px;border-bottom:3px solid #111827;"><span style="font-size:17px;font-weight:700;letter-spacing:.02em;color:#111827;">${brand}</span></div>`,
+    '<div style="padding:26px 28px;">',
+    paragraphs,
+    '</div>',
+    '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
+    `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
+    `<p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:#6b7280;"><a href="mailto:${COMPANY.email}" style="color:#6b7280;">${COMPANY.email}</a><br><a href="https://${COMPANY.website}" style="color:#6b7280;">${COMPANY.website}</a><br>T: ${escapeHtml(COMPANY.phone)}</p>`,
+    `<p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;">${escapeHtml(CONFIDENTIALITY_NOTICE)}</p>`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Booking notification</p>`,
+    '</div>',
+    '</div></body></html>',
+  ].join('');
+  const text = [
+    SMS_BRAND_NAME,
+    '',
+    bodyText,
+    '',
+    '--',
+    COMPANY.legalName,
+    COMPANY.email,
+    COMPANY.website,
+    `T: ${COMPANY.phone}`,
+    '',
+    CONFIDENTIALITY_NOTICE,
+    '',
+    `${SMS_BRAND_NAME} · Booking notification`,
+  ].join('\n');
+  return { subject, html, text, draft: bodyText };
 }
 
 /**
@@ -233,5 +308,6 @@ export function changeExecEmail(booking: Booking): RenderedEmail {
     subject: `Booking update confirmed — ${ref} · ${when}`,
     html: renderHtml(layout),
     text: renderText(layout),
+    draft: renderDraft(layout),
   };
 }

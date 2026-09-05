@@ -30,6 +30,7 @@ import { type CompletionLink, CompletionLinkModal } from './completion-link-moda
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
 import { Icon } from './icons';
 import { Lozenge, StateLozenge, Tag } from './lozenge';
+import { type ExecEmailKind, SendExecEmailModal } from './send-exec-email-modal';
 import type { ConsoleBooking, ConsoleDriver, ConsoleOperator } from './types';
 
 interface DetailPanelProps {
@@ -74,6 +75,7 @@ export function DetailPanel({
   const [priceDraft, setPriceDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExec, setShowExec] = useState(false);
+  const [emailModalKind, setEmailModalKind] = useState<ExecEmailKind | null>(null);
   const [execMessages, setExecMessages] = useState<ExecMessageEntry[] | null>(null);
   const [execLoading, setExecLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -85,6 +87,7 @@ export function DetailPanel({
       setHistory(null);
       setShowExec(false);
       setExecMessages(null);
+      setEmailModalKind(null);
       setCompletionLink(null);
       setChangeLink(null);
       setEditingPay(false);
@@ -1067,6 +1070,98 @@ export function DetailPanel({
             </section>
           ) : null}
 
+          {/* EXEC EMAILS — the operator sends both emails manually */}
+          <section className="ic">
+            <header className="ic__head">
+              <span>Exec emails</span>
+            </header>
+            <div className="ic__body">
+              {(() => {
+                const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
+                const flagActive = [
+                  'assigned',
+                  'in_progress',
+                  'awaiting_driver_form',
+                  'awaiting_operator_review',
+                ].includes(booking.state);
+                const cancelled = booking.state === 'cancelled';
+                const rows: {
+                  kind: ExecEmailKind;
+                  title: string;
+                  sentAt: string | null;
+                  canSend: boolean;
+                  disabledHint: string | null;
+                  flagged: boolean;
+                }[] = [
+                  {
+                    kind: 'assigned',
+                    title: '1 · Booking confirmation',
+                    sentAt: booking.confirmationEmailSentAt,
+                    canSend: !cancelled,
+                    disabledHint: null,
+                    flagged: flagActive && hasDriver && !booking.confirmationEmailSentAt,
+                  },
+                  {
+                    kind: 'en_route',
+                    title: '2 · Driver details',
+                    sentAt: booking.driverDetailsEmailSentAt,
+                    canSend: !cancelled && hasDriver,
+                    disabledHint: hasDriver ? null : 'Needs a driver on the job',
+                    flagged: flagActive && hasDriver && !booking.driverDetailsEmailSentAt,
+                  },
+                ];
+                return rows.map((r) => (
+                  <div className="ir" key={r.kind}>
+                    <div className="ir__k">{r.title}</div>
+                    <div className="ir__v">
+                      <div
+                        className="ir__row"
+                        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                      >
+                        {r.sentAt ? (
+                          <Lozenge tone="green">SENT</Lozenge>
+                        ) : r.flagged ? (
+                          <Lozenge tone="orange">NOT SENT</Lozenge>
+                        ) : (
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            Not sent
+                          </span>
+                        )}
+                        {r.sentAt ? (
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            {fmtTimeWithDay(r.sentAt)}
+                          </span>
+                        ) : null}
+                        <span style={{ flex: 1 }} />
+                        {r.canSend ? (
+                          <button
+                            type="button"
+                            className="link-btn"
+                            disabled={isPending}
+                            onClick={() => setEmailModalKind(r.kind)}
+                          >
+                            {r.sentAt ? 'Send again' : 'Preview & send'}
+                          </button>
+                        ) : r.disabledHint ? (
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            {r.disabledHint}
+                          </span>
+                        ) : null}
+                      </div>
+                      {r.flagged ? (
+                        <div style={{ fontSize: 12, color: 'var(--prio-high)', marginTop: 2 }}>
+                          {r.kind === 'assigned'
+                            ? 'Driver assigned but the confirmation email hasn’t been sent.'
+                            : 'The exec hasn’t had the driver details yet.'}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </section>
+
           {/* EXEC MESSAGES */}
           <section className="ic ic--activity">
             <button
@@ -1116,6 +1211,11 @@ export function DetailPanel({
                               </span>
                               <ExecStatusLozenge status={m.status} channel={m.channel} />
                             </div>
+                            {m.to ? (
+                              <div className="muted mono" style={{ fontSize: 11, marginTop: 2 }}>
+                                To: {m.to}
+                              </div>
+                            ) : null}
                             <div
                               className="muted"
                               style={{ fontSize: 12, whiteSpace: 'pre-line', marginTop: 4 }}
@@ -1242,13 +1342,24 @@ export function DetailPanel({
         onClose={() => setChangeLink(null)}
         title="Change confirmation link"
       />
+      <SendExecEmailModal
+        bookingId={booking.id}
+        kind={emailModalKind}
+        onClose={() => setEmailModalKind(null)}
+        onSent={(message) => {
+          setEmailModalKind(null);
+          // Refresh the message drawer if it's open, and the board data.
+          if (execMessages !== null) loadExecMessages();
+          onMutated(message);
+        }}
+      />
     </>
   );
 }
 
 const EXEC_KIND_LABEL: Record<ExecMessageEntry['kind'], string> = {
-  assigned: 'Booking confirmed',
-  en_route: 'Driver en route',
+  assigned: 'Booking confirmation',
+  en_route: 'Driver details',
   changed: 'Booking updated',
 };
 
