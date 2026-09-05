@@ -224,7 +224,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await detailsModal.getByRole('button', { name: 'Send email' }).click();
   await expect(page.locator('.toast')).toContainText(/email sent/i);
   await expect(emailsCard.locator('.ir', { hasText: 'Driver details' })).toContainText('SENT');
-  // Both sent → the tile flag clears.
+  // Both sent → the tile flag clears and the booking leaves the rail view.
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText(
     'email due',
   );
@@ -238,6 +238,13 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .locator('.panel.is-open')
     .getByRole('button', { name: /Exec messages/ })
     .click();
+
+  // Both sent → the booking has left the rail's "Emails due" view.
+  await page.keyboard.press('Escape'); // close the panel so the rail is clickable
+  await expect(page.locator('.panel.is-open')).toHaveCount(0);
+  await page.locator('.rail__item', { hasText: 'Emails due' }).click();
+  await expect(page).toHaveURL(/savedView=emails_due/);
+  await expect(page.locator('.card', { hasText: 'LEGO Group' })).toHaveCount(0);
   await gotoSimulator(page);
 
   // ── Exec-message failure surfaces on the board + one-click resend clears it ─

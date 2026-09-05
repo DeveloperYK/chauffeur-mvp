@@ -10,6 +10,7 @@ import {
 import {
   execEmailDraft,
   execEmailSendMap,
+  listEmailAttentionBookings,
   sendManualExecEmail,
 } from '@/server/services/exec-notifications';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -149,6 +150,8 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(emailer.sent[0]?.to).toBe('pa@client.com');
     expect(emailer.sent[0]?.html).toContain('All confirmed for tomorrow.');
     expect(emailer.sent[0]?.html).toContain('JJ Chauffeuring Services (UK) Ltd');
+    // The email carries the branded headline for its kind.
+    expect(emailer.sent[0]?.html).toContain('Booking confirmed');
     // Audit trail names the actor and the send.
     const events = await db.select().from(auditEvents);
     const sent = events.find((e) => e.action === 'send_exec_email');
@@ -259,5 +262,58 @@ describe('services/exec-notifications manual emails (integration)', () => {
     );
     const map = await execEmailSendMap(db, [b.id]);
     expect(map.get(b.id)?.confirmationSentAt ?? null).toBeNull();
+  });
+
+  // ── "Emails due" saved view ────────────────────────────────────
+
+  async function sendBoth(bookingId: string) {
+    for (const kind of ['assigned', 'en_route'] as const) {
+      const r = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId, kind, to: 'x@y.com', subject: 'S', body: 'B' },
+        operatorId,
+      );
+      if (!r.ok) throw new Error('send failed');
+    }
+  }
+
+  it('lists a driver-assigned booking until both emails are sent', async () => {
+    const b = await seedAssigned();
+    let rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).toContain(b.id);
+
+    await sendBoth(b.id);
+    rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+  });
+
+  it('does not list a booking with no driver on the job yet', async () => {
+    const b = await seed();
+    const rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+  });
+
+  it('lists any non-cancelled booking whose last exec message failed', async () => {
+    const b = await seed({ state: 'completed' });
+    emailer.simulateFailure('down');
+    await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    const rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).toContain(b.id);
+  });
+
+  it('never lists a cancelled booking, even with a failed message', async () => {
+    const b = await seed({ state: 'cancelled', execNotificationStatus: 'failed' });
+    const rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+  });
+
+  it('does not list a quiet completed booking', async () => {
+    const b = await seed({ state: 'completed' });
+    const rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
   });
 });

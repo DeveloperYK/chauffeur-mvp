@@ -103,6 +103,39 @@ describe('services/email-templates', () => {
     expect(e.draft).not.toContain('intended only for the named recipients');
   });
 
+  it('renders "Label: value" lines of the edited draft as a styled details table', () => {
+    const e = renderCustomExecEmail(
+      'S',
+      'Your chauffeur is booked and confirmed. The details are below.\n\nReference: BKNG-00042\nDate & time: Sat 23 May, 14:00\nPickup: 11 Belsize Park Gardens, London NW3 4AB\n\nTo make any changes, please contact our team.',
+      'Booking confirmed',
+    );
+    // The details block becomes a two-column table, not a wall of text.
+    expect(e.html).toContain('<table');
+    expect(e.html).toContain('>Reference</td>');
+    expect(e.html).toContain('BKNG-00042');
+    // Values keep their own colons (the time survives the label split).
+    expect(e.html).toContain('Sat 23 May, 14:00');
+    // The heading renders as the email headline.
+    expect(e.html).toContain('Booking confirmed');
+    // Intro and closing stay ordinary paragraphs.
+    expect(e.html).toContain('Your chauffeur is booked and confirmed.');
+    expect(e.html).toContain('To make any changes, please contact our team.');
+  });
+
+  it('a fully rewritten draft with no Label: value lines renders as plain paragraphs', () => {
+    const e = renderCustomExecEmail('S', 'Hello Eric,\n\nSee you at 2pm outside the hotel.');
+    expect(e.html).not.toContain('<table');
+    expect(e.html).toContain('See you at 2pm outside the hotel.');
+  });
+
+  it('the default draft round-trips into the same table the old auto email had', () => {
+    const auto = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    const manual = renderCustomExecEmail(auto.subject, auto.draft, 'Booking confirmed');
+    for (const part of ['>Driver</td>', 'Marcus Bell', '>Pickup</td>', 'Heathrow Terminal 5']) {
+      expect(manual.html).toContain(part);
+    }
+  });
+
   it('renderCustomExecEmail wraps operator-edited text in the branded shell', () => {
     const e = renderCustomExecEmail('Custom subject', 'Hello Eric,\n\nSee you at 2pm.');
     expect(e.subject).toBe('Custom subject');

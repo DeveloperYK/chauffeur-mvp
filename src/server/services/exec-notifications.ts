@@ -33,7 +33,7 @@ import {
 import { type LatestMessage, rollupExecStatus } from '@/server/domain/exec-notifications';
 import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import {
@@ -441,6 +441,12 @@ export async function listExecNotifications(
 
 export type ManualEmailKind = 'assigned' | 'en_route';
 
+/** Headline rendered above the operator's edited body, per email. */
+const EXEC_EMAIL_HEADING: Record<ManualEmailKind, string> = {
+  assigned: 'Booking confirmed',
+  en_route: 'Your driver details',
+};
+
 export interface ExecEmailDraft {
   to: string;
   subject: string;
@@ -511,7 +517,7 @@ export async function sendManualExecEmail(
     return { ok: false, reason: 'no_driver' };
   }
 
-  const rendered = renderCustomExecEmail(subject, body);
+  const rendered = renderCustomExecEmail(subject, body, EXEC_EMAIL_HEADING[kind]);
   const base = { bookingId: booking.id, channel: 'email' as const, kind };
   const values: NewExecNotification = deps.email
     ? {
@@ -591,4 +597,49 @@ export async function execEmailSendMap(
     map.set(r.bookingId, entry);
   }
   return map;
+}
+
+/** States where the two operator emails are expected to have gone out. */
+const EMAIL_EXPECTED_STATES = [
+  'assigned',
+  'in_progress',
+  'awaiting_driver_form',
+  'awaiting_operator_review',
+] as const;
+
+/**
+ * Bookings whose exec emails need operator attention — the "Emails due" rail
+ * view. Two ways in:
+ *  - a driver (or backfill) is on the job but the confirmation and/or
+ *    driver-details email hasn't been successfully sent yet;
+ *  - the last exec message failed/bounced (any non-cancelled state).
+ * Cancelled bookings never appear: nothing should be emailed for them.
+ */
+export async function listEmailAttentionBookings(
+  db: Database,
+): Promise<(typeof bookings.$inferSelect)[]> {
+  const candidates = await db
+    .select()
+    .from(bookings)
+    .where(
+      or(
+        and(
+          inArray(bookings.state, [...EMAIL_EXPECTED_STATES]),
+          or(isNotNull(bookings.assignedDriverId), eq(bookings.isBackfill, true)),
+        ),
+        and(ne(bookings.state, 'cancelled'), eq(bookings.execNotificationStatus, 'failed')),
+      ),
+    )
+    .orderBy(asc(bookings.pickupAt))
+    .limit(200);
+
+  const sends = await execEmailSendMap(
+    db,
+    candidates.map((b) => b.id),
+  );
+  return candidates.filter((b) => {
+    if (b.execNotificationStatus === 'failed') return true;
+    const s = sends.get(b.id);
+    return !s?.confirmationSentAt || !s?.driverDetailsSentAt;
+  });
 }
