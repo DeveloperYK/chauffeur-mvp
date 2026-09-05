@@ -1,6 +1,6 @@
 import { logger } from '@/lib/logger';
 import type { Database } from '@/server/db';
-import { type Booking, type MirrorStatus, bookings, drivers, operators } from '@/server/db/schema';
+import { type Booking, type MirrorStatus, bookings, drivers } from '@/server/db/schema';
 import { type Clock, systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { eq } from 'drizzle-orm';
@@ -52,19 +52,9 @@ export async function mirrorBooking(
     driver = { name: booking.backfillDriverName } as typeof drivers.$inferSelect;
   }
 
-  let operator = null;
-  if (booking.createdByOperatorId) {
-    const rows = await db
-      .select()
-      .from(operators)
-      .where(eq(operators.id, booking.createdByOperatorId))
-      .limit(1);
-    operator = rows[0] ?? null;
-  }
-
   let ok = false;
   try {
-    const result = await mirror.upsertRow({ booking, driver, operator });
+    const result = await mirror.upsertRow({ booking, driver });
     ok = result.ok;
     if (!result.ok) {
       logger.warn({ bookingId: booking.id, reason: result.reason }, 'mirror upsert failed');

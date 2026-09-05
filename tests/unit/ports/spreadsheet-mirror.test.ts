@@ -1,5 +1,5 @@
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
-import type { Booking, Driver, Operator } from '@/server/db/schema';
+import type { Booking, Driver } from '@/server/db/schema';
 import {
   SHEET_HEADERS,
   SHEET_LAST_COLUMN,
@@ -86,32 +86,20 @@ const driver: Driver = {
   updatedAt: new Date(),
 };
 
-const operator: Operator = {
-  id: 'op-1',
-  email: 'op@example.com',
-  passwordHash: 'x',
-  name: 'Alice',
-  active: true,
-  mustChangePassword: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
 describe('rowFromBooking', () => {
-  it('produces a 21-column row (A–U) of JJ input columns', () => {
+  it('produces a 19-column row (A–S) of JJ input columns — the client layout, nothing past Mileage', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(21);
-  });
-
-  it('adds PA Name (T) and PA Contact (U) after Mileage (S) and writes through U', () => {
+    expect(row.length).toBe(19);
     expect(SHEET_HEADERS[18]).toBe('Mileage (miles)');
-    expect(SHEET_HEADERS[19]).toBe('PA Name');
-    expect(SHEET_HEADERS[20]).toBe('PA Contact');
-    expect(SHEET_LAST_COLUMN).toBe('U');
+    expect(SHEET_LAST_COLUMN).toBe('S');
+    expect(SHEET_HEADERS).not.toContain('PA Name');
+    expect(SHEET_HEADERS).not.toContain('PA Contact');
   });
 
-  it('writes the booked-by PA name and joined contact into T and U', () => {
+  // Booked By (E) is the PA who booked on the exec's behalf — name plus contact —
+  // exactly as the client fills it in their own workbook.
+  it('writes the PA name and both contacts into Booked By (E)', () => {
     const row = rowFromBooking({
       booking: {
         ...baseBooking,
@@ -121,11 +109,11 @@ describe('rowFromBooking', () => {
       },
       driver,
     });
-    expect(row[19]).toBe('Sandra Miles'); // T PA Name
-    expect(row[20]).toBe('+447911998877 / sandra@legogroup.com'); // U PA Contact
+    expect(SHEET_HEADERS[4]).toBe('Booked By');
+    expect(row[4]).toBe('Sandra Miles (+447911998877 / sandra@legogroup.com)');
   });
 
-  it('renders a single contact without the separator, and blanks when no PA', () => {
+  it('writes a single contact without the separator', () => {
     const emailOnly = rowFromBooking({
       booking: {
         ...baseBooking,
@@ -134,129 +122,28 @@ describe('rowFromBooking', () => {
       },
       driver,
     });
-    expect(emailOnly[20]).toBe('sandra@legogroup.com');
-    const none = rowFromBooking({ booking: baseBooking, driver });
-    expect(none[19]).toBe('');
-    expect(none[20]).toBe('');
-  });
-
-  it('renders the route distance as miles with 1 decimal (S)', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[18]).toBe('17.4'); // 28 000 m ≈ 17.4 mi
-  });
-
-  it('leaves Mileage blank when no distance was estimated', () => {
-    const row = rowFromBooking({
-      booking: { ...baseBooking, distanceMeters: null },
+    expect(emailOnly[4]).toBe('Sandra Miles (sandra@legogroup.com)');
+    const phoneOnly = rowFromBooking({
+      booking: { ...baseBooking, bookedByName: 'Sandra Miles', bookedByPhone: '+447911998877' },
       driver,
     });
-    expect(row[18]).toBe('');
+    expect(phoneOnly[4]).toBe('Sandra Miles (+447911998877)');
   });
 
-  it('leaves Mileage blank for hourly as-directed jobs (no route)', () => {
-    const row = rowFromBooking({
-      booking: {
-        ...baseBooking,
-        serviceType: 'hourly',
-        dropoffAddress: null,
-        distanceMeters: null,
-      },
+  it('writes just the name when no contact was captured, and the contact alone when there is no name', () => {
+    const nameOnly = rowFromBooking({
+      booking: { ...baseBooking, bookedByName: 'Sandra Miles' },
       driver,
     });
-    expect(row[18]).toBe('');
-  });
-
-  it('formats pickup date and time of day in Europe/London (BST)', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[1]).toBe('2026-06-01'); // B Date (London)
-    expect(row[2]).toBe('09:30'); // C Pick Up Time — 08:30 UTC is 09:30 BST
-  });
-
-  it('rolls the date and time into the next London day near midnight (BST)', () => {
-    // 2026-06-01 23:30 UTC is 2026-06-02 00:30 BST — a different calendar day.
-    const row = rowFromBooking({
-      booking: { ...baseBooking, pickupAt: new Date('2026-06-01T23:30:00.000Z') },
+    expect(nameOnly[4]).toBe('Sandra Miles');
+    const contactOnly = rowFromBooking({
+      booking: { ...baseBooking, bookedByPhone: '+447911998877' },
       driver,
     });
-    expect(row[1]).toBe('2026-06-02'); // B Date (London)
-    expect(row[2]).toBe('00:30'); // C Pick Up Time (London)
+    expect(contactOnly[4]).toBe('+447911998877');
   });
 
-  it('renders prices in pounds with 2 decimals', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[11]).toBe('300.00'); // L Contract Price (£)
-    expect(row[15]).toBe('7.50'); // P Car Park (£)
-  });
-
-  it('renders waiting minutes as hh:mm', () => {
-    const row = rowFromBooking({
-      booking: { ...baseBooking, waitingTimeMinutes: 65 },
-      driver,
-    });
-    expect(row[16]).toBe('01:05'); // Q Waiting Time
-  });
-
-  it('renders the drop-off time of day in Europe/London (R)', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[17]).toBe('11:05'); // R Drop Off Time — 10:05 UTC is 11:05 BST
-  });
-
-  it('emits empty string when optional fields are null', () => {
-    const row = rowFromBooking({
-      booking: {
-        ...baseBooking,
-        carParkPence: null,
-        waitingTimeMinutes: null,
-        dropoffAt: null,
-      },
-      driver,
-    });
-    expect(row[14]).toBe(''); // O Driver Cost — no subcontractor pay
-    expect(row[15]).toBe(''); // P Car Park
-    expect(row[16]).toBe(''); // Q Waiting Time
-    expect(row[17]).toBe(''); // R Drop Off Time
-  });
-
-  it("renders the assigned driver's vehicle class in the Car Type column", () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[10]).toBe('Executive'); // K — vehicle class, not the specific model
-  });
-
-  it('renders the backfill car, driver name, Subcontractor type and cost for a subcontractor job', () => {
-    const row = rowFromBooking({
-      booking: {
-        ...baseBooking,
-        isBackfill: true,
-        backfillCar: 'Black Range Rover',
-        backfillDriverName: 'Andy',
-        backfillDriverPayPence: 15000,
-      },
-      driver: null,
-    });
-    expect(row[10]).toBe('Black Range Rover'); // K Car Type
-    expect(row[12]).toBe('Andy'); // M Driver Name (recorded on the booking)
-    expect(row[13]).toBe('Subcontractor'); // N Driver Type
-    expect(row[14]).toBe('150.00'); // O Driver Cost
-  });
-
-  it('marks an internally-assigned job as Employee with a blank Driver Cost', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver });
-    expect(row[12]).toBe('Tom'); // M Driver Name
-    expect(row[13]).toBe('Employee'); // N Driver Type
-    expect(row[14]).toBe(''); // O Driver Cost — not tracked for employees
-  });
-
-  it('leaves the Car Type column blank when no driver is assigned', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver: null });
-    expect(row[10]).toBe('');
-  });
-
-  it('renders the operator name in the Booked By column', () => {
-    const row = rowFromBooking({ booking: baseBooking, driver, operator });
-    expect(row[4]).toBe('Alice'); // E
-  });
-
-  it('leaves Booked By blank when no operator provided', () => {
+  it('leaves Booked By blank when no PA was recorded — never the operator', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row[4]).toBe('');
   });
