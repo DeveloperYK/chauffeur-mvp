@@ -267,42 +267,6 @@ export async function sendExecNotification(
   return persistAttempt(deps.db, values);
 }
 
-export type NotifyExecChangeResult =
-  | { ok: true; notification: ExecNotification }
-  | { ok: false; reason: 'booking_not_found' | 'no_driver' | 'no_email' | 'persist_failed' };
-
-/**
- * Tell the exec a change to their booking has been confirmed, restating the
- * current plan. **Email only** — regardless of the global channel switch, a
- * change notification never goes by SMS (there's no value in a terse SMS for a
- * detail change). Recorded as a `changed` exec notification so the board health
- * roll-up tracks it. Fired automatically when an exec-relevant change is
- * confirmed (see confirmChange* in change-confirmation). No-ops (no_email) when
- * the booking has no exec email on file. See docs/shaping/mid-flight-changes.
- */
-export async function notifyExecOfChange(
-  deps: ExecNotificationDeps,
-  bookingId: string,
-): Promise<NotifyExecChangeResult> {
-  const [booking] = await deps.db
-    .select()
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return { ok: false, reason: 'booking_not_found' };
-  // Email-only: skip silently when there's no address rather than writing a
-  // failed SMS-less attempt.
-  if (!booking.execEmail) return { ok: false, reason: 'no_email' };
-
-  const ctx = await buildExecContextForBooking(deps.db, booking, 'changed');
-  if (!ctx) return { ok: false, reason: 'no_driver' };
-
-  // Force the email channel for this notification, whatever the global switch is.
-  const row = await sendExecNotification({ ...deps, channel: 'email' }, ctx);
-  if (!row) return { ok: false, reason: 'persist_failed' };
-  return { ok: true, notification: row };
-}
-
 /**
  * Build the render context from a booking + its already-loaded driver row.
  * Single source of truth for which driver fields the exec sees (name, car,
@@ -439,12 +403,13 @@ export async function listExecNotifications(
 // `sendManualExecEmail` sends the edited version (re-branded via
 // renderCustomExecEmail) and records it like any other exec notification.
 
-export type ManualEmailKind = 'assigned' | 'en_route';
+export type ManualEmailKind = 'assigned' | 'en_route' | 'changed';
 
 /** Headline rendered above the operator's edited body, per email. */
 const EXEC_EMAIL_HEADING: Record<ManualEmailKind, string> = {
   assigned: 'Booking confirmed',
   en_route: 'Your driver details',
+  changed: 'Booking update confirmed',
 };
 
 export interface ExecEmailDraft {
@@ -466,6 +431,16 @@ export async function execEmailDraft(
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
 
+  // The update email restates the booking; it never needs a driver.
+  if (kind === 'changed') {
+    const rendered = changeExecEmail(booking);
+    return {
+      ok: true,
+      hasDriver: booking.assignedDriverId != null || booking.isBackfill,
+      draft: { to: booking.execEmail ?? '', subject: rendered.subject, body: rendered.draft },
+    };
+  }
+
   const ctx = await buildExecContextForBooking(db, booking, kind);
   if (kind === 'en_route' && !ctx) return { ok: false, reason: 'no_driver' };
 
@@ -480,7 +455,7 @@ export async function execEmailDraft(
 const manualEmailSchema = z
   .object({
     bookingId: z.string().uuid(),
-    kind: z.enum(['assigned', 'en_route']),
+    kind: z.enum(['assigned', 'en_route', 'changed']),
     to: z.string().trim().email('Enter a valid email address').max(200),
     subject: z.string().trim().min(1, 'Subject is required').max(200),
     body: z.string().trim().min(1, 'The email body is empty').max(8000),
@@ -558,6 +533,8 @@ export interface ExecEmailSends {
   confirmationSentAt: Date | null;
   /** Latest successful driver-details email (kind `en_route`), or null. */
   driverDetailsSentAt: Date | null;
+  /** Latest successful booking-update email (kind `changed`), or null. */
+  changeUpdateSentAt: Date | null;
 }
 
 /**
@@ -581,22 +558,50 @@ export async function execEmailSendMap(
     .where(
       and(
         inArray(execNotifications.bookingId, bookingIds),
-        inArray(execNotifications.kind, ['assigned', 'en_route']),
+        inArray(execNotifications.kind, ['assigned', 'en_route', 'changed']),
         inArray(execNotifications.status, ['sent', 'delivered']),
       ),
     );
   for (const r of rows) {
-    const entry = map.get(r.bookingId) ?? { confirmationSentAt: null, driverDetailsSentAt: null };
+    const entry = map.get(r.bookingId) ?? {
+      confirmationSentAt: null,
+      driverDetailsSentAt: null,
+      changeUpdateSentAt: null,
+    };
     if (r.kind === 'assigned') {
       if (!entry.confirmationSentAt || r.createdAt > entry.confirmationSentAt)
         entry.confirmationSentAt = r.createdAt;
     } else if (r.kind === 'en_route') {
       if (!entry.driverDetailsSentAt || r.createdAt > entry.driverDetailsSentAt)
         entry.driverDetailsSentAt = r.createdAt;
+    } else if (r.kind === 'changed') {
+      if (!entry.changeUpdateSentAt || r.createdAt > entry.changeUpdateSentAt)
+        entry.changeUpdateSentAt = r.createdAt;
     }
     map.set(r.bookingId, entry);
   }
   return map;
+}
+
+/**
+ * A confirmed exec-relevant change whose "Booking update" email hasn't gone
+ * out since the confirmation. Shared by the panel flag, the tile tag and the
+ * "Emails due" view.
+ */
+export function changeUpdateEmailDue(
+  booking: {
+    changeConfirmationStatus: string;
+    changeExecRelevant: boolean;
+    changeConfirmedAt: Date | null;
+  },
+  changeUpdateSentAt: Date | null,
+): boolean {
+  return (
+    booking.changeConfirmationStatus === 'confirmed' &&
+    booking.changeExecRelevant &&
+    booking.changeConfirmedAt != null &&
+    (changeUpdateSentAt == null || changeUpdateSentAt < booking.changeConfirmedAt)
+  );
 }
 
 /** States where the two operator emails are expected to have gone out. */
@@ -628,6 +633,11 @@ export async function listEmailAttentionBookings(
           or(isNotNull(bookings.assignedDriverId), eq(bookings.isBackfill, true)),
         ),
         and(ne(bookings.state, 'cancelled'), eq(bookings.execNotificationStatus, 'failed')),
+        and(
+          ne(bookings.state, 'cancelled'),
+          eq(bookings.changeConfirmationStatus, 'confirmed'),
+          eq(bookings.changeExecRelevant, true),
+        ),
       ),
     )
     .orderBy(asc(bookings.pickupAt))
@@ -637,9 +647,14 @@ export async function listEmailAttentionBookings(
     db,
     candidates.map((b) => b.id),
   );
+  const activeStates = new Set<string>(EMAIL_EXPECTED_STATES);
   return candidates.filter((b) => {
     if (b.execNotificationStatus === 'failed') return true;
-    const s = sends.get(b.id);
-    return !s?.confirmationSentAt || !s?.driverDetailsSentAt;
+    const s = sends.get(b.id) ?? null;
+    if (changeUpdateEmailDue(b, s?.changeUpdateSentAt ?? null)) return true;
+    const hasDriver = b.assignedDriverId != null || b.isBackfill;
+    return (
+      activeStates.has(b.state) && hasDriver && (!s?.confirmationSentAt || !s?.driverDetailsSentAt)
+    );
   });
 }

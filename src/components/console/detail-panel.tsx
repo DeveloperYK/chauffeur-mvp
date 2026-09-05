@@ -1085,6 +1085,15 @@ export function DetailPanel({
                   'awaiting_operator_review',
                 ].includes(booking.state);
                 const cancelled = booking.state === 'cancelled';
+                // A confirmed exec-relevant change needs a "Booking update"
+                // email until one is sent after the confirmation.
+                const updateDue =
+                  booking.changeConfirmationStatus === 'confirmed' &&
+                  booking.changeExecRelevant &&
+                  booking.changeConfirmedAt != null &&
+                  (!booking.changeUpdateEmailSentAt ||
+                    booking.changeUpdateEmailSentAt < booking.changeConfirmedAt) &&
+                  !cancelled;
                 const rows: {
                   kind: ExecEmailKind;
                   title: string;
@@ -1109,6 +1118,20 @@ export function DetailPanel({
                     disabledHint: hasDriver ? null : 'Needs a driver on the job',
                     flagged: flagActive && hasDriver && !booking.driverDetailsEmailSentAt,
                   },
+                  // The update row only appears once a mid-flight change makes
+                  // it relevant (or one was already sent).
+                  ...(updateDue || booking.changeUpdateEmailSentAt
+                    ? [
+                        {
+                          kind: 'changed' as const,
+                          title: '3 · Booking update',
+                          sentAt: updateDue ? null : booking.changeUpdateEmailSentAt,
+                          canSend: !cancelled,
+                          disabledHint: null,
+                          flagged: updateDue,
+                        },
+                      ]
+                    : []),
                 ];
                 return rows.map((r) => (
                   <div className="ir" key={r.kind}>
@@ -1152,7 +1175,9 @@ export function DetailPanel({
                         <div style={{ fontSize: 12, color: 'var(--prio-high)', marginTop: 2 }}>
                           {r.kind === 'assigned'
                             ? 'Driver assigned but the confirmation email hasn’t been sent.'
-                            : 'The exec hasn’t had the driver details yet.'}
+                            : r.kind === 'en_route'
+                              ? 'The exec hasn’t had the driver details yet.'
+                              : 'The exec hasn’t been told about the confirmed change.'}
                         </div>
                       ) : null}
                     </div>

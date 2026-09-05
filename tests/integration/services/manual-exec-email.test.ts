@@ -13,6 +13,7 @@ import {
   listEmailAttentionBookings,
   sendManualExecEmail,
 } from '@/server/services/exec-notifications';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SeedData } from '~test/fixtures/seed-data';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
@@ -313,6 +314,92 @@ describe('services/exec-notifications manual emails (integration)', () => {
 
   it('does not list a quiet completed booking', async () => {
     const b = await seed({ state: 'completed' });
+    const rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+  });
+
+  // ── Booking update (kind `changed`) ────────────────────────────
+
+  async function seedConfirmedChange(overrides: Record<string, unknown> = {}) {
+    return seed({
+      state: 'assigned',
+      assignedDriverId: driver.id,
+      changeConfirmationStatus: 'confirmed',
+      changeExecRelevant: true,
+      changeConfirmedAt: new Date('2026-05-18T10:00:00.000Z'),
+      ...overrides,
+    });
+  }
+
+  it('drafts the booking-update email from the current booking details', async () => {
+    const b = await seedConfirmedChange();
+    const result = await execEmailDraft(db, b.id, 'changed');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.subject.toLowerCase()).toContain('update');
+    expect(result.draft.body).toContain('Reference:');
+  });
+
+  it('sends the booking-update email and records a `changed` attempt', async () => {
+    const b = await seedConfirmedChange();
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notification.kind).toBe('changed');
+    expect(emailer.sent[0]?.html).toContain('Booking update confirmed');
+  });
+
+  it('flags a confirmed exec-relevant change in the attention view until the update is sent', async () => {
+    const b = await seedConfirmedChange();
+    let rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).toContain(b.id);
+
+    const sent = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    expect(sent.ok).toBe(true);
+    // The confirmation/driver-details emails may still be due on this booking —
+    // check the change-update flag specifically via the send map.
+    const map = await execEmailSendMap(db, [b.id]);
+    expect(map.get(b.id)?.changeUpdateSentAt).toBeTruthy();
+
+    await sendBoth(b.id);
+    rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+  });
+
+  it('re-flags when a later change is confirmed after the last update email', async () => {
+    const b = await seedConfirmedChange();
+    await sendBoth(b.id);
+    await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    let rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).not.toContain(b.id);
+
+    // A newer change gets confirmed AFTER that update email went out.
+    await db
+      .update(bookings)
+      .set({ changeConfirmedAt: new Date(Date.now() + 60_000) })
+      .where(eq(bookings.id, b.id));
+    rows = await listEmailAttentionBookings(db);
+    expect(rows.map((r) => r.id)).toContain(b.id);
+  });
+
+  it('a pending (unconfirmed) change is not update-flagged yet', async () => {
+    const b = await seedConfirmedChange({
+      changeConfirmationStatus: 'pending',
+      changeConfirmedAt: null,
+    });
+    await sendBoth(b.id);
     const rows = await listEmailAttentionBookings(db);
     expect(rows.map((r) => r.id)).not.toContain(b.id);
   });

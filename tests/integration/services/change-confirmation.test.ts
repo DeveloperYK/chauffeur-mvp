@@ -270,9 +270,9 @@ describe('services/change-confirmation (integration)', () => {
     });
   });
 
-  // ── Auto exec-email on confirming an exec-relevant change ──────────────────
-  describe('auto exec-email on confirm', () => {
-    it('emails the exec when an exec-relevant change is attested', async () => {
+  // ── No auto exec-email on confirm any more (operator sends manually) ──────
+  describe('no auto exec-email on confirm', () => {
+    it('does not email the exec when an exec-relevant change is attested', async () => {
       const notifications = new FakeNotificationAdapter();
       const email = new FakeEmailAdapter();
       const booking = await seed({
@@ -288,13 +288,14 @@ describe('services/change-confirmation (integration)', () => {
         email,
       });
       expect(res.ok).toBe(true);
-      expect(email.sent.some((m) => m.to === 'eric@example.com')).toBe(true);
+      // The booking update email is now sent manually from the console.
+      expect(email.sent).toHaveLength(0);
       expect(notifications.sent).toHaveLength(0);
       const rows = await db
         .select()
         .from(execNotifications)
         .where(eq(execNotifications.bookingId, booking.id));
-      expect(rows.some((r) => r.kind === 'changed' && r.channel === 'email')).toBe(true);
+      expect(rows).toHaveLength(0);
     });
 
     it('does NOT email the exec when the change is not exec-relevant', async () => {
@@ -335,7 +336,7 @@ describe('services/change-confirmation (integration)', () => {
       expect(email.sent).toHaveLength(0);
     });
 
-    it('driver self-confirm also auto-emails the exec on an exec-relevant change', async () => {
+    it('driver self-confirm does not auto-email the exec either', async () => {
       const notifications = new FakeNotificationAdapter();
       const email = new FakeEmailAdapter();
       const booking = await seed({
@@ -358,7 +359,7 @@ describe('services/change-confirmation (integration)', () => {
         email,
       });
       expect(res.ok).toBe(true);
-      expect(email.sent.some((m) => m.to === 'eric@example.com')).toBe(true);
+      expect(email.sent).toHaveLength(0);
     });
   });
 });
