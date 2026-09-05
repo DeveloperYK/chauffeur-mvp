@@ -553,7 +553,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
 });
 
-test('mid-flight change: driver confirms via the change link, exec is emailed the update', async ({
+test('mid-flight change: driver confirms via the link, operator sends the update email', async ({
   page,
 }) => {
   // Fresh data; force LEGO → assigned and onto today's board.
@@ -615,14 +615,37 @@ test('mid-flight change: driver confirms via the change link, exec is emailed th
   await page.getByRole('button', { name: /Confirm the new details/i }).click();
   await expect(page.getByRole('heading', { name: 'Change confirmed' })).toBeVisible();
 
-  // ── Console: confirmed by the driver, and the exec was emailed the update ──
+  // ── Console: confirmed by the driver — the exec is NOT auto-emailed. The
+  //    panel flags the outstanding "Booking update" email instead. ──
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY DRIVER');
+  const emailsCard = page.locator('.panel.is-open .ic', { hasText: 'Exec emails' });
+  await expect(emailsCard).toContainText('3 · Booking update');
+  await expect(emailsCard).toContainText('hasn’t been told about the confirmed change');
+  // The tile also carries the amber email-due tag for the pending update.
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText('email due');
+
+  // ── Operator previews and sends the update email ──
+  await emailsCard
+    .locator('.ir', { hasText: 'Booking update' })
+    .getByRole('button', { name: 'Preview & send' })
+    .click();
+  const updateModal = page.locator('.modal.is-open', { hasText: 'Send booking update email' });
+  // Pre-addressed to the exec email captured on the edit, draft holds the new plan.
+  await expect(updateModal.locator('input[type="email"]')).toHaveValue('exec-change@example.com');
+  await expect(updateModal.locator('textarea')).toHaveValue(/Reference:/);
+  await updateModal.locator('input[type="email"]').fill('delivered@resend.dev');
+  await updateModal.getByRole('button', { name: 'Send email' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking update email sent/i);
+  await expect(emailsCard.locator('.ir', { hasText: 'Booking update' })).toContainText('SENT');
+
+  // The message trail records it with the recipient.
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Exec messages/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('Booking updated');
+  await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
 });
 
 test('operator-attested assign: confirm a driver by phone, then reassign by phone', async ({

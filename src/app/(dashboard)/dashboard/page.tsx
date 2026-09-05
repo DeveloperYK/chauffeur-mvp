@@ -83,6 +83,8 @@ function toConsoleBooking(
     bookedByName: b.bookedByName,
     confirmationEmailSentAt: emailSends?.get(b.id)?.confirmationSentAt?.toISOString() ?? null,
     driverDetailsEmailSentAt: emailSends?.get(b.id)?.driverDetailsSentAt?.toISOString() ?? null,
+    changeUpdateEmailSentAt: emailSends?.get(b.id)?.changeUpdateSentAt?.toISOString() ?? null,
+    changeExecRelevant: b.changeExecRelevant,
     bookedByPhone: b.bookedByPhone,
     bookedByEmail: b.bookedByEmail,
     clientName: b.clientName,

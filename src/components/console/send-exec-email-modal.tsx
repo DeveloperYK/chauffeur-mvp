@@ -7,11 +7,12 @@ import {
 import { useEffect, useState, useTransition } from 'react';
 import { Icon } from './icons';
 
-export type ExecEmailKind = 'assigned' | 'en_route';
+export type ExecEmailKind = 'assigned' | 'en_route' | 'changed';
 
 export const EXEC_EMAIL_TITLE: Record<ExecEmailKind, string> = {
   assigned: 'Booking confirmation',
   en_route: 'Driver details',
+  changed: 'Booking update',
 };
 
 interface SendExecEmailModalProps {
