@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "state_before_cancel" "booking_state";

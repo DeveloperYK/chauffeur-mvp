@@ -127,16 +127,35 @@ describe('services/cancel (integration)', () => {
     if (!r.ok) expect(r.reason).toBe('wrong_state');
   });
 
-  it('rejects an empty reason', async () => {
+  it('cancels without a reason — the reason is optional', async () => {
     const id = await seed('unassigned');
-    const r = await cancelBooking({ bookingId: id, reason: '' }, operatorId, deps());
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe('validation');
+    const r = await cancelBooking({ bookingId: id }, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.booking.state).toBe('cancelled');
+    expect(r.booking.cancellationReason).toBeNull();
   });
 
-  it('rejects a too-short reason', async () => {
+  it('treats a blank reason as no reason', async () => {
     const id = await seed('unassigned');
-    const r = await cancelBooking({ bookingId: id, reason: 'nope' }, operatorId, deps());
+    const r = await cancelBooking({ bookingId: id, reason: '   ' }, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.booking.cancellationReason).toBeNull();
+  });
+
+  it('remembers the state the booking was in before the cancel', async () => {
+    const unassigned = await seed('unassigned');
+    const assigned = await seed('assigned');
+    const a = await cancelBooking({ bookingId: unassigned }, operatorId, deps());
+    const b = await cancelBooking({ bookingId: assigned }, operatorId, deps());
+    expect(a.ok && a.booking.stateBeforeCancel).toBe('unassigned');
+    expect(b.ok && b.booking.stateBeforeCancel).toBe('assigned');
+  });
+
+  it('rejects a reason over the maximum length', async () => {
+    const id = await seed('unassigned');
+    const r = await cancelBooking({ bookingId: id, reason: 'x'.repeat(1001) }, operatorId, deps());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('validation');
   });

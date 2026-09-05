@@ -3,7 +3,7 @@
 import { cancelBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { useEffect, useState, useTransition } from 'react';
-import { passengerName } from './format';
+import { fmtTimeWithDay, passengerName } from './format';
 import { Icon } from './icons';
 import type { ConsoleBooking } from './types';
 
@@ -14,27 +14,26 @@ interface CancelModalProps {
   onCancelled: (bookingId: string) => void;
 }
 
+/**
+ * One-step cancel: no reason to type. The booking is removed from the backup
+ * sheet, and the board's toast offers Undo for a minute in case it was the
+ * wrong ticket.
+ */
 export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelModalProps) {
-  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset the form only when the modal opens or the target booking changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the modal opens or the target booking changes
   useEffect(() => {
-    if (isOpen) {
-      setReason('');
-      setError(null);
-    }
+    if (isOpen) setError(null);
   }, [isOpen, booking?.id]);
 
   if (!booking) return null;
 
-  const valid = reason.trim().length >= 5;
   const confirm = () => {
-    if (!valid) return;
     setError(null);
     startTransition(async () => {
-      const result = await cancelBookingAction(booking.id, reason.trim());
+      const result = await cancelBookingAction(booking.id);
       if (!result.ok) {
         setError(result.error ?? 'Could not cancel the booking.');
         return;
@@ -52,9 +51,10 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
         <header className="modal__head">
           <div className="row">
             <div>
-              <div className="modal__title">Cancel booking</div>
+              <div className="modal__title">Cancel this booking?</div>
               <div className="modal__sub">
-                {passengerName(booking)} · <span className="mono">{bookingRef(booking.seq)}</span>
+                {passengerName(booking)} · {fmtTimeWithDay(booking.pickupAt)} ·{' '}
+                <span className="mono">{bookingRef(booking.seq)}</span>
               </div>
             </div>
             <span style={{ flex: 1 }} />
@@ -69,25 +69,10 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
               <div className="ic__body">{error}</div>
             </div>
           ) : null}
-          <div className="field">
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: textarea is the control inside .ctrl */}
-            <label>
-              Reason for cancellation<span className="req">*</span>
-            </label>
-            <div className="ctrl">
-              <textarea
-                rows={4}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                // biome-ignore lint/a11y/noAutofocus: focus the only field on open
-                autoFocus
-              />
-              <div className="hint">
-                Min. 5 chars. Recorded in the audit log. The booking is removed from the backup
-                sheet on cancellation.
-              </div>
-            </div>
-          </div>
+          <p className="cancel-note">
+            The booking is marked cancelled and removed from the backup sheet. You can undo this for
+            60 seconds from the message that follows.
+          </p>
         </div>
         <footer className="modal__foot">
           <span className="spacer" />
@@ -97,8 +82,10 @@ export function CancelModal({ booking, isOpen, onClose, onCancelled }: CancelMod
           <button
             type="button"
             className="btn btn--danger"
-            disabled={!valid || isPending}
+            disabled={isPending}
             onClick={confirm}
+            // biome-ignore lint/a11y/noAutofocus: the destructive action is the only control worth focusing
+            autoFocus
           >
             {isPending ? 'Cancelling…' : 'Cancel booking'}
           </button>

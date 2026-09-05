@@ -2062,11 +2062,34 @@ a:hover {
   align-items: center;
   gap: 8px;
   animation: toastIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* The stack ignores the pointer so it never blocks the board; a toast with an
+     action (Undo) must take it back so the button is clickable. */
+  pointer-events: auto;
 }
 .toast .icon {
   width: 15px;
   height: 15px;
   color: #7fe3a2;
+}
+.toast__btn {
+  margin-left: 10px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--r);
+  background: transparent;
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.toast__btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.cancel-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
 }
 @keyframes toastIn {
   from {

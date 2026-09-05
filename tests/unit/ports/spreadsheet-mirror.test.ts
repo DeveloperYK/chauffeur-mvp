@@ -51,6 +51,7 @@ const baseBooking: Booking = {
   cancelledAt: null,
   cancelledByOperatorId: null,
   cancellationReason: null,
+  stateBeforeCancel: null,
   flaggedAt: null,
   changeConfirmationStatus: 'none',
   changeExecRelevant: false,

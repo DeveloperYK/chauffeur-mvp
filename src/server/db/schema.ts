@@ -313,6 +313,9 @@ export const bookings = pgTable(
       onDelete: 'set null',
     }),
     cancellationReason: text('cancellation_reason'),
+    // Where the booking was before it was cancelled, so a cancel made in error
+    // can be undone (within the undo window) back to exactly that state.
+    stateBeforeCancel: bookingStateEnum('state_before_cancel'),
 
     // Auto-flag for no-accept window
     flaggedAt: timestamp('flagged_at', { withTimezone: true }),
