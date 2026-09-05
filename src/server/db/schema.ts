@@ -220,7 +220,7 @@ export const bookings = pgTable(
     execEmail: text('exec_email'),
     // "Booked by" — the PA who booked on the exec's behalf. Optional as a
     // whole; when captured, a name plus at least one contact (phone or email)
-    // is enforced at the schema layer. Mirrored to sheet columns T/U.
+    // is enforced at the schema layer. Mirrored to the sheet's Booked By column (E).
     bookedByName: text('booked_by_name'),
     bookedByPhone: text('booked_by_phone'),
     bookedByEmail: text('booked_by_email'),
