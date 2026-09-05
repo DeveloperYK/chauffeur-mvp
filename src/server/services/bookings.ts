@@ -1,5 +1,5 @@
 import { parsePickupInput } from '@/lib/dates';
-import { phoneSchema } from '@/lib/phone';
+import { optionalPhoneSchema, phoneSchema } from '@/lib/phone';
 import { normalizeTravelRef } from '@/lib/travel-ref';
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
@@ -48,6 +48,17 @@ export const createBookingSchema = z
     // email is the active channel, and a missing one surfaces as a loud failed
     // notification rather than a silent drop.
     execEmail: z.string().email().max(200).optional().nullable(),
+    // "Booked by" — the PA who booked on the exec's behalf. Optional as a
+    // whole; a partially-filled section is rejected in the superRefine below.
+    bookedByName: z.string().trim().max(120).optional().nullable(),
+    bookedByPhone: optionalPhoneSchema,
+    bookedByEmail: z
+      .string()
+      .trim()
+      .email('Enter a valid email for the booked-by contact')
+      .max(200)
+      .optional()
+      .nullable(),
     // Single "Customer Account" — the company/account billed for the trip.
     // Stored in account_code (+ mirrored into client_name for now).
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
@@ -95,7 +106,53 @@ export const createBookingSchema = z
       });
     }
     refineTravelRef(data, ctx);
+    refineBookedBy(data, ctx);
   });
+
+/**
+ * Shared create/edit rule for the optional "Booked by" (PA) section: blank as a
+ * whole is fine, but a partial fill is rejected — a name needs at least one
+ * contact (phone or email), and a contact needs a name.
+ */
+export function refineBookedBy(
+  data: {
+    bookedByName?: string | null | undefined;
+    bookedByPhone?: string | null | undefined;
+    bookedByEmail?: string | null | undefined;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const name = (data.bookedByName ?? '').trim();
+  const hasContact = Boolean(data.bookedByPhone) || Boolean(data.bookedByEmail);
+  if (!name && !hasContact) return;
+  if (!name) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['bookedByName'],
+      message: 'Add the name of the person who booked',
+    });
+  }
+  if (!hasContact) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['bookedByPhone'],
+      message: 'Add a phone number or email for the person who booked',
+    });
+  }
+}
+
+/** The booked-by trio to persist: trimmed values, or all null when unset. */
+export function normalizedBookedBy(data: {
+  bookedByName?: string | null | undefined;
+  bookedByPhone?: string | null | undefined;
+  bookedByEmail?: string | null | undefined;
+}): { bookedByName: string | null; bookedByPhone: string | null; bookedByEmail: string | null } {
+  return {
+    bookedByName: data.bookedByName?.trim() || null,
+    bookedByPhone: data.bookedByPhone || null,
+    bookedByEmail: data.bookedByEmail?.trim() || null,
+  };
+}
 
 /**
  * Shared create/edit rule: travelMode and travelRef come as a pair, and the ref
@@ -208,6 +265,7 @@ export async function createBooking(
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile,
       execEmail: parsed.data.execEmail ?? null,
+      ...normalizedBookedBy(parsed.data),
       // Customer Account lives in account_code; client_name is kept in sync
       // until that legacy column is dropped.
       clientName: parsed.data.customerAccount,

@@ -30,6 +30,9 @@ export interface ConsoleBooking {
   execMobile: string;
   /** Exec email — recipient when the email channel is active; null if not captured. */
   execEmail: string | null;
+  bookedByName: string | null;
+  bookedByPhone: string | null;
+  bookedByEmail: string | null;
   /** Customer Account — the company billed (stored in account_code). */
   clientName: string;
   accountCode: string;

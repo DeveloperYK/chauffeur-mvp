@@ -43,6 +43,9 @@ interface NewForm {
   passengerLastName: string;
   execMobile: string;
   execEmail?: string;
+  bookedByName: string;
+  bookedByPhone: string;
+  bookedByEmail: string;
   customerAccount: string;
   caseCode: string;
   contractPricePounds: string;
@@ -71,6 +74,9 @@ const EMPTY: NewForm = {
   passengerFirstName: '',
   passengerLastName: '',
   execMobile: '',
+  bookedByName: '',
+  bookedByPhone: '',
+  bookedByEmail: '',
   customerAccount: '',
   caseCode: '',
   contractPricePounds: '',
@@ -98,6 +104,9 @@ const SAMPLES: Array<
     passengerFirstName: 'Alexander',
     passengerLastName: 'Pemberton',
     execMobile: '+447911123456',
+    bookedByName: 'Sandra Miles',
+    bookedByPhone: '+447700123456',
+    bookedByEmail: 'sandra.miles@pembertoncapital.com',
     customerAccount: 'Pemberton Capital',
     caseCode: 'PEMB-2026-0142',
     pickupAddress: 'The Connaught, Carlos Place, Mayfair, London W1K 2AL',
@@ -112,6 +121,9 @@ const SAMPLES: Array<
     passengerFirstName: 'Mariana',
     passengerLastName: 'Bellini',
     execMobile: '+447400123456',
+    bookedByName: 'Paolo Ricci',
+    bookedByPhone: '',
+    bookedByEmail: 'paolo.ricci@bellini.co',
     customerAccount: 'Bellini & Co',
     caseCode: 'BELL-0098',
     pickupAddress: 'Soho House, 76 Dean Street, London W1D 3SQ',
@@ -126,6 +138,9 @@ const SAMPLES: Array<
     passengerFirstName: 'Theodore',
     passengerLastName: 'Ashworth',
     execMobile: '+447822016000',
+    bookedByName: '',
+    bookedByPhone: '',
+    bookedByEmail: '',
     customerAccount: 'Ashworth Legal',
     caseCode: 'ASH-CASE-7741',
     pickupAddress: '1 Embankment Place, London WC2N 6RH',
@@ -319,6 +334,9 @@ export function NewBookingModal({
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
     fd.set('execEmail', form.execEmail ?? '');
+    fd.set('bookedByName', form.bookedByName);
+    fd.set('bookedByPhone', form.bookedByPhone);
+    fd.set('bookedByEmail', form.bookedByEmail);
     fd.set('customerAccount', form.customerAccount);
     fd.set('caseCode', form.caseCode);
     // Blank price fields mean "not agreed yet" — the server stores null and the
@@ -644,6 +662,55 @@ export function NewBookingModal({
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
                 {fieldErrors.execEmail ? <div className="err">{fieldErrors.execEmail}</div> : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section__head">Booked by (PA)</div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Name</label>
+              <div className="ctrl">
+                <input
+                  type="text"
+                  value={form.bookedByName}
+                  aria-invalid={fieldErrors.bookedByName ? true : undefined}
+                  onChange={(e) => set('bookedByName', e.target.value)}
+                  placeholder="Who booked on the exec's behalf"
+                />
+                {fieldErrors.bookedByName ? (
+                  <div className="err">{fieldErrors.bookedByName}</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: controls nested in .ctrl */}
+              <label>Contact</label>
+              <div className="ctrl">
+                <div className="field-inline">
+                  <input
+                    type="tel"
+                    value={form.bookedByPhone}
+                    aria-invalid={fieldErrors.bookedByPhone ? true : undefined}
+                    onChange={(e) => set('bookedByPhone', e.target.value)}
+                    placeholder="Phone"
+                  />
+                  <input
+                    type="email"
+                    value={form.bookedByEmail}
+                    aria-invalid={fieldErrors.bookedByEmail ? true : undefined}
+                    onChange={(e) => set('bookedByEmail', e.target.value)}
+                    placeholder="Email"
+                  />
+                </div>
+                {fieldErrors.bookedByPhone || fieldErrors.bookedByEmail ? (
+                  <div className="err">
+                    {fieldErrors.bookedByPhone ?? fieldErrors.bookedByEmail}
+                  </div>
+                ) : (
+                  <div className="hint">Optional. If filled in: name plus a phone or an email.</div>
+                )}
               </div>
             </div>
           </div>

@@ -660,6 +660,14 @@ test('optional pricing: a booking created without a price is flagged until one i
   // An address that already carries a postcode needs no manual field.
   await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London W1K 2AL');
   await expect(modal.locator('input[aria-label="Dropoff postcode"]')).toHaveCount(0);
+
+  // ── Booked by (PA): a name alone is rejected — it needs a contact ──
+  const bookedBy = modal.locator('.form-section', { hasText: 'Booked by (PA)' });
+  await bookedBy.getByPlaceholder("Who booked on the exec's behalf").fill('Sandra Miles');
+  await modal.getByRole('button', { name: 'Create booking' }).click();
+  await expect(bookedBy.locator('.err')).toContainText(/phone number or email/i);
+  await bookedBy.locator('input[type="email"]').fill('sandra@nopriceco.com');
+
   await modal.getByRole('button', { name: 'Create booking' }).click();
   await expect(page.locator('.modal.is-open')).toHaveCount(0);
 
@@ -672,6 +680,13 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
+  // The booked-by PA captured on the form shows in the People section.
+  await expect(page.locator('.panel.is-open .ir', { hasText: 'Booked by' })).toContainText(
+    'Sandra Miles',
+  );
+  await expect(page.locator('.panel.is-open .ir', { hasText: 'Booked by' })).toContainText(
+    'sandra@nopriceco.com',
+  );
 
   // ── The rail's "No price" saved view counts and lists it ──
   // Seeded bookings are all priced, so the one unpriced booking is Priceless.
