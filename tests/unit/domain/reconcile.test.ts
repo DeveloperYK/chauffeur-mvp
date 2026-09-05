@@ -1,4 +1,9 @@
-import { type BillableBooking, reconcile, reconciliationCsv } from '@/server/domain/reconcile';
+import {
+  type BillableBooking,
+  NO_ACCOUNT,
+  reconcile,
+  reconciliationCsv,
+} from '@/server/domain/reconcile';
 import { describe, expect, it } from 'vitest';
 
 // Build a minimal billable booking; only the fields reconcile() reads.
@@ -26,6 +31,20 @@ describe('reconcile', () => {
     expect(r.accounts).toEqual([]);
     expect(r.grandTotalPence).toBe(0);
     expect(r.tripCount).toBe(0);
+  });
+
+  it('groups bookings saved without a customer account under "No account"', () => {
+    const r = reconcile([
+      bk({ accountCode: null, caseCode: null, seq: 1 }),
+      bk({ accountCode: null, caseCode: null, seq: 2 }),
+      bk({ accountCode: 'LEGO Group', seq: 3 }),
+    ]);
+    const names = r.accounts.map((a) => a.account);
+    expect(names).toContain(NO_ACCOUNT);
+    expect(names).toContain('LEGO Group');
+    const noAccount = r.accounts.find((a) => a.account === NO_ACCOUNT);
+    expect(noAccount?.caseCodes.flatMap((c) => c.lines)).toHaveLength(2);
+    expect(r.tripCount).toBe(3);
   });
 
   it('line total = contract price + car park (car park optional)', () => {

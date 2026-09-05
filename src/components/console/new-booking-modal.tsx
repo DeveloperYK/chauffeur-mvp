@@ -571,9 +571,7 @@ export function NewBookingModal({
             <div className="form-section__head">Customer &amp; passenger</div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                Customer account<span className="req">*</span>
-              </label>
+              <label>Customer account</label>
               <div className="ctrl">
                 <CustomerAccountAutocomplete
                   value={form.customerAccount}
@@ -588,9 +586,7 @@ export function NewBookingModal({
             </div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                Case code<span className="req">*</span>
-              </label>
+              <label>Case code</label>
               <div className="ctrl">
                 <input
                   type="text"
@@ -629,9 +625,7 @@ export function NewBookingModal({
             </div>
             <div className="field">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-              <label>
-                Exec mobile<span className="req">*</span>
-              </label>
+              <label>Exec mobile</label>
               <div className="ctrl">
                 <input
                   type="tel"

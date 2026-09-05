@@ -467,14 +467,16 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver
               </a>
             ) : null}
-            <a
-              className="btn"
-              href={`sms:${booking.execMobile}?body=${encodeURIComponent(
-                `Hi, an update on your ${passengerName(booking)} booking…`,
-              )}`}
-            >
-              <Icon.Send /> Message passenger (SMS)
-            </a>
+            {booking.execMobile ? (
+              <a
+                className="btn"
+                href={`sms:${booking.execMobile}?body=${encodeURIComponent(
+                  `Hi, an update on your ${passengerName(booking)} booking…`,
+                )}`}
+              >
+                <Icon.Send /> Message passenger (SMS)
+              </a>
+            ) : null}
           </div>
         );
       case 'awaiting_driver_form':
@@ -590,7 +592,7 @@ export function DetailPanel({
             <div className="dp-hero__eyebrow">
               <Icon.Person style={{ width: 11, height: 11 }} /> Customer account
             </div>
-            <h1 className="dp-hero__title">{booking.accountCode}</h1>
+            <h1 className="dp-hero__title">{booking.accountCode ?? passengerName(booking)}</h1>
             <div className="dp-hero__sub">Passenger: {passengerName(booking)}</div>
             <div className="dp-hero__stats">
               <div className="dp-stat">
@@ -739,7 +741,7 @@ export function DetailPanel({
               <div className="ir">
                 <div className="ir__k">Customer account</div>
                 <div className="ir__v">
-                  <div className="ir__main">{booking.accountCode}</div>
+                  <div className="ir__main">{booking.accountCode ?? '—'}</div>
                 </div>
               </div>
               <div className="ir">
@@ -756,7 +758,7 @@ export function DetailPanel({
                 <div className="ir__k">Passenger</div>
                 <div className="ir__v">
                   <div className="ir__main">{passengerName(booking)}</div>
-                  <div className="ir__sub mono">{booking.execMobile}</div>
+                  <div className="ir__sub mono">{booking.execMobile ?? 'No mobile'}</div>
                 </div>
               </div>
               {booking.bookedByName ? (

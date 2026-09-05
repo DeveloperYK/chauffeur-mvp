@@ -662,13 +662,13 @@ test('optional pricing: a booking created without a price is flagged until one i
     .locator('input')
     .first()
     .fill('Priceless');
-  await modal.locator('.field', { hasText: 'Exec mobile' }).locator('input').fill('+447911123456');
+  // Customer account, case code and exec mobile are all optional — leave them
+  // blank to prove a booking saves without them (only the exec email is needed
+  // for notifications).
   await modal
     .locator('.field', { hasText: 'Exec email' })
     .locator('input')
     .fill('exec@example.com');
-  await modal.locator('input[aria-label="Customer account"]').fill('NoPrice Co');
-  await modal.locator('.field', { hasText: 'Case code' }).locator('input').fill('NP-1');
   // Capture the subcontractor quote; the contract price is deliberately left blank.
   await modal.locator('.field', { hasText: 'Subcontractor price' }).locator('input').fill('90');
   await modal.getByRole('button', { name: 'Create booking' }).click();
@@ -695,7 +695,7 @@ test('optional pricing: a booking created without a price is flagged until one i
   await expect(page.locator('.panel.is-open .route__addr').first()).toContainText('SW1A 1AA');
   await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('W1K 2AL');
   await expect(page.locator('.panel.is-open .route__nopc')).toHaveCount(0);
-  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
+  await expect(page.locator('.card', { hasText: 'Priceless' }).first()).toContainText('no price');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('Subcontractor £90');
   // The booked-by PA captured on the form shows in the People section.
@@ -713,7 +713,7 @@ test('optional pricing: a booking created without a price is flagged until one i
   await page.goto('/dashboard?savedView=no_price', { waitUntil: 'networkidle' });
   await expect(page.locator('.page-head__title')).toHaveText('No price');
   await expect(page.locator('.page-head__sub')).toContainText('1 ticket');
-  await expect(page.getByText('NoPrice Co').first()).toBeVisible();
+  await expect(page.getByText('Priceless').first()).toBeVisible();
 
   // ── The unpriced booking runs the whole lifecycle to completed ──
   await gotoSimulator(page);
@@ -738,7 +738,7 @@ test('optional pricing: a booking created without a price is flagged until one i
   doneUrl.searchParams.set('layout', 'board');
   doneUrl.searchParams.set('showDone', '1');
   await page.goto(doneUrl.toString(), { waitUntil: 'networkidle' });
-  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).toContainText('no price');
+  await expect(page.locator('.card', { hasText: 'Priceless' }).first()).toContainText('no price');
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('No price yet');
 
   // ── The panel's inline Set price works on the completed booking ──
@@ -757,7 +757,7 @@ test('optional pricing: a booking created without a price is flagged until one i
   await page.goto(pricedUrl.toString(), { waitUntil: 'networkidle' });
   await expect(page.locator('.panel.is-open .dp-stat--price')).toContainText('£250');
   await expect(page.locator('.panel.is-open .dp-stat--price')).not.toContainText('No price yet');
-  await expect(page.locator('.card', { hasText: 'NoPrice Co' }).first()).not.toContainText(
+  await expect(page.locator('.card', { hasText: 'Priceless' }).first()).not.toContainText(
     'no price',
   );
 

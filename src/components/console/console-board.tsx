@@ -459,7 +459,7 @@ function ListRow({
       </span>
       <span className="time">{fmtTimeWithDay(b.pickupAt)}</span>
       <span className="pax">
-        {b.accountCode}
+        {b.accountCode ?? passengerName(b)}
         <div className="pax__sub">
           {passengerName(b)}
           {b.caseCode ? ` · ${b.caseCode}` : ''}
@@ -629,7 +629,7 @@ function BoardCard({
         ) : null}
         <span className="card__time">{fmtTime(booking.pickupAt)}</span>
       </div>
-      <div className="card__title">{booking.accountCode}</div>
+      <div className="card__title">{booking.accountCode ?? passengerName(booking)}</div>
       <div className="card__sub">{passengerName(booking)}</div>
       <div className="card__route">
         <span className="pin" />

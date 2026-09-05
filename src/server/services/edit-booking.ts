@@ -1,5 +1,5 @@
 import { parsePickupInput } from '@/lib/dates';
-import { optionalPhoneSchema, phoneSchema } from '@/lib/phone';
+import { optionalPhoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
@@ -44,7 +44,7 @@ export const editBookingSchema = z
     dropoffAddress: z.string().max(500).optional().nullable(),
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
-    execMobile: phoneSchema,
+    execMobile: optionalPhoneSchema,
     execEmail: z.string().email().max(200).optional().nullable(),
     // "Booked by" — the PA who booked on the exec's behalf. Optional as a
     // whole; a partial fill is rejected in the superRefine (see bookings.ts).
@@ -57,8 +57,20 @@ export const editBookingSchema = z
       .max(200)
       .optional()
       .nullable(),
-    customerAccount: z.string().min(1, 'Customer account is required').max(120),
-    caseCode: z.string().min(1, 'Case code is required').max(60),
+    customerAccount: z
+      .string()
+      .trim()
+      .max(120)
+      .optional()
+      .nullable()
+      .transform((v) => v || null),
+    caseCode: z
+      .string()
+      .trim()
+      .max(60)
+      .optional()
+      .nullable()
+      .transform((v) => v || null),
     // Both prices are optional — see bookings.ts. Null clears a stored price.
     contractPricePence: z.coerce
       .number()
@@ -201,12 +213,12 @@ export async function editBooking(
       dropoffAddress,
       passengerFirstName: data.passengerFirstName,
       passengerLastName: lastName,
-      execMobile: data.execMobile,
+      execMobile: data.execMobile ?? null,
       execEmail: data.execEmail ?? null,
       ...bookedBy,
-      clientName: data.customerAccount,
-      accountCode: data.customerAccount,
-      caseCode: data.caseCode,
+      clientName: data.customerAccount ?? null,
+      accountCode: data.customerAccount ?? null,
+      caseCode: data.caseCode ?? null,
       contractPricePence,
       subcontractorPricePence,
       travelMode: travel.travelMode,
@@ -286,7 +298,7 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   ) {
     out.push('passenger name');
   }
-  if (existing.execMobile !== next.execMobile) out.push('exec mobile');
+  if ((existing.execMobile ?? null) !== (next.execMobile ?? null)) out.push('exec mobile');
   if ((existing.execEmail ?? null) !== (next.execEmail ?? null)) out.push('exec email');
   if (
     (existing.bookedByName ?? null) !== next.bookedByName ||
@@ -296,8 +308,9 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
     out.push('booked by');
   }
   // Customer Account is held in account_code (client_name mirrors it).
-  if (existing.accountCode !== next.customerAccount) out.push('customer account');
-  if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');
+  if ((existing.accountCode ?? null) !== (next.customerAccount ?? null))
+    out.push('customer account');
+  if ((existing.caseCode ?? null) !== (next.caseCode ?? null)) out.push('case code');
   if ((existing.contractPricePence ?? null) !== next.contractPricePence) out.push('price');
   if ((existing.subcontractorPricePence ?? null) !== next.subcontractorPricePence) {
     out.push('subcontractor price');

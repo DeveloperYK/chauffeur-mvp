@@ -104,20 +104,30 @@ describe('services/bookings (integration)', () => {
     expect(result.booking.operatorNotes).toBeNull();
   });
 
-  it('requires customer account (validation error when missing)', async () => {
-    const { customerAccount, ...withoutCustomerAccount } = validInput();
+  it('accepts a booking with no customer account, case code or exec mobile (all optional)', async () => {
+    const { customerAccount, caseCode, execMobile, ...minimal } = validInput();
     void customerAccount;
-    const result = await createBooking(withoutCustomerAccount, { db, clock, operatorId });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('validation');
+    void caseCode;
+    void execMobile;
+    const result = await createBooking(minimal, { db, clock, operatorId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.accountCode).toBeNull();
+    expect(result.booking.clientName).toBeNull();
+    expect(result.booking.caseCode).toBeNull();
+    expect(result.booking.execMobile).toBeNull();
   });
 
-  it('requires case code (validation error when missing)', async () => {
-    const { caseCode, ...withoutCaseCode } = validInput();
-    void caseCode;
-    const result = await createBooking(withoutCaseCode, { db, clock, operatorId });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('validation');
+  it('stores blank customer account / case code / exec mobile as null (the form posts empty strings)', async () => {
+    const result = await createBooking(
+      validInput({ customerAccount: '', caseCode: '  ', execMobile: '' }),
+      { db, clock, operatorId },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.accountCode).toBeNull();
+    expect(result.booking.caseCode).toBeNull();
+    expect(result.booking.execMobile).toBeNull();
   });
 
   it('rejects pickup in the past', async () => {
@@ -193,7 +203,7 @@ describe('services/bookings (integration)', () => {
     // a default country may treat them as ambiguous. Test only that the
     // service rejects ambiguity rather than guessing.
     if (result.ok) {
-      expect(result.booking.execMobile.startsWith('+')).toBe(true);
+      expect(result.booking.execMobile?.startsWith('+')).toBe(true);
     } else {
       expect(result.reason).toBe('validation');
     }

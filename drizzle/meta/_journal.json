@@ -218,6 +218,13 @@
       "when": 1788650000000,
       "tag": "0030_add_state_before_cancel",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788700000000,
+      "tag": "0031_optional_account_case_mobile",
+      "breakpoints": true
     }
   ]
 }

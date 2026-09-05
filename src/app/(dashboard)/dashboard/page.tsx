@@ -211,7 +211,7 @@ export default async function DashboardHome({
       b.passengerLastName ?? '',
       b.pickupAddress,
       b.dropoffAddress ?? '',
-      b.accountCode,
+      b.accountCode ?? '',
       b.caseCode ?? '',
       b.backfillCar ?? '',
     ].some((x) => x.toLowerCase().includes(needle));
