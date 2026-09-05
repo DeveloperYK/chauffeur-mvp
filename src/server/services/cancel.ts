@@ -1,6 +1,6 @@
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
-import { transition } from '@/server/domain/booking-state';
+import { type CancellableState, transition } from '@/server/domain/booking-state';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
@@ -13,7 +13,9 @@ import { lapseOpenOffers } from './offers';
 export const cancelBookingSchema = z
   .object({
     bookingId: z.string().uuid(),
-    reason: z.string().trim().min(5).max(1000),
+    // Optional: operators just mark the booking cancelled. Kept for the audit
+    // log when given; blank means none.
+    reason: z.string().trim().max(1000).optional().nullable(),
   })
   .strict();
 
@@ -32,9 +34,10 @@ export type CancelResult =
   | { ok: false; reason: 'wrong_state'; state: string };
 
 /**
- * Move a booking to the `cancelled` state with a mandatory operator-supplied
- * reason. Permitted from unassigned, assigned, in_progress (see state
- * machine). Records cancelled_at, cancelled_by_operator_id, and the reason.
+ * Move a booking to the `cancelled` state. Permitted from unassigned, assigned,
+ * in_progress (see state machine). Records cancelled_at, cancelled_by_operator_id,
+ * the optional reason, and the state it came from so the cancel can be undone
+ * within the undo window (see undo-cancel.ts).
  */
 export async function cancelBooking(
   raw: unknown,
@@ -45,7 +48,8 @@ export async function cancelBooking(
   if (!parsed.success) {
     return { ok: false, reason: 'validation', issues: parsed.error.issues };
   }
-  const { bookingId, reason } = parsed.data;
+  const { bookingId } = parsed.data;
+  const reason = parsed.data.reason || null;
 
   const [existing] = await deps.db
     .select()
@@ -67,6 +71,7 @@ export async function cancelBooking(
       cancelledAt: now,
       cancelledByOperatorId: operatorId,
       cancellationReason: reason,
+      stateBeforeCancel: existing.state as CancellableState,
       updatedAt: now,
     })
     .where(and(eq(bookings.id, bookingId), eq(bookings.state, existing.state)))
