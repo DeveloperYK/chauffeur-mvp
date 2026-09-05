@@ -87,6 +87,36 @@ describe('services/edit-booking — mid-flight change flag (integration)', () =>
     ...overrides,
   });
 
+  it('ignores sub-minute pickup drift: a private-notes-only edit on a booking whose stored pickup carries seconds is not material', async () => {
+    // The edit form can only express whole minutes, so a stored 10:00:37 comes
+    // back as 10:00:00 on every save. That must not read as a "pickup time"
+    // change, or every cosmetic edit falsely flags the driver as not told.
+    const b = await seed('assigned', { pickupAt: new Date('2026-06-01T10:00:37.000Z') });
+    const res = await editBooking(
+      fullEdit(b.id, { operatorNotes: 'Cash job — no card on file' }),
+      operatorId,
+      { db },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.changedFields).toEqual(['private notes']);
+    expect(res.materialChange).toBe(false);
+    expect(res.booking.changeConfirmationStatus).toBe('none');
+  });
+
+  it('still reports a real whole-minute pickup change on a booking whose stored pickup carries seconds', async () => {
+    const b = await seed('assigned', { pickupAt: new Date('2026-06-01T10:00:37.000Z') });
+    const res = await editBooking(
+      fullEdit(b.id, { pickupAt: new Date('2026-06-01T10:01:00.000Z').toISOString() }),
+      operatorId,
+      { db },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.changedFields).toEqual(['pickup time']);
+    expect(res.materialChange).toBe(true);
+  });
+
   it('flags pending on a driver-facing change while assigned', async () => {
     const b = await seed('assigned');
     const res = await editBooking(fullEdit(b.id, { dropoffAddress: 'Gatwick South' }), operatorId, {

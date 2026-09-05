@@ -142,7 +142,7 @@ export async function seedSampleData(db: Database, operatorId: string): Promise<
   }
 
   for (const b of SAMPLE_BOOKINGS) {
-    const pickupAt = new Date(now + b.pickupOffsetHours * 60 * 60 * 1000);
+    const pickupAt = wholeMinute(new Date(now + b.pickupOffsetHours * 60 * 60 * 1000));
     const result = await createBooking(
       {
         pickupAt: pickupAt.toISOString(),

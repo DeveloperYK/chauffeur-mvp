@@ -243,10 +243,17 @@ type EditableFields = Omit<
   travelRef: string | null;
 };
 
+function minuteOf(d: Date): number {
+  return Math.floor(d.getTime() / 60_000);
+}
+
 function diffFields(existing: Booking, next: EditableFields): string[] {
   const out: string[] = [];
   if (existing.serviceType !== next.serviceType) out.push('service type');
-  if (existing.pickupAt.getTime() !== next.pickupAt.getTime()) out.push('pickup time');
+  // The edit form only holds whole minutes, so compare at minute precision:
+  // a stored 10:00:37 round-tripping as 10:00:00 is not an operator change
+  // (and must not flag the driver as not told on a cosmetic edit).
+  if (minuteOf(existing.pickupAt) !== minuteOf(next.pickupAt)) out.push('pickup time');
   if (existing.expectedDurationMinutes !== next.expectedDurationMinutes) out.push('duration');
   if (existing.pickupAddress !== next.pickupAddress) out.push('pickup address');
   if ((existing.dropoffAddress ?? null) !== next.dropoffAddress) out.push('drop-off');
