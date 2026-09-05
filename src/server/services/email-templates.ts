@@ -234,28 +234,82 @@ export function driverDetailsEmail(
 }
 
 /**
- * Wrap an operator-edited draft in the branded shell: JJ header, the edited
- * text as escaped paragraphs, then the standard signature + confidentiality
- * footer. Gives the operator full control of the words while keeping every
- * email on brand.
+ * One line of the operator's edited draft that reads as "Label: value" —
+ * short label, colon-space separator. These lines are upgraded back into the
+ * branded details table so an edited email looks exactly as polished as the
+ * pre-filled one. Everything else stays an ordinary paragraph.
  */
-export function renderCustomExecEmail(subject: string, bodyText: string): RenderedEmail {
+function parseDetailLine(line: string): { label: string; value: string } | null {
+  const idx = line.indexOf(': ');
+  if (idx <= 0 || idx > 32) return null;
+  const label = line.slice(0, idx).trim();
+  const value = line.slice(idx + 2).trim();
+  if (!label || !value) return null;
+  // A sentence ("Note: please wait at the side entrance.") is not a row —
+  // labels are short noun phrases without their own punctuation.
+  if (/https?:\/\//.test(label)) return null;
+  return { label, value };
+}
+
+type CustomBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'table'; rows: { label: string; value: string }[] };
+
+/** Group the draft into paragraphs and consecutive-detail-line tables. */
+function parseCustomBody(bodyText: string): CustomBlock[] {
+  const blocks: CustomBlock[] = [];
+  for (const rawPara of bodyText.split(/\n{2,}/)) {
+    const para = rawPara.trim();
+    if (!para) continue;
+    const lines = para.split('\n').map((l) => l.trim());
+    const rows = lines.map(parseDetailLine);
+    // Only a run of ≥2 recognisable rows becomes a table; a lone "Label: x"
+    // sentence stays prose.
+    if (rows.length >= 2 && rows.every((r) => r !== null)) {
+      blocks.push({ type: 'table', rows: rows as { label: string; value: string }[] });
+    } else {
+      blocks.push({ type: 'paragraph', text: para });
+    }
+  }
+  return blocks;
+}
+
+/**
+ * Wrap an operator-edited draft in the branded shell: JJ header, optional
+ * headline, the edited text — with "Label: value" runs rendered as the same
+ * details table the pre-filled emails use — then the standard signature +
+ * confidentiality footer. The operator controls the words; the email always
+ * reads clean and scannable.
+ */
+export function renderCustomExecEmail(
+  subject: string,
+  bodyText: string,
+  heading?: string,
+): RenderedEmail {
   const brand = escapeHtml(SMS_BRAND_NAME);
-  const paragraphs = bodyText
-    .split(/\n{2,}/)
-    .map((para) => para.trim())
-    .filter(Boolean)
-    .map(
-      (para) =>
-        `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#374151;white-space:pre-line;">${escapeHtml(para)}</p>`,
-    )
+  const content = parseCustomBody(bodyText)
+    .map((block) => {
+      if (block.type === 'table') {
+        const rowsHtml = block.rows
+          .map(
+            (r) =>
+              `<tr><td style="padding:7px 0;color:#6b7280;font-size:13px;width:130px;vertical-align:top;">${escapeHtml(r.label)}</td><td style="padding:7px 0;color:#111827;font-size:14px;font-weight:600;">${escapeHtml(r.value)}</td></tr>`,
+          )
+          .join('');
+        return `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;margin:0 0 20px;">${rowsHtml}</table>`;
+      }
+      return `<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#374151;white-space:pre-line;">${escapeHtml(block.text)}</p>`;
+    })
     .join('');
   const html = [
     '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f5;padding:24px;">',
     '<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">',
     `<div style="padding:18px 28px;border-bottom:3px solid #111827;"><span style="font-size:17px;font-weight:700;letter-spacing:.02em;color:#111827;">${brand}</span></div>`,
     '<div style="padding:26px 28px;">',
-    paragraphs,
+    heading
+      ? `<h1 style="margin:0 0 14px;font-size:19px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h1>`
+      : '',
+    content,
     '</div>',
     '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
     `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
@@ -268,6 +322,7 @@ export function renderCustomExecEmail(subject: string, bodyText: string): Render
   const text = [
     SMS_BRAND_NAME,
     '',
+    ...(heading ? [heading, ''] : []),
     bodyText,
     '',
     '--',

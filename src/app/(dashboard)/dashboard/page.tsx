@@ -27,7 +27,11 @@ import {
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
-import { type ExecEmailSends, execEmailSendMap } from '@/server/services/exec-notifications';
+import {
+  type ExecEmailSends,
+  execEmailSendMap,
+  listEmailAttentionBookings,
+} from '@/server/services/exec-notifications';
 import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
@@ -40,6 +44,7 @@ const SAVED_VIEW_LABEL: Record<string, string> = {
   needs_review: 'Awaiting review',
   no_price: 'No price',
   driver_not_told: 'Driver not told',
+  emails_due: 'Emails due',
 };
 // Each saved view spans every day: two triage by state, "No price" by the
 // missing contract price (any live state, since an unpriced booking blocks
@@ -49,6 +54,7 @@ const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
   needs_review: (db) => listBookingsByState(db, 'awaiting_operator_review'),
   no_price: (db) => listUnpricedBookings(db),
   driver_not_told: (db) => listDriverNotToldBookings(db),
+  emails_due: (db) => listEmailAttentionBookings(db),
 };
 
 const UNASSIGNED = 'unassigned';

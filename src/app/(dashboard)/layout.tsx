@@ -6,6 +6,7 @@ import { getDb } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { simulatorEnabled } from '@/server/feature-flags';
 import { driverNotToldConditions } from '@/server/services/bookings-query';
+import { listEmailAttentionBookings } from '@/server/services/exec-notifications';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -23,6 +24,9 @@ const SAVED_VIEWS: SavedView[] = [
   // driver's confirmation of the new plan. Must be loud: a driver working off
   // stale details is an operational failure.
   { id: 'driver_not_told', name: 'Driver not told', vdot: '#C9372C', urgent: true },
+  // Bookings whose exec emails are behind — due but unsent, or failed. The
+  // operator sends both emails manually, so the rail keeps the queue visible.
+  { id: 'emails_due', name: 'Emails due', vdot: '#B38600', urgent: true },
 ];
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -37,11 +41,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     needs_review: 0,
     no_price: 0,
     driver_not_told: 0,
+    emails_due: 0,
   };
   const url = env().DATABASE_URL;
   if (url) {
     const { db } = getDb(url);
-    const [u, r, p, d] = await Promise.all([
+    const [u, r, p, d, em] = await Promise.all([
       db.select({ id: bookings.id }).from(bookings).where(eq(bookings.state, 'unassigned')),
       db
         .select({ id: bookings.id })
@@ -57,11 +62,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         .select({ id: bookings.id })
         .from(bookings)
         .where(and(...driverNotToldConditions())),
+      listEmailAttentionBookings(db),
     ]);
     counts.unassigned = u.length;
     counts.needs_review = r.length;
     counts.no_price = p.length;
     counts.driver_not_told = d.length;
+    counts.emails_due = em.length;
   }
 
   return (
