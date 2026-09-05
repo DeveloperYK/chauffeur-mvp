@@ -759,6 +759,17 @@ export function DetailPanel({
                   <div className="ir__sub mono">{booking.execMobile}</div>
                 </div>
               </div>
+              {booking.bookedByName ? (
+                <div className="ir">
+                  <div className="ir__k">Booked by</div>
+                  <div className="ir__v">
+                    <div className="ir__main">{booking.bookedByName}</div>
+                    <div className="ir__sub mono">
+                      {[booking.bookedByPhone, booking.bookedByEmail].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="ir">
                 <div className="ir__k">Operator</div>
                 <div className="ir__v">

@@ -41,3 +41,23 @@ export const phoneSchema = z
     }
     return e164;
   });
+
+/**
+ * Zod schema for an optional phone field: blank/absent parses to null,
+ * anything else must be a valid number and is stored in E.164 form.
+ */
+export const optionalPhoneSchema = z
+  .string()
+  .trim()
+  .max(30, PHONE_HINT)
+  .optional()
+  .nullable()
+  .transform((value, ctx) => {
+    if (!value) return null;
+    const e164 = normalizePhone(value);
+    if (!e164) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: PHONE_HINT });
+      return z.NEVER;
+    }
+    return e164;
+  });

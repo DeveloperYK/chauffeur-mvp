@@ -24,6 +24,9 @@ const baseBooking: Booking = {
   passengerFirstName: 'Eric',
   passengerLastName: 'French',
   execMobile: '+447911999999',
+  bookedByName: null,
+  bookedByPhone: null,
+  bookedByEmail: null,
   execEmail: null,
   clientName: 'LEGO Group',
   accountCode: 'LEGO',
@@ -94,15 +97,46 @@ const operator: Operator = {
 };
 
 describe('rowFromBooking', () => {
-  it('produces a 19-column row (A–S) of JJ input columns', () => {
+  it('produces a 21-column row (A–U) of JJ input columns', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(19);
+    expect(row.length).toBe(21);
   });
 
-  it('names the last column Mileage (miles) and writes through column S', () => {
+  it('adds PA Name (T) and PA Contact (U) after Mileage (S) and writes through U', () => {
     expect(SHEET_HEADERS[18]).toBe('Mileage (miles)');
-    expect(SHEET_LAST_COLUMN).toBe('S');
+    expect(SHEET_HEADERS[19]).toBe('PA Name');
+    expect(SHEET_HEADERS[20]).toBe('PA Contact');
+    expect(SHEET_LAST_COLUMN).toBe('U');
+  });
+
+  it('writes the booked-by PA name and joined contact into T and U', () => {
+    const row = rowFromBooking({
+      booking: {
+        ...baseBooking,
+        bookedByName: 'Sandra Miles',
+        bookedByPhone: '+447911998877',
+        bookedByEmail: 'sandra@legogroup.com',
+      },
+      driver,
+    });
+    expect(row[19]).toBe('Sandra Miles'); // T PA Name
+    expect(row[20]).toBe('+447911998877 / sandra@legogroup.com'); // U PA Contact
+  });
+
+  it('renders a single contact without the separator, and blanks when no PA', () => {
+    const emailOnly = rowFromBooking({
+      booking: {
+        ...baseBooking,
+        bookedByName: 'Sandra Miles',
+        bookedByEmail: 'sandra@legogroup.com',
+      },
+      driver,
+    });
+    expect(emailOnly[20]).toBe('sandra@legogroup.com');
+    const none = rowFromBooking({ booking: baseBooking, driver });
+    expect(none[19]).toBe('');
+    expect(none[20]).toBe('');
   });
 
   it('renders the route distance as miles with 1 decimal (S)', () => {
