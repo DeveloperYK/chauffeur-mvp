@@ -1,5 +1,5 @@
 import { parsePickupInput } from '@/lib/dates';
-import { phoneSchema } from '@/lib/phone';
+import { optionalPhoneSchema, phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
@@ -9,7 +9,12 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
-import { normalizedTravelPair, refineTravelRef } from './bookings';
+import {
+  normalizedBookedBy,
+  normalizedTravelPair,
+  refineBookedBy,
+  refineTravelRef,
+} from './bookings';
 import { mirrorBooking } from './mirror';
 
 // See bookings.ts: parse the form's bare `datetime-local` as Europe/London
@@ -41,6 +46,17 @@ export const editBookingSchema = z
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: phoneSchema,
     execEmail: z.string().email().max(200).optional().nullable(),
+    // "Booked by" — the PA who booked on the exec's behalf. Optional as a
+    // whole; a partial fill is rejected in the superRefine (see bookings.ts).
+    bookedByName: z.string().trim().max(120).optional().nullable(),
+    bookedByPhone: optionalPhoneSchema,
+    bookedByEmail: z
+      .string()
+      .trim()
+      .email('Enter a valid email for the booked-by contact')
+      .max(200)
+      .optional()
+      .nullable(),
     customerAccount: z.string().min(1, 'Customer account is required').max(120),
     caseCode: z.string().min(1, 'Case code is required').max(60),
     // Both prices are optional — see bookings.ts. Null clears a stored price.
@@ -76,6 +92,7 @@ export const editBookingSchema = z
       });
     }
     refineTravelRef(data, ctx);
+    refineBookedBy(data, ctx);
   });
 
 export type EditBookingInput = z.infer<typeof editBookingSchema>;
@@ -145,6 +162,7 @@ export async function editBooking(
   const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
   const distanceMeters = isHourly ? null : (data.distanceMeters ?? null);
   const travel = normalizedTravelPair(data);
+  const bookedBy = normalizedBookedBy(data);
 
   const changedFields = diffFields(existing, {
     ...data,
@@ -156,6 +174,7 @@ export async function editBooking(
     notes,
     operatorNotes,
     ...travel,
+    ...bookedBy,
   });
 
   // Nothing changed — return the booking untouched, no audit, no mirror.
@@ -184,6 +203,7 @@ export async function editBooking(
       passengerLastName: lastName,
       execMobile: data.execMobile,
       execEmail: data.execEmail ?? null,
+      ...bookedBy,
       clientName: data.customerAccount,
       accountCode: data.customerAccount,
       caseCode: data.caseCode,
@@ -241,6 +261,9 @@ type EditableFields = Omit<
   operatorNotes: string | null;
   travelMode: 'flight' | 'train' | null;
   travelRef: string | null;
+  bookedByName: string | null;
+  bookedByPhone: string | null;
+  bookedByEmail: string | null;
 };
 
 function minuteOf(d: Date): number {
@@ -265,6 +288,13 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   }
   if (existing.execMobile !== next.execMobile) out.push('exec mobile');
   if ((existing.execEmail ?? null) !== (next.execEmail ?? null)) out.push('exec email');
+  if (
+    (existing.bookedByName ?? null) !== next.bookedByName ||
+    (existing.bookedByPhone ?? null) !== next.bookedByPhone ||
+    (existing.bookedByEmail ?? null) !== next.bookedByEmail
+  ) {
+    out.push('booked by');
+  }
   // Customer Account is held in account_code (client_name mirrors it).
   if (existing.accountCode !== next.customerAccount) out.push('customer account');
   if ((existing.caseCode ?? null) !== next.caseCode) out.push('case code');

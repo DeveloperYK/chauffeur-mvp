@@ -218,6 +218,12 @@ export const bookings = pgTable(
     // channel. An email-mode booking with no address surfaces as a loud failed
     // exec notification, never a silent drop. See docs/shaping/exec-messages.
     execEmail: text('exec_email'),
+    // "Booked by" — the PA who booked on the exec's behalf. Optional as a
+    // whole; when captured, a name plus at least one contact (phone or email)
+    // is enforced at the schema layer. Mirrored to sheet columns T/U.
+    bookedByName: text('booked_by_name'),
+    bookedByPhone: text('booked_by_phone'),
+    bookedByEmail: text('booked_by_email'),
     // "Customer Account" — the company/account the trip is billed to (e.g.
     // "LEGO Group"). The legacy JJ sheet column J. Stored in account_code.
     clientName: text('client_name').notNull(),

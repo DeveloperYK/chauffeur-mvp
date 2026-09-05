@@ -42,6 +42,9 @@ interface EditForm {
   passengerLastName: string;
   execMobile: string;
   execEmail?: string;
+  bookedByName: string;
+  bookedByPhone: string;
+  bookedByEmail: string;
   customerAccount: string;
   caseCode: string;
   contractPricePounds: string;
@@ -81,6 +84,9 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         passengerLastName: booking.passengerLastName ?? '',
         execMobile: booking.execMobile,
         execEmail: booking.execEmail ?? '',
+        bookedByName: booking.bookedByName ?? '',
+        bookedByPhone: booking.bookedByPhone ?? '',
+        bookedByEmail: booking.bookedByEmail ?? '',
         customerAccount: booking.accountCode,
         caseCode: booking.caseCode ?? '',
         contractPricePounds:
@@ -204,6 +210,9 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
     fd.set('execEmail', form.execEmail ?? '');
+    fd.set('bookedByName', form.bookedByName);
+    fd.set('bookedByPhone', form.bookedByPhone);
+    fd.set('bookedByEmail', form.bookedByEmail);
     fd.set('customerAccount', form.customerAccount);
     fd.set('caseCode', form.caseCode);
     fd.set('contractPricePounds', form.contractPricePounds);
@@ -492,6 +501,43 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                   onChange={(e) => set('execEmail', e.target.value)}
                   required={EXEC_NOTIFICATION_CHANNEL === 'email'}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section__head">Booked by (PA)</div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+              <label>Name</label>
+              <div className="ctrl">
+                <input
+                  type="text"
+                  value={form.bookedByName}
+                  onChange={(e) => set('bookedByName', e.target.value)}
+                  placeholder="Who booked on the exec's behalf"
+                />
+              </div>
+            </div>
+            <div className="field">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: controls nested in .ctrl */}
+              <label>Contact</label>
+              <div className="ctrl">
+                <div className="field-inline">
+                  <input
+                    type="tel"
+                    value={form.bookedByPhone}
+                    onChange={(e) => set('bookedByPhone', e.target.value)}
+                    placeholder="Phone"
+                  />
+                  <input
+                    type="email"
+                    value={form.bookedByEmail}
+                    onChange={(e) => set('bookedByEmail', e.target.value)}
+                    placeholder="Email"
+                  />
+                </div>
+                <div className="hint">If filled in: name plus a phone or an email.</div>
               </div>
             </div>
           </div>
