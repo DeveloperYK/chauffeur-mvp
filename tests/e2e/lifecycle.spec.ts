@@ -288,7 +288,10 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await bfModal.locator('input[name="backfillDriverName"]').fill('Dave Smith');
   await bfModal.locator('input[name="backfillDriverPhone"]').fill('+44 7911 123456');
   await bfModal.locator('input[name="backfillCar"]').fill('BMW 5 Series');
-  // Backfill drivers are paid per job (internal drivers are salaried) — pay is required.
+  // Backfill drivers are paid per job (internal drivers are salaried) — pay is
+  // required and starts at the ticket's subcontractor price (JJ seeds £250).
+  await expect(bfModal.locator('input[name="backfillDriverPay"]')).toHaveValue('250');
+  await expect(bfModal).toContainText('Pre-filled from the ticket');
   await bfModal.locator('input[name="backfillDriverPay"]').fill('120');
   await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
   await expect(page.locator('.toast')).toContainText(/backfill/i);
