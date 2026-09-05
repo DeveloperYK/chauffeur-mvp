@@ -95,6 +95,8 @@ const SAMPLE_BOOKINGS = [
     customerAccount: 'Johnson & Johnson',
     caseCode: 'JJ-2026-220',
     contractPricePence: 45000,
+    // Agreed subcontractor quote — pre-fills driver pay on "Hand to backfill".
+    subcontractorPricePence: 25000,
   },
 ] as const;
 
@@ -153,6 +155,7 @@ export async function seedSampleData(db: Database, operatorId: string): Promise<
         customerAccount: b.customerAccount,
         caseCode: b.caseCode,
         contractPricePence: b.contractPricePence,
+        subcontractorPricePence: 'subcontractorPricePence' in b ? b.subcontractorPricePence : null,
       },
       { db, operatorId },
     );
