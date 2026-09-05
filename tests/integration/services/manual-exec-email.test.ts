@@ -1,0 +1,263 @@
+import { FakeEmailAdapter } from '@/server/adapters/email-fake';
+import {
+  type Booking,
+  type Driver,
+  auditEvents,
+  bookings,
+  drivers,
+  operators,
+} from '@/server/db/schema';
+import {
+  execEmailDraft,
+  execEmailSendMap,
+  sendManualExecEmail,
+} from '@/server/services/exec-notifications';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { SeedData } from '~test/fixtures/seed-data';
+import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
+
+/**
+ * Operator-triggered exec emails: the console drafts the confirmation and
+ * driver-details emails, the operator edits and sends them explicitly. Nothing
+ * is emailed automatically on assign / in-progress any more.
+ */
+describe('services/exec-notifications manual emails (integration)', () => {
+  let db: TestDb;
+  let close: () => Promise<void>;
+  let operatorId: string;
+  let driver: Driver;
+  let emailer: FakeEmailAdapter;
+
+  beforeAll(async () => {
+    const t = await createTestDb();
+    db = t.db;
+    close = t.close;
+    const [op] = await db
+      .insert(operators)
+      .values({ email: 'op@example.com', passwordHash: 'x', name: 'Op' })
+      .returning();
+    operatorId = op?.id ?? '';
+    const [drv] = await db.insert(drivers).values(SeedData.drivers.premiumTom()).returning();
+    if (!drv) throw new Error('driver seed failed');
+    driver = drv;
+  });
+
+  afterAll(async () => {
+    await close();
+  });
+
+  beforeEach(async () => {
+    await db.delete(bookings);
+    await db.delete(auditEvents);
+    emailer = new FakeEmailAdapter();
+  });
+
+  async function seed(overrides: Record<string, unknown> = {}): Promise<Booking> {
+    const [b] = await db
+      .insert(bookings)
+      .values({
+        ...SeedData.bookings.unassigned(operatorId),
+        execEmail: 'exec@example.com',
+        ...overrides,
+      })
+      .returning();
+    if (!b) throw new Error('seed failed');
+    return b;
+  }
+
+  async function seedAssigned(): Promise<Booking> {
+    const [b] = await db
+      .insert(bookings)
+      .values({
+        ...SeedData.bookings.assigned(operatorId, driver.id),
+        execEmail: 'exec@example.com',
+      })
+      .returning();
+    if (!b) throw new Error('seed failed');
+    return b;
+  }
+
+  // ── Drafts ─────────────────────────────────────────────────────
+
+  it('drafts a confirmation email before any driver is assigned (no driver rows)', async () => {
+    const booking = await seed();
+    const result = await execEmailDraft(db, booking.id, 'assigned');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.to).toBe('exec@example.com');
+    expect(result.draft.subject.toLowerCase()).toContain('confirmed');
+    expect(result.draft.body).not.toContain('Driver:');
+    expect(result.draft.body).toContain('Pickup:');
+  });
+
+  it('drafts the confirmation with driver details once a driver is assigned', async () => {
+    const booking = await seedAssigned();
+    const result = await execEmailDraft(db, booking.id, 'assigned');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.body).toContain(driver.name);
+  });
+
+  it('drafts the driver-details email for an assigned booking', async () => {
+    const booking = await seedAssigned();
+    const result = await execEmailDraft(db, booking.id, 'en_route');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.subject.toLowerCase()).toContain('driver details');
+    expect(result.draft.body).toContain(driver.name);
+  });
+
+  it('refuses to draft the driver-details email with no driver on the job', async () => {
+    const booking = await seed();
+    const result = await execEmailDraft(db, booking.id, 'en_route');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('no_driver');
+  });
+
+  it('drafts to an empty recipient when the booking has no exec email', async () => {
+    const booking = await seed({ execEmail: null });
+    const result = await execEmailDraft(db, booking.id, 'assigned');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.to).toBe('');
+  });
+
+  // ── Sending ────────────────────────────────────────────────────
+
+  it('sends the operator-edited email and records the attempt', async () => {
+    const booking = await seed();
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'pa@client.com',
+        subject: 'Your booking is confirmed',
+        body: 'Hello,\n\nAll confirmed for tomorrow.',
+      },
+      operatorId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notification.to).toBe('pa@client.com');
+    expect(result.notification.kind).toBe('assigned');
+    expect(result.notification.channel).toBe('email');
+    expect(result.notification.status).toBe('sent');
+    // The provider got the branded HTML wrapping the edited text.
+    expect(emailer.sent.length).toBe(1);
+    expect(emailer.sent[0]?.to).toBe('pa@client.com');
+    expect(emailer.sent[0]?.html).toContain('All confirmed for tomorrow.');
+    expect(emailer.sent[0]?.html).toContain('JJ Chauffeuring Services (UK) Ltd');
+    // Audit trail names the actor and the send.
+    const events = await db.select().from(auditEvents);
+    const sent = events.find((e) => e.action === 'send_exec_email');
+    expect(sent?.actorId).toBe(operatorId);
+    expect((sent?.after as Record<string, unknown>)?.to).toBe('pa@client.com');
+  });
+
+  it('records a failed row when the provider rejects, and reports it', async () => {
+    const booking = await seed();
+    emailer.simulateFailure('provider_down');
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'exec@example.com',
+        subject: 'S',
+        body: 'B',
+      },
+      operatorId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notification.status).toBe('failed');
+    expect(result.notification.errorReason).toBe('provider_down');
+  });
+
+  it('rejects an invalid recipient address', async () => {
+    const booking = await seed();
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: booking.id, kind: 'assigned', to: 'not-an-email', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation');
+    expect(emailer.sent.length).toBe(0);
+  });
+
+  it('rejects a blank subject or body', async () => {
+    const booking = await seed();
+    for (const args of [
+      { subject: '', body: 'B' },
+      { subject: 'S', body: '  ' },
+    ]) {
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId: booking.id, kind: 'assigned', to: 'a@b.com', ...args },
+        operatorId,
+      );
+      expect(result.ok).toBe(false);
+    }
+  });
+
+  it('refuses the driver-details email when no driver is on the job', async () => {
+    const booking = await seed();
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: booking.id, kind: 'en_route', to: 'a@b.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('no_driver');
+  });
+
+  it('refuses to email about a cancelled booking', async () => {
+    const booking = await seed({ state: 'cancelled' });
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: booking.id, kind: 'assigned', to: 'a@b.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('not_sendable');
+  });
+
+  // ── Send map (board flags) ─────────────────────────────────────
+
+  it('maps which of the two emails each booking has had', async () => {
+    const a = await seed();
+    const b = await seedAssigned();
+    await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'en_route', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    const map = await execEmailSendMap(db, [a.id, b.id]);
+    expect(map.get(a.id)?.confirmationSentAt ?? null).toBeNull();
+    expect(map.get(b.id)?.confirmationSentAt).toBeTruthy();
+    expect(map.get(b.id)?.driverDetailsSentAt).toBeTruthy();
+  });
+
+  it('a failed send does not count as sent in the map', async () => {
+    const b = await seed();
+    emailer.simulateFailure('down');
+    await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      operatorId,
+    );
+    const map = await execEmailSendMap(db, [b.id]);
+    expect(map.get(b.id)?.confirmationSentAt ?? null).toBeNull();
+  });
+});

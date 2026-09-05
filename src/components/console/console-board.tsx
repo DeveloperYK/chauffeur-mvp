@@ -491,6 +491,7 @@ function ListRow({
           </span>
         ) : null}
         <ExecFailureTag status={b.execNotificationStatus} />
+        <EmailDueTag booking={b} />
         <MirrorFailureTag status={b.mirrorStatus} />
         <NoPriceTag booking={b} />
         <DriverNotToldTag booking={b} />
@@ -526,6 +527,33 @@ function ExecFailureTag({ status }: { status: ConsoleBooking['execNotificationSt
       }}
     >
       ⚠ exec
+    </span>
+  );
+}
+
+/**
+ * Amber marker on a tile whose exec emails are behind: a driver is on the job
+ * but the confirmation and/or driver-details email hasn't been sent yet. The
+ * operator sends both from the booking's Exec emails section.
+ */
+function EmailDueTag({ booking }: { booking: ConsoleBooking }) {
+  const active = ['assigned', 'in_progress', 'awaiting_driver_form', 'awaiting_operator_review'];
+  const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
+  if (!active.includes(booking.state) || !hasDriver) return null;
+  const due = !booking.confirmationEmailSentAt || !booking.driverDetailsEmailSentAt;
+  if (!due) return null;
+  return (
+    <span
+      title="Exec email(s) not sent yet — open the booking to preview and send"
+      style={{
+        marginLeft: 6,
+        color: 'var(--prio-med, #b45309)',
+        fontWeight: 600,
+        fontSize: 11,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ✉ email due
     </span>
   );
 }
@@ -662,6 +690,7 @@ function BoardCard({
           </span>
         ) : null}
         <ExecFailureTag status={booking.execNotificationStatus} />
+        <EmailDueTag booking={booking} />
         <MirrorFailureTag status={booking.mirrorStatus} />
         <NoPriceTag booking={booking} />
         <DriverNotToldTag booking={booking} />

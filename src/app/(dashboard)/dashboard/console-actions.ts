@@ -34,8 +34,12 @@ import {
 } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
 import {
+  type ExecEmailDraft,
+  type ManualEmailKind,
+  execEmailDraft,
   listExecNotifications,
   resendExecNotification,
+  sendManualExecEmail,
 } from '@/server/services/exec-notifications';
 import { retryMirror } from '@/server/services/mirror';
 import { assignOperator } from '@/server/services/operators';
@@ -558,6 +562,67 @@ export async function execNotificationsAction(bookingId: string): Promise<ExecMe
     logger.error({ err: error }, 'Failed to load exec notifications');
     return [];
   }
+}
+
+export interface ExecEmailDraftActionResult extends ActionResult {
+  draft?: ExecEmailDraft;
+}
+
+/** Default To/Subject/Body for the operator's send-email form. */
+export async function execEmailDraftAction(
+  bookingId: string,
+  kind: ManualEmailKind,
+): Promise<ExecEmailDraftActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await execEmailDraft(db(), bookingId, kind);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        result.reason === 'no_driver'
+          ? 'Assign a driver first — this email carries their details.'
+          : 'Booking not found.',
+    };
+  }
+  return { ok: true, draft: result.draft };
+}
+
+/** Send the operator-edited exec email and record it in the message trail. */
+export async function sendExecEmailAction(input: {
+  bookingId: string;
+  kind: ManualEmailKind;
+  to: string;
+  subject: string;
+  body: string;
+}): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+
+  const result = await sendManualExecEmail({ db: db(), email: email() }, input, op.id);
+  if (!result.ok) {
+    const error =
+      result.reason === 'validation'
+        ? (result.issues[0]?.message ?? 'Please fix the highlighted fields.')
+        : result.reason === 'no_driver'
+          ? 'Assign a driver first — this email carries their details.'
+          : result.reason === 'not_sendable'
+            ? 'This booking is cancelled — no emails can be sent for it.'
+            : result.reason === 'booking_not_found'
+              ? 'Booking not found.'
+              : 'Could not record the send. Please try again.';
+    return { ok: false, error };
+  }
+  if (result.notification.status === 'failed') {
+    return {
+      ok: false,
+      error: `The email could not be sent (${result.notification.errorReason ?? 'provider error'}). The failed attempt is recorded in the message trail.`,
+    };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
 }
 
 /** Re-send a failed/bounced exec message, rebuilt from the booking's current state. */
