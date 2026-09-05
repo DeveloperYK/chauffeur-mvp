@@ -10,11 +10,11 @@ import type { Booking, Driver, Operator } from '@/server/db/schema';
  * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S) and the booked-by PA's
  * name and contact (T–U). The mirror writes only these.
  *
- * Everything to the right is left for the operators' own template: the manual
- * Accounting flags ("Raise an invoice?" / "Invoiced by Driver?") and the
- * "Auto-Calculations (don't touch!)" formula columns, which now start at V
- * (the client moved them right when T–U were added, 2026-09-05). The mirror
- * never touches columns beyond U, so it can't clobber them.
+ * The backup sheet needn't match the client's original workbook column-for-
+ * column (confirmed 2026-09-05; the live prod + staging backup sheets were
+ * empty beyond S when T–U were added). Everything right of U is left for any
+ * manual columns the operators add — the mirror never writes past U, so it
+ * can't clobber them.
  */
 export const SHEET_HEADERS = [
   'Job #', // A
