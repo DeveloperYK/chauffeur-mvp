@@ -22,6 +22,7 @@ import {
   driverDispatchData,
   listBookingsByState,
   listBookingsForDay,
+  listDriverNotToldBookings,
   listUnpricedBookings,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
@@ -37,6 +38,7 @@ const SAVED_VIEW_LABEL: Record<string, string> = {
   unassigned: 'Unassigned tickets',
   needs_review: 'Awaiting review',
   no_price: 'No price',
+  driver_not_told: 'Driver not told',
 };
 // Each saved view spans every day: two triage by state, "No price" by the
 // missing contract price (any live state, since an unpriced booking blocks
@@ -45,6 +47,7 @@ const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
   unassigned: (db) => listBookingsByState(db, 'unassigned'),
   needs_review: (db) => listBookingsByState(db, 'awaiting_operator_review'),
   no_price: (db) => listUnpricedBookings(db),
+  driver_not_told: (db) => listDriverNotToldBookings(db),
 };
 
 const UNASSIGNED = 'unassigned';

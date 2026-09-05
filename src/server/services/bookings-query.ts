@@ -68,6 +68,29 @@ export async function listUnpricedBookings(db: Database): Promise<Booking[]> {
 }
 
 /**
+ * Every dispatched booking (assigned / in progress) whose details changed after
+ * dispatch and whose driver has not yet confirmed the new plan — the "Driver
+ * not told" saved view. The flag only means anything while a driver is on the
+ * job, so closed or unassigned bookings never appear even if the column is set.
+ */
+export async function listDriverNotToldBookings(db: Database): Promise<Booking[]> {
+  return db
+    .select()
+    .from(bookings)
+    .where(and(...driverNotToldConditions()))
+    .orderBy(asc(bookings.pickupAt))
+    .limit(500);
+}
+
+/** Shared predicate so the rail count and the saved view can never disagree. */
+export function driverNotToldConditions() {
+  return [
+    eq(bookings.changeConfirmationStatus, 'pending'),
+    inArray(bookings.state, ['assigned', 'in_progress']),
+  ] as const;
+}
+
+/**
  * All bookings whose pickup falls within the given London day, sorted by
  * pickup time. Includes every state so the board can render its 7 columns.
  *

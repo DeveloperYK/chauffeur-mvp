@@ -44,6 +44,16 @@ describe('services/simulator seedSampleData (integration)', () => {
     expect(driverRows.length).toBe(5);
   });
 
+  it('seeds whole-minute pickup times (the edit form only holds minutes)', async () => {
+    await seedSampleData(db, operatorId);
+    const rows = await db.select().from(bookings);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const b of rows) {
+      expect(b.pickupAt.getSeconds()).toBe(0);
+      expect(b.pickupAt.getMilliseconds()).toBe(0);
+    }
+  });
+
   it('is idempotent for drivers (re-seeding does not duplicate them)', async () => {
     await seedSampleData(db, operatorId);
     const second = await seedSampleData(db, operatorId);

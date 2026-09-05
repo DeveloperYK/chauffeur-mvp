@@ -446,13 +446,22 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await editModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
-  // The change flags the booking for driver re-confirmation.
+  // The change flags the booking for driver re-confirmation — visibly on the
+  // board tile and in the rail's "Driver not told" count, not just in the panel.
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
+    'driver not told',
+  );
+  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('1');
+  // The saved view lists it.
+  await page.goto('/dashboard?savedView=driver_not_told', { waitUntil: 'networkidle' });
+  await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' }).first()).toBeVisible();
 
   // ── Operator attests the driver confirmed by phone ──
   // (The exec is auto-emailed on confirm only for exec-relevant changes; this
   // edit was duration-only, so no exec email — nothing to click here.)
+  await openBookingPanel(page, LEGO);
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Driver confirmed by phone/i })
@@ -461,6 +470,11 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
 
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY PHONE');
+  // Confirmation clears the tile marker and the rail count.
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText(
+    'driver not told',
+  );
+  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
 });
 
 test('mid-flight change: driver confirms via the change link, exec is emailed the update', async ({
