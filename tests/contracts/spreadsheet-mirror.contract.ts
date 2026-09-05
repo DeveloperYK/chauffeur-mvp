@@ -90,16 +90,6 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     },
-    operator: {
-      id: '00000000-0000-0000-0000-000000000010',
-      email: 'alice@example.com',
-      passwordHash: 'hash',
-      name: 'Alice Smith',
-      active: true,
-      mustChangePassword: false,
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-    },
     ...overrides,
   };
 }
@@ -148,9 +138,9 @@ export function spreadsheetMirrorContractTests(
         expect(result.ok).toBe(true);
       });
 
-      it('returns ok:true for booking without operator', async () => {
+      it('returns ok:true for a booking with no driver', async () => {
         const input = createValidMirrorInput({
-          operator: null,
+          driver: null,
         });
 
         const result = await adapter.upsertRow(input);

@@ -171,7 +171,7 @@ describe('mirror write status on bookings', () => {
 
     // The retry must DELETE the lingering row, not resurrect it as an upsert.
     const mirror = new FakeSpreadsheetMirror();
-    await mirror.upsertRow({ booking: created, driver: null, operator: null });
+    await mirror.upsertRow({ booking: created, driver: null });
     const r = await retryMirror({ db, mirror, operatorId }, created.id);
     expect(r).toEqual({ ok: true, status: 'ok' });
     expect(mirror.rows.has(created.id)).toBe(false);
