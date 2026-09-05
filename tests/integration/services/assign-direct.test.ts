@@ -112,7 +112,7 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
   });
 
   // ── Initial assign (unassigned → assigned) ────────────────────────────────
-  it('assigns a driver directly from unassigned and confirms the exec, not the driver', async () => {
+  it('assigns a driver directly from unassigned without messaging anyone', async () => {
     const booking = await seed('unassigned');
     const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
     expect(res.ok).toBe(true);
@@ -124,8 +124,9 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
     expect(row?.assignedDriverId).toBe(driverB.id);
     expect(row?.assignmentMethod).toBe('operator_attested');
 
-    // Exec confirmed; the newly-assigned driver is NOT messaged.
-    expect(notifications.sent.some((m) => m.to === EXEC)).toBe(true);
+    // Nobody is auto-messaged: the exec emails are sent manually from the
+    // console, and the newly-assigned driver was confirmed by phone.
+    expect(notifications.sent.some((m) => m.to === EXEC)).toBe(false);
     expect(notifications.sent.some((m) => m.to === driverB.whatsapp)).toBe(false);
 
     const audits = await db.select().from(auditEvents).where(eq(auditEvents.entityId, booking.id));
@@ -182,7 +183,7 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
   });
 
   // ── Swap (assigned → assigned, different driver) ──────────────────────────
-  it('swaps the assigned driver, drops the old one, and re-confirms the exec', async () => {
+  it('swaps the assigned driver and drops the old one, without messaging the exec', async () => {
     const booking = await seed('assigned', driverA.id);
     const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
     expect(res.ok).toBe(true);
@@ -193,9 +194,10 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
     expect(row?.assignedDriverId).toBe(driverB.id);
     expect(row?.assignmentMethod).toBe('operator_attested');
 
-    // Old driver A told they're off; exec re-confirmed; new driver B not messaged.
+    // Old driver A told they're off; the exec is NOT auto-messaged (manual
+    // emails); new driver B not messaged.
     expect(notifications.sent.some((m) => m.to === driverA.whatsapp)).toBe(true);
-    expect(notifications.sent.some((m) => m.to === EXEC)).toBe(true);
+    expect(notifications.sent.some((m) => m.to === EXEC)).toBe(false);
     expect(notifications.sent.some((m) => m.to === driverB.whatsapp)).toBe(false);
 
     const audits = await db.select().from(auditEvents).where(eq(auditEvents.entityId, booking.id));

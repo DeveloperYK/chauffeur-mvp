@@ -27,6 +27,11 @@ import {
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
+import {
+  type ExecEmailSends,
+  execEmailSendMap,
+  listEmailAttentionBookings,
+} from '@/server/services/exec-notifications';
 import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
@@ -39,6 +44,7 @@ const SAVED_VIEW_LABEL: Record<string, string> = {
   needs_review: 'Awaiting review',
   no_price: 'No price',
   driver_not_told: 'Driver not told',
+  emails_due: 'Emails due',
 };
 // Each saved view spans every day: two triage by state, "No price" by the
 // missing contract price (any live state, since an unpriced booking blocks
@@ -48,6 +54,7 @@ const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
   needs_review: (db) => listBookingsByState(db, 'awaiting_operator_review'),
   no_price: (db) => listUnpricedBookings(db),
   driver_not_told: (db) => listDriverNotToldBookings(db),
+  emails_due: (db) => listEmailAttentionBookings(db),
 };
 
 const UNASSIGNED = 'unassigned';
@@ -55,6 +62,7 @@ const UNASSIGNED = 'unassigned';
 function toConsoleBooking(
   b: Booking,
   openOffers: { driverId: string; driverName: string }[] = [],
+  emailSends?: Map<string, ExecEmailSends>,
 ): ConsoleBooking {
   return {
     id: b.id,
@@ -73,6 +81,10 @@ function toConsoleBooking(
     execMobile: b.execMobile,
     execEmail: b.execEmail,
     bookedByName: b.bookedByName,
+    confirmationEmailSentAt: emailSends?.get(b.id)?.confirmationSentAt?.toISOString() ?? null,
+    driverDetailsEmailSentAt: emailSends?.get(b.id)?.driverDetailsSentAt?.toISOString() ?? null,
+    changeUpdateEmailSentAt: emailSends?.get(b.id)?.changeUpdateSentAt?.toISOString() ?? null,
+    changeExecRelevant: b.changeExecRelevant,
     bookedByPhone: b.bookedByPhone,
     bookedByEmail: b.bookedByEmail,
     clientName: b.clientName,
@@ -267,9 +279,16 @@ export default async function DashboardHome({
   const unassignedIds = filtered.filter((b) => b.state === 'unassigned').map((b) => b.id);
   const offersByBooking = await openOffersForBookings(db, unassignedIds);
 
+  // Which of the two operator emails each booking has had — drives the
+  // "email not sent" flags on cards and in the panel.
+  const emailSends = await execEmailSendMap(
+    db,
+    filtered.map((b) => b.id),
+  );
+
   // Serialize for the client console shell.
   const consoleBookings: ConsoleBooking[] = filtered.map((b) =>
-    toConsoleBooking(b, offersByBooking.get(b.id) ?? []),
+    toConsoleBooking(b, offersByBooking.get(b.id) ?? [], emailSends),
   );
   const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
     id: d.id,

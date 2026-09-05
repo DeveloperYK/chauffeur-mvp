@@ -12,7 +12,6 @@ import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq, isNull } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
-import { execContextFromDriver, sendExecNotification } from './exec-notifications';
 import { mirrorBooking } from './mirror';
 import { recordDispatchOffer, resolveOffersOnAccept } from './offers';
 import { createShortLink } from './short-links';
@@ -280,13 +279,9 @@ export async function acceptDispatchLink(
   // on the booking lapse (the operator's console clears its "awaiting" count).
   await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
 
-  // Confirm the exec — name the driver and their car + colour so they can
-  // identify the vehicle kerbside. Routed through sendExecNotification so the
-  // attempt is recorded and a failed send is never silent.
-  await sendExecNotification(
-    { db: deps.db, notifications: deps.notifications, email: deps.email },
-    execContextFromDriver(updated, 'assigned', driver),
-  );
+  // The exec is NOT emailed automatically — the operator sends the
+  // confirmation and driver-details emails from the console (client asked for
+  // manual control; see docs/shaping/exec-messages).
 
   if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
 
@@ -364,11 +359,6 @@ export async function assignDriverDirect(
     // Lapse any open offers (the operator may have fanned out links first).
     await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);
 
-    await sendExecNotification(
-      { db: deps.db, notifications: deps.notifications, email: deps.email },
-      execContextFromDriver(updated, 'assigned', driver),
-    );
-
     if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
     return { ok: true, booking: updated, driver, swapped: false };
   }
@@ -424,12 +414,6 @@ export async function assignDriverDirect(
         });
       }
     }
-
-    // Re-confirm the exec with the new driver + car.
-    await sendExecNotification(
-      { db: deps.db, notifications: deps.notifications, email: deps.email },
-      execContextFromDriver(updated, 'assigned', driver),
-    );
 
     if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated);
     return { ok: true, booking: updated, driver, swapped: true };

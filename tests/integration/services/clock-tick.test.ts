@@ -67,15 +67,14 @@ describe('services/clock-tick (integration)', () => {
     return b?.id ?? '';
   }
 
-  it('assigned → in_progress at T-1h, fires en-route SMS', async () => {
+  it('assigned → in_progress at T-1h, without messaging the exec (manual emails)', async () => {
     const id = await seedBooking('assigned', '2026-05-18T10:00:00.000Z');
     const now = fixedClock('2026-05-18T09:00:00.000Z');
     const report = await clockTick({ db, clock: now, notifications });
     expect(report.assignedToInProgress).toEqual([id]);
     const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
     expect(b?.state).toBe('in_progress');
-    expect(notifications.sent.length).toBe(1);
-    expect(notifications.sent[0]?.body).toContain('on the way');
+    expect(notifications.sent.length).toBe(0);
   });
 
   it('does not transition assigned before T-1h', async () => {
@@ -199,7 +198,7 @@ describe('services/clock-tick (integration)', () => {
       return b?.id ?? '';
     }
 
-    it('advances a backfill assigned booking to in_progress and fires the en-route SMS naming the backfill driver', async () => {
+    it('advances a backfill assigned booking to in_progress without messaging the exec', async () => {
       const id = await seedBackfill('assigned', '2026-05-18T10:00:00.000Z');
       const report = await clockTick({
         db,
@@ -209,10 +208,7 @@ describe('services/clock-tick (integration)', () => {
       expect(report.assignedToInProgress).toEqual([id]);
       const [b] = await db.select().from(bookings).where(eq(bookings.id, id));
       expect(b?.state).toBe('in_progress');
-      expect(notifications.sent.length).toBe(1);
-      expect(notifications.sent[0]?.to).toBe('+447911999999');
-      expect(notifications.sent[0]?.body).toContain('Dave Smith');
-      expect(notifications.sent[0]?.body).toContain('on the way');
+      expect(notifications.sent.length).toBe(0);
     });
 
     it('advances a backfill in_progress booking to awaiting_driver_form like a normal job (backfill driver fills the form)', async () => {

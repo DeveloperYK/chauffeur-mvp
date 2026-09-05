@@ -231,19 +231,17 @@ describe('services/exec-notifications (integration)', () => {
 
   // ─── call-site wiring ───────────────────────────────────────────────────
 
-  it('clock-tick en-route send is recorded (call site wired)', async () => {
+  it('clock-tick no longer messages the exec at T-1h (operator sends manually)', async () => {
     const booking = await seedAssigned({ pickupAt: new Date('2026-05-18T10:00:00.000Z') });
     const clock = fixedClock('2026-05-18T09:00:00.000Z'); // T-1h
     await clockTick({ db, clock, notifications });
 
     const rows = await listExecNotifications(db, booking.id);
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.kind).toBe('en_route');
-    expect(rows[0]?.channel).toBe('sms');
-    expect(await status(booking.id)).toBe('ok');
+    expect(rows.length).toBe(0);
+    expect(notifications.sent.length).toBe(0);
   });
 
-  it('hand-to-backfill exec confirmation is recorded (call site wired)', async () => {
+  it('hand-to-backfill no longer messages the exec (operator sends manually)', async () => {
     const [booking] = await db
       .insert(bookings)
       .values(SeedData.bookings.unassigned(operatorId))
@@ -257,9 +255,6 @@ describe('services/exec-notifications (integration)', () => {
     expect(result.ok).toBe(true);
 
     const rows = await listExecNotifications(db, booking?.id ?? '');
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.kind).toBe('assigned');
-    expect(rows[0]?.body).toContain('Sub Sam');
-    expect(await status(booking?.id ?? '')).toBe('ok');
+    expect(rows.length).toBe(0);
   });
 });
