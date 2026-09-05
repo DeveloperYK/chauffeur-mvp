@@ -457,6 +457,7 @@ function ListRow({
         <ExecFailureTag status={b.execNotificationStatus} />
         <MirrorFailureTag status={b.mirrorStatus} />
         <NoPriceTag booking={b} />
+        <DriverNotToldTag booking={b} />
       </span>
       <span>
         {assignee ? (
@@ -513,6 +514,30 @@ function NoPriceTag({ booking }: { booking: ConsoleBooking }) {
       }}
     >
       ⚠ no price
+    </span>
+  );
+}
+
+/**
+ * Red marker on a dispatched booking whose details changed after the driver was
+ * told, until the driver confirms the new plan (by phone or via the change
+ * link). The operator must not have to open the booking to learn this.
+ */
+function DriverNotToldTag({ booking }: { booking: ConsoleBooking }) {
+  const dispatched = booking.state === 'assigned' || booking.state === 'in_progress';
+  if (!dispatched || booking.changeConfirmationStatus !== 'pending') return null;
+  return (
+    <span
+      title="Booking changed after dispatch — confirm the driver knows the new plan"
+      style={{
+        marginLeft: 6,
+        color: 'var(--lz-red-fg)',
+        fontWeight: 600,
+        fontSize: 11,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ⚠ driver not told
     </span>
   );
 }
@@ -603,6 +628,7 @@ function BoardCard({
         <ExecFailureTag status={booking.execNotificationStatus} />
         <MirrorFailureTag status={booking.mirrorStatus} />
         <NoPriceTag booking={booking} />
+        <DriverNotToldTag booking={booking} />
         <span className="card__meta-right">
           {operator ? (
             <Avatar
