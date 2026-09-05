@@ -19,6 +19,8 @@
  *
  *   awaiting_operator_review ──(operator_approve)──► completed
  *   awaiting_operator_review ──(operator_reject)──► awaiting_driver_form
+ *
+ *   cancelled ──(undo_cancel)──► <state before cancel>   (only within the undo window — see undo-window.ts)
  */
 
 import type { BookingState } from '@/server/db/schema';
@@ -29,12 +31,16 @@ export type BookingEvent =
   | { type: 'driver_released' }
   | { type: 'backfill_assign' }
   | { type: 'cancel' }
+  | { type: 'undo_cancel'; to: CancellableState }
   | { type: 'clock_pickup_minus_1h' }
   | { type: 'clock_expected_end' }
   | { type: 'driver_submit_form' }
   | { type: 'operator_complete_form' }
   | { type: 'operator_approve' }
   | { type: 'operator_reject' };
+
+/** States a booking can be cancelled from — and therefore returned to by undo. */
+export type CancellableState = 'unassigned' | 'assigned' | 'in_progress';
 
 export type Transition =
   | { ok: true; next: BookingState; sideEffects: SideEffect[] }
@@ -135,6 +141,11 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
 
     case 'completed':
     case 'cancelled':
+      if (event.type === 'undo_cancel') {
+        // The one way out of cancelled: the operator hit the wrong ticket and
+        // caught it inside the undo window. Back to exactly where it was.
+        return { ok: true, next: event.to, sideEffects: [] };
+      }
       return { ok: false, reason: 'terminal_state' };
 
     default: {

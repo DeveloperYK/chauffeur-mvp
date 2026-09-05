@@ -1,8 +1,10 @@
 'use client';
+import { undoCancelAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { UNDO_CANCEL_WINDOW_MS } from '@/lib/undo-window';
 import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { BackfillModal } from './backfill-modal';
 import { CancelModal } from './cancel-modal';
@@ -32,7 +34,11 @@ const CLOSED_STATES: BookingState[] = ['completed', 'cancelled'];
 interface Toast {
   id: string;
   text: string;
+  /** Optional inline action (e.g. Undo). The toast stays up for `ttlMs`. */
+  action?: { label: string; onClick: () => void };
 }
+
+const TOAST_TTL_MS = 2800;
 
 interface ConsoleBoardProps {
   bookings: ConsoleBooking[];
@@ -75,6 +81,7 @@ export function ConsoleBoard({
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [, startTransition] = useTransition();
 
   // Poll for out-of-band changes (driver accepts, clock tick, other operators)
   // so the board stays near-live without a manual refresh. Paused while an
@@ -91,11 +98,30 @@ export function ConsoleBoard({
     [bookings, selectedId],
   );
 
-  const pushToast = useCallback((text: string) => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts((t) => [...t, { id, text }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
+  const dismissToast = useCallback((id: string) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
+
+  const pushToast = useCallback(
+    (text: string, opts: { action?: Toast['action']; ttlMs?: number } = {}) => {
+      const id = Math.random().toString(36).slice(2);
+      setToasts((t) => [...t, { id, text, ...(opts.action ? { action: opts.action } : {}) }]);
+      setTimeout(() => dismissToast(id), opts.ttlMs ?? TOAST_TTL_MS);
+      return id;
+    },
+    [dismissToast],
+  );
+
+  // Cancel is one click, so the toast carries Undo for the length of the
+  // server-enforced window. Undo puts the booking back exactly where it was.
+  const undoCancelFromToast = (bookingId: string, toastId: string) => {
+    dismissToast(toastId);
+    startTransition(async () => {
+      const result = await undoCancelAction(bookingId);
+      pushToast(result.ok ? 'Cancellation undone.' : (result.error ?? 'Could not undo.'));
+      router.refresh();
+    });
+  };
 
   // Open the create modal from the topbar "Create" button (different subtree).
   useEffect(() => {
@@ -358,7 +384,12 @@ export function ConsoleBoard({
         onClose={() => setCancelOpen(false)}
         onCancelled={(id) => {
           setCancelOpen(false);
-          handleMutated(`${id.slice(0, 8)} cancelled.`, true);
+          setPanelOpen(false);
+          const toastId = pushToast('Booking cancelled.', {
+            ttlMs: UNDO_CANCEL_WINDOW_MS,
+            action: { label: 'Undo', onClick: () => undoCancelFromToast(id, toastId) },
+          });
+          router.refresh();
         }}
       />
 
@@ -388,6 +419,11 @@ export function ConsoleBoard({
         {toasts.map((t) => (
           <div className="toast" key={t.id}>
             <Icon.Check /> {t.text}
+            {t.action ? (
+              <button type="button" className="toast__btn" onClick={t.action.onClick}>
+                {t.action.label}
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

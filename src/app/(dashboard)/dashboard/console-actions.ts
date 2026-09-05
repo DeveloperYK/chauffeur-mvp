@@ -40,6 +40,7 @@ import {
 import { retryMirror } from '@/server/services/mirror';
 import { assignOperator } from '@/server/services/operators';
 import { setContractPrice } from '@/server/services/set-contract-price';
+import { undoCancel } from '@/server/services/undo-cancel';
 import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { revalidatePath } from 'next/cache';
 
@@ -404,21 +405,41 @@ export async function updateBackfillPayAction(
 
 export async function cancelBookingAction(
   bookingId: string,
-  reason: string,
+  reason?: string,
 ): Promise<ActionResult> {
   const op = await requireOperator();
   if (!op) return { ok: false, error: 'Not authenticated.' };
-  const result = await cancelBooking({ bookingId, reason }, op.id, {
+  const result = await cancelBooking({ bookingId, reason: reason ?? null }, op.id, {
     db: db(),
     mirror: spreadsheetMirror(),
   });
   if (!result.ok) {
     const error =
       result.reason === 'validation'
-        ? 'Please give a reason (at least 5 characters).'
+        ? 'Could not cancel the booking.'
         : result.reason === 'booking_not_found'
           ? 'Booking not found.'
           : `Cannot cancel from state: ${result.state}.`;
+    return { ok: false, error };
+  }
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/** Take back a cancel within the undo window (see `undo-window.ts`). */
+export async function undoCancelAction(bookingId: string): Promise<ActionResult> {
+  const op = await requireOperator();
+  if (!op) return { ok: false, error: 'Not authenticated.' };
+  const result = await undoCancel(bookingId, op.id, { db: db(), mirror: spreadsheetMirror() });
+  if (!result.ok) {
+    const error =
+      result.reason === 'too_late'
+        ? 'Too late — the cancellation is final.'
+        : result.reason === 'booking_not_found'
+          ? 'Booking not found.'
+          : result.reason === 'no_prior_state'
+            ? 'This cancellation cannot be undone.'
+            : 'The booking is no longer cancelled.';
     return { ok: false, error };
   }
   revalidatePath('/dashboard');

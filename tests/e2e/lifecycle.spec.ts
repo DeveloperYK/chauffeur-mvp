@@ -90,6 +90,8 @@ async function openBookingPanel(page: Page, name: string) {
 }
 
 test('booking moves through every stage via the simulator + console', async ({ page }) => {
+  // Every stage plus cancel → undo → cancel: comfortably over the default 30 s.
+  test.slow();
   // ── Reset + seed ──────────────────────────────────────────────
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
@@ -256,14 +258,30 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await row(page, MERC).locator('select[name="scenario"]').selectOption('about_to_start');
   await clickAndSettle(page, row(page, MERC).getByRole('button', { name: 'Apply' }).click());
 
+  await gotoSimulator(page);
+  const stateBefore = await row(page, MERC).locator('td').nth(1).textContent();
+
+  // Cancel is one click (no reason). The toast offers Undo for a minute —
+  // wrong ticket, so take it back and check it lands exactly where it was.
   await openBookingPanel(page, MERC);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Cancel', exact: true }).click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
-  await modal.locator('textarea').fill('PA called to cancel — meeting rescheduled.');
+  await expect(modal).toContainText('Cancel this booking?');
   await modal.getByRole('button', { name: 'Cancel booking' }).click();
-  await expect(page.locator('.toast')).toContainText(/cancelled/i);
+  await page
+    .locator('.toast', { hasText: 'Booking cancelled' })
+    .getByRole('button', { name: 'Undo' })
+    .click();
+  await expect(page.locator('.toast', { hasText: 'Cancellation undone' })).toBeVisible();
+  await gotoSimulator(page);
+  await expectSimState(page, MERC, stateBefore ?? '');
 
+  // And cancelled for real this time.
+  await openBookingPanel(page, MERC);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.locator('.modal.is-open').getByRole('button', { name: 'Cancel booking' }).click();
+  await expect(page.locator('.toast', { hasText: 'Booking cancelled' })).toBeVisible();
   await gotoSimulator(page);
   await expectSimState(page, MERC, 'Cancelled');
 });

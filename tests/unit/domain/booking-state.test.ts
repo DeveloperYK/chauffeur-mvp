@@ -56,6 +56,26 @@ describe('booking state machine', () => {
     });
   });
 
+  describe('undo cancel', () => {
+    it.each(['unassigned', 'assigned', 'in_progress'] as const)(
+      'returns a cancelled booking to %s',
+      (to) => {
+        const t = transition('cancelled', { type: 'undo_cancel', to });
+        expect(t.ok && t.next).toBe(to);
+        expect(t.ok && t.sideEffects).toEqual([]);
+      },
+    );
+
+    it('cannot undo-cancel a booking that is not cancelled', () => {
+      const t = transition('assigned', { type: 'undo_cancel', to: 'unassigned' });
+      expect(t.ok).toBe(false);
+    });
+
+    it('cancelled is still terminal for every other event', () => {
+      expect(isTerminal('cancelled')).toBe(true);
+    });
+  });
+
   describe('terminal states', () => {
     it.each(['completed', 'cancelled'] as const)('rejects any event from %s', (state) => {
       const events: BookingEvent[] = [
