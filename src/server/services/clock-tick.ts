@@ -1,5 +1,5 @@
 import type { Database } from '@/server/db';
-import { type Booking, bookings, drivers } from '@/server/db/schema';
+import { type Booking, bookings } from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
 import {
   DEFAULT_NO_ACCEPT_WINDOW_MS,
@@ -12,7 +12,6 @@ import type { EmailPort } from '@/server/ports/email';
 import type { NotificationPort } from '@/server/ports/notifications';
 import { and, eq, isNull, lte } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
-import { execContextFromDriver, sendExecNotification } from './exec-notifications';
 
 export interface ClockTickDeps {
   db: Database;
@@ -80,31 +79,8 @@ export async function clockTick(deps: ClockTickDeps): Promise<ClockTickReport> {
       after: { state: updated.state },
     });
 
-    if (updated.assignedDriverId) {
-      const [driver] = await deps.db
-        .select()
-        .from(drivers)
-        .where(eq(drivers.id, updated.assignedDriverId))
-        .limit(1);
-      if (driver) {
-        await sendExecNotification(
-          { db: deps.db, notifications: deps.notifications, email: deps.email },
-          execContextFromDriver(updated, 'en_route', driver),
-        );
-      }
-    } else if (updated.isBackfill && updated.backfillDriverName) {
-      // Backfill jobs have no `drivers` row — the en-route message names the
-      // operator-entered subcontractor instead. Exec experience is unchanged.
-      await sendExecNotification(
-        { db: deps.db, notifications: deps.notifications, email: deps.email },
-        {
-          booking: updated,
-          kind: 'en_route',
-          driverName: updated.backfillDriverName,
-          driverPhone: updated.backfillDriverPhone,
-        },
-      );
-    }
+    // No automatic exec email at T-1h any more — the operator sends the
+    // driver-details email from the console when they're ready.
   }
 
   // 2. in_progress → awaiting_driver_form at T+expected_end

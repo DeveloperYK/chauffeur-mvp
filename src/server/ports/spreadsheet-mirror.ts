@@ -2,19 +2,19 @@ import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
 import { milesStringFromMeters } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
-import type { Booking, Driver, Operator } from '@/server/db/schema';
+import type { Booking, Driver } from '@/server/db/schema';
 
 /**
- * Columns A–U: the *input* columns of the JJ "Main Data" workbook, grouped as
+ * Columns A–S: the *input* columns of the JJ "Main Data" workbook, grouped as
  * the operators know them — Step 1 Job Details (A–L), Step 2 Job Allocation
- * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S) and the booked-by PA's
- * name and contact (T–U). The mirror writes only these.
+ * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S). The mirror writes
+ * only these, so the backup matches the client's own layout column-for-column.
  *
- * The backup sheet needn't match the client's original workbook column-for-
- * column (confirmed 2026-09-05; the live prod + staging backup sheets were
- * empty beyond S when T–U were added). Everything right of U is left for any
- * manual columns the operators add — the mirror never writes past U, so it
- * can't clobber them.
+ * "Booked By" (E) is the PA who booked on the exec's behalf — name plus
+ * contact — exactly as the client fills it in. It is NOT the operator.
+ * (2026-09-05: the short-lived extra PA columns T–U were folded back into E
+ * at the client's request.) Everything right of S is left for any manual
+ * columns the operators add — the mirror never writes past S.
  */
 export const SHEET_HEADERS = [
   'Job #', // A
@@ -36,12 +36,10 @@ export const SHEET_HEADERS = [
   'Waiting Time (hh:mm)', // Q
   'Drop Off Time (24hr)', // R
   'Mileage (miles)', // S
-  'PA Name', // T
-  'PA Contact', // U
 ] as const;
 
-/** Last spreadsheet column the mirror writes (21 input columns → U). */
-export const SHEET_LAST_COLUMN = 'U';
+/** Last spreadsheet column the mirror writes (19 input columns → S). */
+export const SHEET_LAST_COLUMN = 'S';
 
 /**
  * Zero-based indices of the money columns — Contract Price (L), Driver Cost (O)
@@ -54,7 +52,6 @@ export const MONEY_COLUMN_INDICES = [11, 14, 15] as const;
 export interface MirrorRowInput {
   booking: Booking;
   driver?: Driver | null;
-  operator?: Operator | null;
 }
 
 export interface SpreadsheetMirrorPort {
@@ -119,8 +116,22 @@ function waitingHoursMinutes(waitingTimeMinutes: number | null): string {
   return `${hh}:${mm}`;
 }
 
+/**
+ * Booked By (column E): "Sandra Miles (+44… / sandra@…)". Name and contact are
+ * each optional; whichever was captured is shown, blank when neither.
+ */
+export function bookedByLabel(booking: Booking): string {
+  const name = booking.bookedByName?.trim() ?? '';
+  const contact = [booking.bookedByPhone, booking.bookedByEmail]
+    .map((v) => v?.trim() ?? '')
+    .filter((v) => v.length > 0)
+    .join(' / ');
+  if (name && contact) return `${name} (${contact})`;
+  return name || contact;
+}
+
 export function rowFromBooking(input: MirrorRowInput): string[] {
-  const { booking, driver, operator } = input;
+  const { booking, driver } = input;
   // Car Type (column K): the company classifies vehicles by class
   // (Executive / Luxury / MPV / Coach), so an internal driver's row shows their
   // class. A backfill subcontractor has no class on file, so keep the free-text
@@ -140,7 +151,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     formatDate(pickup), // B Date
     formatTimeOfDay(pickup), // C Pick Up Time (24hr)
     booking.caseCode ?? '', // D Case Code
-    operator?.name ?? '', // E Booked By
+    bookedByLabel(booking), // E Booked By — the PA, not the operator
     booking.passengerFirstName, // F Passenger FirstName
     booking.passengerLastName ?? '', // G Passenger LastName
     booking.pickupAddress, // H Address From
@@ -156,10 +167,5 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     waitingHoursMinutes(booking.waitingTimeMinutes), // Q Waiting Time (hh:mm)
     booking.dropoffAt ? formatTimeOfDay(booking.dropoffAt) : '', // R Drop Off Time (24hr)
     milesStringFromMeters(booking.distanceMeters), // S Mileage (miles)
-    booking.bookedByName ?? '', // T PA Name — the PA who booked for the exec
-    // U PA Contact — phone and/or email, joined when both were captured.
-    [booking.bookedByPhone, booking.bookedByEmail]
-      .filter(Boolean)
-      .join(' / '),
   ];
 }

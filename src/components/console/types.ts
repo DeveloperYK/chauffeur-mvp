@@ -31,6 +31,14 @@ export interface ConsoleBooking {
   /** Exec email — recipient when the email channel is active; null if not captured. */
   execEmail: string | null;
   bookedByName: string | null;
+  /** When the operator last successfully sent the confirmation email, or null. */
+  confirmationEmailSentAt: string | null;
+  /** When the operator last successfully sent the driver-details email, or null. */
+  driverDetailsEmailSentAt: string | null;
+  /** When the operator last successfully sent the booking-update email, or null. */
+  changeUpdateEmailSentAt: string | null;
+  /** True when the last confirmed mid-flight change touched exec-facing fields. */
+  changeExecRelevant: boolean;
   bookedByPhone: string | null;
   bookedByEmail: string | null;
   /** Customer Account — the company billed (stored in account_code). */

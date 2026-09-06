@@ -188,6 +188,65 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
 
+  // ── Manual exec emails: nothing goes out automatically any more. The panel
+  //    flags the unsent confirmation once a driver is on the job, the operator
+  //    previews/edits/sends it, then does the same for the driver details. ──
+  await openBookingPanel(page, LEGO);
+  // The board tile flags the outstanding emails without opening the booking.
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText('email due');
+  const emailsCard = page.locator('.panel.is-open .ic', { hasText: 'Exec emails' });
+  await expect(emailsCard).toContainText('confirmation email hasn’t been sent');
+  await emailsCard
+    .locator('.ir', { hasText: 'Booking confirmation' })
+    .getByRole('button', { name: 'Preview & send' })
+    .click();
+  const emailModal = page.locator('.modal.is-open', { hasText: 'Send booking confirmation email' });
+  // The draft shows exactly what will be sent — subject + body pre-filled,
+  // recipient editable (blank here: the seeded booking has no exec email).
+  await expect(emailModal.locator('input[type="text"]')).toHaveValue(/BKNG-/);
+  await expect(emailModal.locator('textarea')).toHaveValue(/Reference:/);
+  await emailModal.locator('input[type="email"]').fill('delivered@resend.dev');
+  await emailModal.getByRole('button', { name: 'Send email' }).click();
+  await expect(page.locator('.toast')).toContainText(/email sent to delivered@resend.dev/i);
+  await expect(emailsCard.locator('.ir', { hasText: 'Booking confirmation' })).toContainText(
+    'SENT',
+  );
+
+  // The second (driver details) email is still flagged, then sent the same way.
+  await expect(emailsCard).toContainText('hasn’t had the driver details');
+  await emailsCard
+    .locator('.ir', { hasText: 'Driver details' })
+    .getByRole('button', { name: 'Preview & send' })
+    .click();
+  const detailsModal = page.locator('.modal.is-open', { hasText: 'Send driver details email' });
+  await expect(detailsModal.locator('textarea')).toHaveValue(/Driver:/);
+  await detailsModal.locator('input[type="email"]').fill('delivered@resend.dev');
+  await detailsModal.getByRole('button', { name: 'Send email' }).click();
+  await expect(page.locator('.toast')).toContainText(/email sent/i);
+  await expect(emailsCard.locator('.ir', { hasText: 'Driver details' })).toContainText('SENT');
+  // Both sent → the tile flag clears and the booking leaves the rail view.
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText(
+    'email due',
+  );
+  // Both emails are in the message trail, each showing who it went to.
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Exec messages/ })
+    .click();
+  await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Exec messages/ })
+    .click();
+
+  // Both sent → the booking has left the rail's "Emails due" view.
+  await page.keyboard.press('Escape'); // close the panel so the rail is clickable
+  await expect(page.locator('.panel.is-open')).toHaveCount(0);
+  await page.locator('.rail__item', { hasText: 'Emails due' }).click();
+  await expect(page).toHaveURL(/savedView=emails_due/);
+  await expect(page.locator('.card', { hasText: 'LEGO Group' })).toHaveCount(0);
+  await gotoSimulator(page);
+
   // ── Exec-message failure surfaces on the board + one-click resend clears it ─
   // Force a failed exec confirmation (the booking has a real driver, so the
   // resend can rebuild + send it). Exercises the tile marker, the panel health
@@ -223,8 +282,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, LEGO, 'In progress');
 
-  // The clock should have texted the exec the "en route" SMS.
-  await expect(page.getByText('No SMS yet.')).toHaveCount(0);
+  // The clock no longer messages the exec — the operator already sent the
+  // driver-details email manually above.
 
   // ── Clock: in_progress → awaiting_driver_form (trip ended) ───
   await row(page, LEGO).locator('select[name="scenario"]').selectOption('trip_finished');
@@ -318,10 +377,9 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Assigned');
 
-  // ── Clock: assigned → in_progress, en-route SMS naming the backfill driver ─
+  // ── Clock: assigned → in_progress (no automatic exec message any more) ─
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, JJ, 'In progress');
-  await expect(page.getByText('No SMS yet.')).toHaveCount(0);
 
   // ── Clock: trip ended → awaiting_driver_form, same as a normal driver. The
   //    backfill driver fills out the completion form via a link. ──
@@ -495,7 +553,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
 });
 
-test('mid-flight change: driver confirms via the change link, exec is emailed the update', async ({
+test('mid-flight change: driver confirms via the link, operator sends the update email', async ({
   page,
 }) => {
   // Fresh data; force LEGO → assigned and onto today's board.
@@ -557,14 +615,37 @@ test('mid-flight change: driver confirms via the change link, exec is emailed th
   await page.getByRole('button', { name: /Confirm the new details/i }).click();
   await expect(page.getByRole('heading', { name: 'Change confirmed' })).toBeVisible();
 
-  // ── Console: confirmed by the driver, and the exec was emailed the update ──
+  // ── Console: confirmed by the driver — the exec is NOT auto-emailed. The
+  //    panel flags the outstanding "Booking update" email instead. ──
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY DRIVER');
+  const emailsCard = page.locator('.panel.is-open .ic', { hasText: 'Exec emails' });
+  await expect(emailsCard).toContainText('3 · Booking update');
+  await expect(emailsCard).toContainText('hasn’t been told about the confirmed change');
+  // The tile also carries the amber email-due tag for the pending update.
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText('email due');
+
+  // ── Operator previews and sends the update email ──
+  await emailsCard
+    .locator('.ir', { hasText: 'Booking update' })
+    .getByRole('button', { name: 'Preview & send' })
+    .click();
+  const updateModal = page.locator('.modal.is-open', { hasText: 'Send booking update email' });
+  // Pre-addressed to the exec email captured on the edit, draft holds the new plan.
+  await expect(updateModal.locator('input[type="email"]')).toHaveValue('exec-change@example.com');
+  await expect(updateModal.locator('textarea')).toHaveValue(/Reference:/);
+  await updateModal.locator('input[type="email"]').fill('delivered@resend.dev');
+  await updateModal.getByRole('button', { name: 'Send email' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking update email sent/i);
+  await expect(emailsCard.locator('.ir', { hasText: 'Booking update' })).toContainText('SENT');
+
+  // The message trail records it with the recipient.
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Exec messages/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('Booking updated');
+  await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
 });
 
 test('operator-attested assign: confirm a driver by phone, then reassign by phone', async ({
