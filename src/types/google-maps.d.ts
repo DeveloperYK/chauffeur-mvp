@@ -17,6 +17,7 @@ declare global {
     /** Modern dynamic library loader (bootstrap + `?libraries=places`). */
     function importLibrary(library: 'places'): Promise<typeof google.maps.places>;
     function importLibrary(library: 'routes'): Promise<typeof google.maps.routes>;
+    function importLibrary(library: 'geocoding'): Promise<{ Geocoder: typeof Geocoder }>;
 
     class LatLng {
       lat(): number;
@@ -74,7 +75,11 @@ declare global {
 
     /** Only the Place Details fields we read. */
     interface PlaceFields {
-      postalCode?: string | null;
+      addressComponents?: Array<{
+        longText?: string | null;
+        shortText?: string | null;
+        types: string[];
+      }> | null;
       location?: google.maps.LatLng | null;
     }
 

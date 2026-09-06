@@ -53,10 +53,25 @@ export interface PlaceLocation {
   lng(): number;
 }
 
-/** The slice of `google.maps.places.Place` we need to guarantee a postcode. */
+/** One entry of `Place.addressComponents` (Places New naming). */
+export interface PlaceAddressComponent {
+  longText?: string | null;
+  shortText?: string | null;
+  types: string[];
+}
+
+/**
+ * The slice of `google.maps.places.Place` we need to guarantee a postcode.
+ * NOTE: there is no `postalCode` field on Place — requesting one makes
+ * `fetchFields` throw "Unknown fields requested". The postcode lives inside
+ * `addressComponents` (type `postal_code`).
+ */
 export interface PlaceDetailsSource {
   fetchFields(request: { fields: string[] }): Promise<{
-    place: { postalCode?: string | null; location?: PlaceLocation | null };
+    place: {
+      addressComponents?: PlaceAddressComponent[] | null;
+      location?: PlaceLocation | null;
+    };
   }>;
 }
 
@@ -101,6 +116,30 @@ export function toAddressSuggestion(p: RawPlacePrediction): AddressSuggestion {
   return p.toPlace ? { ...base, toPlace: () => p.toPlace?.() as PlaceDetailsSource } : base;
 }
 
+/** Normalise a candidate to "TW6 1EW" form, or `null` if not a full UK postcode. */
+function normaliseFullPostcode(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!isValidUkPostcode(trimmed)) return null;
+  const upper = trimmed.toUpperCase().replace(/\s+/g, '');
+  return `${upper.slice(0, -3)} ${upper.slice(-3)}`;
+}
+
+/**
+ * The first full UK postcode in a place's address components, normalised, or
+ * `null`. Outward-only codes ("TW6") are not navigable and are skipped.
+ */
+export function extractComponentPostcode(
+  components: PlaceAddressComponent[] | null | undefined,
+): string | null {
+  for (const component of components ?? []) {
+    if (!component.types.includes('postal_code')) continue;
+    const raw = component.longText ?? component.shortText ?? '';
+    const postcode = normaliseFullPostcode(raw);
+    if (postcode) return postcode;
+  }
+  return null;
+}
+
 /**
  * The first full UK postcode found in a set of geocoder results, normalised
  * ("TW6 1EW"), or `null`. Outward-only codes ("TW6") are not navigable and are
@@ -110,25 +149,29 @@ export function extractGeocodedPostcode(results: GeocoderResultLike[]): string |
   for (const result of results) {
     for (const component of result.address_components ?? []) {
       if (!component.types.includes('postal_code')) continue;
-      const raw = component.long_name.trim();
-      if (isValidUkPostcode(raw)) {
-        const upper = raw.toUpperCase().replace(/\s+/g, '');
-        return `${upper.slice(0, -3)} ${upper.slice(-3)}`;
-      }
+      const postcode = normaliseFullPostcode(component.long_name);
+      if (postcode) return postcode;
     }
   }
   return null;
 }
 
 /**
- * Reverse-geocode a place's location to a UK postcode via the core Maps JS
- * `Geocoder`. Browser-only; resolves `null` (never throws) on SSR, a missing
- * API, quota errors, or a location with no postcode.
+ * Reverse-geocode a place's location to a UK postcode via the Maps JS
+ * `Geocoder`. With `loading=async` the constructor may not be on the namespace
+ * yet, so fall back to importing the geocoding library. Browser-only; resolves
+ * `null` (never throws) on SSR, a missing API, quota/denied errors, or a
+ * location with no postcode.
  */
 export async function reverseGeocodePostcode(location: PlaceLocation): Promise<string | null> {
   try {
     if (typeof window === 'undefined') return null;
-    const geocoderCtor = window.google?.maps?.Geocoder;
+    const maps = window.google?.maps;
+    if (!maps) return null;
+    let geocoderCtor = maps.Geocoder;
+    if (!geocoderCtor && typeof maps.importLibrary === 'function') {
+      geocoderCtor = (await maps.importLibrary('geocoding'))?.Geocoder;
+    }
     if (!geocoderCtor) return null;
     const { results } = await new geocoderCtor().geocode({ location });
     return extractGeocodedPostcode(results ?? []);
@@ -139,11 +182,11 @@ export async function reverseGeocodePostcode(location: PlaceLocation): Promise<s
 
 /**
  * The text to write into the booking once an option is chosen: the prediction
- * text plus a guaranteed postcode — from Place Details when the place has one,
- * otherwise reverse-geocoded from the place's location (airports and large
- * buildings have no single postcode of their own). Never throws — any failure
- * (no Places, quota, nothing to geocode) falls back to the prediction text so
- * the operator is never blocked.
+ * text plus a guaranteed postcode — from the place's address components when
+ * present, otherwise reverse-geocoded from the place's location (airports and
+ * large buildings have no single postcode of their own). Never throws — any
+ * failure (no Places, quota, nothing to geocode) falls back to the prediction
+ * text so the operator is never blocked.
  */
 export async function resolveSelectedAddress(
   s: AddressSuggestion,
@@ -151,8 +194,9 @@ export async function resolveSelectedAddress(
 ): Promise<string> {
   if (!s.toPlace) return s.full;
   try {
-    const { place } = await s.toPlace().fetchFields({ fields: ['postalCode', 'location'] });
-    if (place.postalCode?.trim()) return withPostcode(s.full, place.postalCode);
+    const { place } = await s.toPlace().fetchFields({ fields: ['addressComponents', 'location'] });
+    const fromComponents = extractComponentPostcode(place.addressComponents);
+    if (fromComponents) return withPostcode(s.full, fromComponents);
     if (place.location) {
       const geocoded = await geocodePostcode(place.location);
       if (geocoded) return withPostcode(s.full, geocoded);
