@@ -166,11 +166,23 @@ describe('resolveSelectedAddress', () => {
 
   const heathrow: PlaceLocation = { lat: () => 51.470022, lng: () => -0.454295 };
 
+  /** Address components as the live Places (New) API returns them. */
+  const pcComponent = (postcode: string) => ({
+    longText: postcode,
+    types: ['postal_code'],
+  });
+  const townComponent = { longText: 'London', types: ['postal_town'] };
+
   const fakePlace = (
-    postalCode: string | null,
+    postcode: string | null,
     location: PlaceLocation | null = null,
   ): PlaceDetailsSource => ({
-    fetchFields: async () => ({ place: { postalCode, location } }),
+    fetchFields: async () => ({
+      place: {
+        addressComponents: postcode ? [townComponent, pcComponent(postcode)] : [townComponent],
+        location,
+      },
+    }),
   });
 
   /** Geocoder double that records whether it was called. */
@@ -184,29 +196,45 @@ describe('resolveSelectedAddress', () => {
   };
 
   // Happy paths.
-  it('appends the postcode returned by Place Details', async () => {
+  it('appends the postcode found in the address components', async () => {
     const s = { ...base, toPlace: () => fakePlace('N1C 4QP') };
     await expect(resolveSelectedAddress(s)).resolves.toBe(
       'London St Pancras International, Euston Road, London, N1C 4QP',
     );
   });
 
-  it('requests the postal code and location fields in one details call', async () => {
+  it('requests the address components and location fields in one details call', async () => {
+    // 'postalCode' is NOT a valid Place field — requesting it makes fetchFields
+    // throw ("Unknown fields requested") and silently breaks the whole chain.
     let requested: string[] = [];
     const s = {
       ...base,
       toPlace: (): PlaceDetailsSource => ({
         fetchFields: async (req) => {
           requested = req.fields;
-          return { place: { postalCode: 'N1C 4QP' } };
+          return { place: { addressComponents: [pcComponent('N1C 4QP')] } };
         },
       }),
     };
     await resolveSelectedAddress(s);
-    expect(requested).toEqual(['postalCode', 'location']);
+    expect(requested).toEqual(['addressComponents', 'location']);
   });
 
-  it('does not reverse-geocode when Place Details already has a postcode', async () => {
+  it('reads a shortText-only postal component', async () => {
+    const s = {
+      ...base,
+      toPlace: (): PlaceDetailsSource => ({
+        fetchFields: async () => ({
+          place: { addressComponents: [{ shortText: 'n1c 4qp', types: ['postal_code'] }] },
+        }),
+      }),
+    };
+    await expect(resolveSelectedAddress(s)).resolves.toBe(
+      'London St Pancras International, Euston Road, London, N1C 4QP',
+    );
+  });
+
+  it('does not reverse-geocode when the components already carry a postcode', async () => {
     const geo = fakeGeocoder('XX1 1XX');
     const s = { ...base, toPlace: () => fakePlace('N1C 4QP', heathrow) };
     await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(
@@ -226,6 +254,25 @@ describe('resolveSelectedAddress', () => {
       'Heathrow Airport, Hounslow, TW6 1EW',
     );
     expect(geo.calls).toEqual([heathrow]);
+  });
+
+  it('treats an outward-only component ("TW6") as no postcode and geocodes instead', async () => {
+    const geo = fakeGeocoder('TW6 1EW');
+    const s = {
+      ...base,
+      full: 'Heathrow Airport, Hounslow, UK',
+      toPlace: (): PlaceDetailsSource => ({
+        fetchFields: async () => ({
+          place: {
+            addressComponents: [{ longText: 'TW6', types: ['postal_code'] }],
+            location: heathrow,
+          },
+        }),
+      }),
+    };
+    await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(
+      'Heathrow Airport, Hounslow, TW6 1EW',
+    );
   });
 
   it('keeps the text unchanged when the postcode is already in it', async () => {
