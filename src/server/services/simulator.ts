@@ -295,10 +295,10 @@ export async function setBookingState(
 export interface BookingSummary {
   id: string;
   state: BookingState;
-  clientName: string;
+  clientName: string | null;
   passengerName: string;
   pickupAt: Date;
-  accountCode: string;
+  accountCode: string | null;
 }
 
 export async function listAllForSimulator(db: Database): Promise<BookingSummary[]> {

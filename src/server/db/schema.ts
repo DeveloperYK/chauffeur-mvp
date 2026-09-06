@@ -211,7 +211,7 @@ export const bookings = pgTable(
     travelRef: text('travel_ref'),
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
-    execMobile: text('exec_mobile').notNull(),
+    execMobile: text('exec_mobile'),
     // Exec email address — the recipient when the email channel is active (see
     // EXEC_NOTIFICATION_CHANNEL). Nullable: SMS-mode bookings need not carry one,
     // and it is collected by the booking form only when email is the active
@@ -226,8 +226,8 @@ export const bookings = pgTable(
     bookedByEmail: text('booked_by_email'),
     // "Customer Account" — the company/account the trip is billed to (e.g.
     // "LEGO Group"). The legacy JJ sheet column J. Stored in account_code.
-    clientName: text('client_name').notNull(),
-    accountCode: text('account_code').notNull(),
+    clientName: text('client_name'),
+    accountCode: text('account_code'),
     // "Case code" — the expense code the customer's company uses to cover the
     // cost. Maps to the legacy JJ sheet column D. Nullable: bookings created
     // before this field exist without one.

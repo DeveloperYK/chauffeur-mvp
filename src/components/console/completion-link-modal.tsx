@@ -63,7 +63,7 @@ export function CompletionLinkModal({
                 </span>
               </div>
               <div className="modal__sub">
-                {passengerName(booking)} · {booking.accountCode}
+                {passengerName(booking)} · {booking.accountCode ?? 'No account'}
               </div>
             </div>
             <span style={{ flex: 1 }} />
