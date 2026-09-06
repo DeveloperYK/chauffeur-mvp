@@ -8,6 +8,7 @@ import {
   resolveSelectedAddress,
   shouldQueryPlaces,
 } from '@/lib/places';
+import { extractPostcode } from '@/lib/postcode';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 interface AddressAutocompleteProps {
@@ -27,9 +28,12 @@ const BLUR_CLOSE_MS = 120;
  * controlled `<input>` (so it pre-fills cleanly when editing) plus a dropdown of
  * UK address suggestions. Manual typing is always preserved — selecting a
  * suggestion fills the field immediately with the prediction text, then swaps in
- * the same text with the postcode appended once Place Details answers (drivers
- * navigate by postcode). When Places is unavailable (no API key, SSR, or a
- * failed lookup) it behaves exactly like a plain text input.
+ * the same text with a guaranteed postcode (Place Details, or reverse-geocoded
+ * for airports/large buildings) once resolution answers; a confirmation line
+ * shows the postcode that was found. "Enter address manually" (or Esc) switches
+ * the field to manual mode: suggestions stay off until the operator clears the
+ * field or clicks "Use lookup". When Places is unavailable (no API key, SSR, or
+ * a failed lookup) it behaves exactly like a plain text input.
  */
 export function AddressAutocomplete({
   value,
@@ -40,6 +44,10 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  /** Manual mode: operator asked the dropdown to stay out of the way. */
+  const [manual, setManual] = useState(false);
+  /** Postcode confirmed in the field after a lookup selection resolved. */
+  const [foundPostcode, setFoundPostcode] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blurRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,7 +100,28 @@ export function AddressAutocomplete({
 
   const handleInput = (next: string) => {
     onChange(next);
+    setFoundPostcode(null);
+    if (manual) {
+      // Clearing the field ends manual mode; otherwise stay out of the way.
+      if (next.trim().length === 0) setManual(false);
+      return;
+    }
     runQuery(next);
+  };
+
+  /** Stop suggesting for this field until it is cleared or lookup is resumed. */
+  const enterManualMode = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+    setManual(true);
+    setOpen(false);
+    setSuggestions([]);
+    setActiveIndex(-1);
+  };
+
+  const resumeLookup = () => {
+    setManual(false);
+    runQuery(valueRef.current);
   };
 
   const choose = (s: AddressSuggestion) => {
@@ -102,27 +131,40 @@ export function AddressAutocomplete({
     setActiveIndex(-1);
     // The details call closes this session; the next keystroke starts a fresh one.
     sessionRef.current = null;
-    void resolveSelectedAddress(s).then((withPostcode) => {
-      if (valueRef.current === s.full) onChange(withPostcode);
+    void resolveSelectedAddress(s).then((resolved) => {
+      if (valueRef.current !== s.full) return;
+      if (resolved !== s.full) onChange(resolved);
+      setFoundPostcode(extractPostcode(resolved));
     });
   };
+
+  // The "Enter address manually" row sits after the last suggestion.
+  const manualRowIndex = suggestions.length;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!open || suggestions.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, manualRowIndex));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
+      if (activeIndex === manualRowIndex) {
+        e.preventDefault();
+        enterManualMode();
+        return;
+      }
       const picked = activeIndex >= 0 ? suggestions[activeIndex] : undefined;
       if (picked) {
         e.preventDefault();
         choose(picked);
       }
     } else if (e.key === 'Escape') {
-      setOpen(false);
+      // Consume the key: the board's global Esc handler would close the whole
+      // modal while the operator only meant to dismiss the suggestions.
+      e.stopPropagation();
+      enterManualMode();
     }
   };
 
@@ -141,7 +183,7 @@ export function AddressAutocomplete({
         onChange={(e) => handleInput(e.target.value)}
         onKeyDown={handleKeyDown}
         onFocus={() => {
-          if (suggestions.length > 0) setOpen(true);
+          if (!manual && suggestions.length > 0) setOpen(true);
         }}
         onBlur={() => {
           if (blurRef.current) clearTimeout(blurRef.current);
@@ -172,7 +214,34 @@ export function AddressAutocomplete({
               {s.secondary ? <span className="addr-ac__secondary">{s.secondary}</span> : null}
             </li>
           ))}
+          {/* biome-ignore lint/a11y/useFocusableInteractive: same combobox pattern as the options above. */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: Enter on the active row is handled on the input. */}
+          <li
+            // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: option role on the list item is the correct ARIA for a listbox.
+            // biome-ignore lint/a11y/useSemanticElements: there is no semantic HTML element for a listbox option.
+            role="option"
+            aria-selected={activeIndex === manualRowIndex}
+            className={`addr-ac__opt addr-ac__opt--manual ${
+              activeIndex === manualRowIndex ? 'is-active' : ''
+            }`}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setActiveIndex(manualRowIndex)}
+            onClick={enterManualMode}
+          >
+            Enter address manually
+          </li>
         </ul>
+      ) : null}
+      {manual ? (
+        <div className="addr-ac__note">
+          Suggestions off.{' '}
+          <button type="button" className="addr-ac__link" onClick={resumeLookup}>
+            Use lookup
+          </button>
+        </div>
+      ) : null}
+      {foundPostcode ? (
+        <div className="addr-ac__note addr-ac__note--ok">Postcode found: {foundPostcode} ✓</div>
       ) : null}
     </div>
   );

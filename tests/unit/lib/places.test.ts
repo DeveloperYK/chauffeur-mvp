@@ -1,9 +1,13 @@
 import {
   type AddressSuggestion,
+  type GeocoderResultLike,
   MIN_QUERY_LENGTH,
   type PlaceDetailsSource,
+  type PlaceLocation,
   type RawPlacePrediction,
+  extractGeocodedPostcode,
   resolveSelectedAddress,
+  reverseGeocodePostcode,
   shouldQueryPlaces,
   toAddressSuggestion,
   toAddressSuggestions,
@@ -160,9 +164,24 @@ describe('resolveSelectedAddress', () => {
     full: 'London St Pancras International, Euston Road, London, UK',
   };
 
-  const fakePlace = (postalCode: string | null): PlaceDetailsSource => ({
-    fetchFields: async () => ({ place: { postalCode } }),
+  const heathrow: PlaceLocation = { lat: () => 51.470022, lng: () => -0.454295 };
+
+  const fakePlace = (
+    postalCode: string | null,
+    location: PlaceLocation | null = null,
+  ): PlaceDetailsSource => ({
+    fetchFields: async () => ({ place: { postalCode, location } }),
   });
+
+  /** Geocoder double that records whether it was called. */
+  const fakeGeocoder = (postcode: string | null) => {
+    const calls: PlaceLocation[] = [];
+    const geocode = async (location: PlaceLocation) => {
+      calls.push(location);
+      return postcode;
+    };
+    return { geocode, calls };
+  };
 
   // Happy paths.
   it('appends the postcode returned by Place Details', async () => {
@@ -172,7 +191,7 @@ describe('resolveSelectedAddress', () => {
     );
   });
 
-  it('requests only the postal code field', async () => {
+  it('requests the postal code and location fields in one details call', async () => {
     let requested: string[] = [];
     const s = {
       ...base,
@@ -184,7 +203,29 @@ describe('resolveSelectedAddress', () => {
       }),
     };
     await resolveSelectedAddress(s);
-    expect(requested).toEqual(['postalCode']);
+    expect(requested).toEqual(['postalCode', 'location']);
+  });
+
+  it('does not reverse-geocode when Place Details already has a postcode', async () => {
+    const geo = fakeGeocoder('XX1 1XX');
+    const s = { ...base, toPlace: () => fakePlace('N1C 4QP', heathrow) };
+    await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(
+      'London St Pancras International, Euston Road, London, N1C 4QP',
+    );
+    expect(geo.calls).toHaveLength(0);
+  });
+
+  it('falls back to reverse geocoding when the place has no postcode (airports)', async () => {
+    const geo = fakeGeocoder('TW6 1EW');
+    const s = {
+      ...base,
+      full: 'Heathrow Airport, Hounslow, UK',
+      toPlace: () => fakePlace(null, heathrow),
+    };
+    await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(
+      'Heathrow Airport, Hounslow, TW6 1EW',
+    );
+    expect(geo.calls).toEqual([heathrow]);
   });
 
   it('keeps the text unchanged when the postcode is already in it', async () => {
@@ -201,9 +242,26 @@ describe('resolveSelectedAddress', () => {
     await expect(resolveSelectedAddress(base)).resolves.toBe(base.full);
   });
 
-  it('falls back when Place Details returns no postcode', async () => {
-    const s = { ...base, toPlace: () => fakePlace(null) };
-    await expect(resolveSelectedAddress(s)).resolves.toBe(base.full);
+  it('falls back when there is no postcode and no location to geocode', async () => {
+    const geo = fakeGeocoder('TW6 1EW');
+    const s = { ...base, toPlace: () => fakePlace(null, null) };
+    await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(base.full);
+    expect(geo.calls).toHaveLength(0);
+  });
+
+  it('falls back when reverse geocoding finds no postcode', async () => {
+    const geo = fakeGeocoder(null);
+    const s = { ...base, toPlace: () => fakePlace(null, heathrow) };
+    await expect(resolveSelectedAddress(s, geo.geocode)).resolves.toBe(base.full);
+    expect(geo.calls).toHaveLength(1);
+  });
+
+  it('falls back when reverse geocoding throws', async () => {
+    const s = { ...base, toPlace: () => fakePlace(null, heathrow) };
+    const throwingGeocode = async (): Promise<string | null> => {
+      throw new Error('geocode quota');
+    };
+    await expect(resolveSelectedAddress(s, throwingGeocode)).resolves.toBe(base.full);
   });
 
   it('falls back when Place Details throws', async () => {
@@ -216,5 +274,63 @@ describe('resolveSelectedAddress', () => {
       }),
     };
     await expect(resolveSelectedAddress(s)).resolves.toBe(base.full);
+  });
+});
+
+describe('extractGeocodedPostcode', () => {
+  const result = (
+    components: Array<{ long_name: string; types: string[] }>,
+  ): GeocoderResultLike => ({
+    address_components: components,
+  });
+
+  // Happy paths.
+  it('returns the postal code component of the first result', () => {
+    const results = [
+      result([
+        { long_name: 'Hounslow', types: ['postal_town'] },
+        { long_name: 'TW6 1EW', types: ['postal_code'] },
+      ]),
+    ];
+    expect(extractGeocodedPostcode(results)).toBe('TW6 1EW');
+  });
+
+  it('skips results without a postal code and reads a later one', () => {
+    const results = [
+      result([{ long_name: 'England', types: ['administrative_area_level_1'] }]),
+      result([{ long_name: 'N1C 4QP', types: ['postal_code'] }]),
+    ];
+    expect(extractGeocodedPostcode(results)).toBe('N1C 4QP');
+  });
+
+  it('normalises case and spacing of the found postcode', () => {
+    const results = [result([{ long_name: 'tw61ew', types: ['postal_code'] }])];
+    expect(extractGeocodedPostcode(results)).toBe('TW6 1EW');
+  });
+
+  // Unhappy paths.
+  it('returns null for no results', () => {
+    expect(extractGeocodedPostcode([])).toBeNull();
+  });
+
+  it('returns null when no result carries a postal code', () => {
+    const results = [result([{ long_name: 'London', types: ['postal_town'] }])];
+    expect(extractGeocodedPostcode(results)).toBeNull();
+  });
+
+  it('ignores partial outward-only codes (not navigable postcodes)', () => {
+    const results = [result([{ long_name: 'TW6', types: ['postal_code'] }])];
+    expect(extractGeocodedPostcode(results)).toBeNull();
+  });
+
+  it('returns null when address components are missing entirely', () => {
+    expect(extractGeocodedPostcode([{}])).toBeNull();
+  });
+});
+
+describe('reverseGeocodePostcode', () => {
+  it('resolves null outside the browser (no window/google)', async () => {
+    const location: PlaceLocation = { lat: () => 51.5, lng: () => -0.1 };
+    await expect(reverseGeocodePostcode(location)).resolves.toBeNull();
   });
 });

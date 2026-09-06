@@ -17,6 +17,27 @@ declare global {
     /** Modern dynamic library loader (bootstrap + `?libraries=places`). */
     function importLibrary(library: 'places'): Promise<typeof google.maps.places>;
     function importLibrary(library: 'routes'): Promise<typeof google.maps.routes>;
+
+    class LatLng {
+      lat(): number;
+      lng(): number;
+    }
+
+    interface GeocoderAddressComponent {
+      long_name: string;
+      types: string[];
+    }
+
+    interface GeocoderResult {
+      address_components?: GeocoderAddressComponent[];
+    }
+
+    /** Core-library reverse geocoder — no extra `libraries=` needed. */
+    class Geocoder {
+      geocode(request: { location: { lat(): number; lng(): number } }): Promise<{
+        results: GeocoderResult[];
+      }>;
+    }
   }
 
   namespace google.maps.routes {
@@ -54,6 +75,7 @@ declare global {
     /** Only the Place Details fields we read. */
     interface PlaceFields {
       postalCode?: string | null;
+      location?: google.maps.LatLng | null;
     }
 
     interface Place extends PlaceFields {
