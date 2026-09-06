@@ -27,7 +27,7 @@ export interface ConsoleBooking {
   dropoffAddress: string;
   passengerFirstName: string;
   passengerLastName: string | null;
-  execMobile: string;
+  execMobile: string | null;
   /** Exec email — recipient when the email channel is active; null if not captured. */
   execEmail: string | null;
   bookedByName: string | null;
@@ -42,8 +42,8 @@ export interface ConsoleBooking {
   bookedByPhone: string | null;
   bookedByEmail: string | null;
   /** Customer Account — the company billed (stored in account_code). */
-  clientName: string;
-  accountCode: string;
+  clientName: string | null;
+  accountCode: string | null;
   /** Case code — expense code the customer's company bills against. */
   caseCode: string | null;
   /** Operator-agreed contract price; null until agreed — drives the "no price" flag. */

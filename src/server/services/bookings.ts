@@ -1,5 +1,5 @@
 import { parsePickupInput } from '@/lib/dates';
-import { optionalPhoneSchema, phoneSchema } from '@/lib/phone';
+import { optionalPhoneSchema } from '@/lib/phone';
 import { normalizeTravelRef } from '@/lib/travel-ref';
 import type { Database } from '@/server/db';
 import { type Booking, bookings, drivers } from '@/server/db/schema';
@@ -16,6 +16,17 @@ import { mirrorBooking } from './mirror';
 // than via `new Date(string)`, which would parse it in the server's zone (UTC on
 // Vercel) and silently store the pickup +1h off in summer. Absolute instants
 // (ISO with Z/offset) and Date objects pass through unchanged.
+/** Optional free-text field: blank/whitespace parses to null. */
+function optionalText(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .nullable()
+    .transform((v) => v || null);
+}
+
 const pickupAtSchema = z.union([z.string(), z.date()]).transform((value, ctx) => {
   const parsed = parsePickupInput(value);
   if (!parsed) {
@@ -42,7 +53,8 @@ export const createBookingSchema = z
     dropoffAddress: z.string().max(500).optional().nullable(),
     passengerFirstName: z.string().min(1, 'Passenger first name is required').max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
-    execMobile: phoneSchema,
+    // Optional: not every booking comes with the exec's mobile.
+    execMobile: optionalPhoneSchema,
     // Exec email — recipient when the email channel is active. Optional at the
     // schema level (SMS-mode bookings don't need one); the form requires it when
     // email is the active channel, and a missing one surfaces as a loud failed
@@ -61,9 +73,9 @@ export const createBookingSchema = z
       .nullable(),
     // Single "Customer Account" — the company/account billed for the trip.
     // Stored in account_code (+ mirrored into client_name for now).
-    customerAccount: z.string().min(1, 'Customer account is required').max(120),
+    customerAccount: optionalText(120),
     // "Case code" — the expense code the customer's company bills against.
-    caseCode: z.string().min(1, 'Case code is required').max(60),
+    caseCode: optionalText(60),
     // Operator-set contract price. Optional — operators don't always know the
     // price at booking time; a booking without one is flagged in the console.
     // An explicit zero is rejected: blank means "not agreed yet", zero is a mistake.
@@ -263,13 +275,13 @@ export async function createBooking(
       ...normalizedTravelPair(parsed.data),
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
-      execMobile: parsed.data.execMobile,
+      execMobile: parsed.data.execMobile ?? null,
       execEmail: parsed.data.execEmail ?? null,
       ...normalizedBookedBy(parsed.data),
       // Customer Account lives in account_code; client_name is kept in sync
       // until that legacy column is dropped.
-      clientName: parsed.data.customerAccount,
-      accountCode: parsed.data.customerAccount,
+      clientName: parsed.data.customerAccount ?? null,
+      accountCode: parsed.data.customerAccount ?? null,
       caseCode: parsed.data.caseCode,
       contractPricePence,
       subcontractorPricePence,

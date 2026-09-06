@@ -162,6 +162,24 @@ describe('services/edit-booking (integration)', () => {
     expect(result.changedFields).toEqual(['private notes']);
   });
 
+  it('clears the customer account, case code and exec mobile when blanked (all optional)', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { customerAccount: '', caseCode: '', execMobile: '' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.accountCode).toBeNull();
+    expect(result.booking.clientName).toBeNull();
+    expect(result.booking.caseCode).toBeNull();
+    expect(result.booking.execMobile).toBeNull();
+    expect(result.changedFields).toEqual(
+      expect.arrayContaining(['customer account', 'case code', 'exec mobile']),
+    );
+  });
+
   it('amends the customer account (account_code + client_name) and case code', async () => {
     const seeded = await seed('unassigned');
     const result = await editBooking(

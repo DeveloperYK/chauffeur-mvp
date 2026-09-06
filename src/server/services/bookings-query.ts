@@ -190,7 +190,7 @@ export async function listAccountCodeSuggestions(
 
   const lastUsed = new Map<string, Date>();
   for (const row of rows) {
-    const account = row.account.trim();
+    const account = (row.account ?? '').trim();
     if (account.length === 0 || lastUsed.has(account)) continue;
     lastUsed.set(account, row.pickupAt);
   }
@@ -336,11 +336,11 @@ function positionScore(value: string | null | undefined, token: string): number 
 }
 
 /** Digit-normalised phone relevance for one token (matches `phoneDigitsMatch`). */
-function phoneScore(token: string, execMobile: string): number {
+function phoneScore(token: string, execMobile: string | null): number {
   const digits = token.replace(/\D/g, '');
   if (digits.length < 4) return 0;
   const normalized = digits.replace(/^0/, '');
-  const stored = execMobile.replace(/\D/g, '');
+  const stored = (execMobile ?? '').replace(/\D/g, '');
   if (!stored.includes(normalized)) return 0;
   if (stored === normalized) return PHONE_WEIGHT * 3;
   if (stored.endsWith(normalized)) return PHONE_WEIGHT * 2;

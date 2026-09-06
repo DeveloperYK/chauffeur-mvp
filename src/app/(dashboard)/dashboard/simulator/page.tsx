@@ -159,7 +159,7 @@ export default async function SimulatorPage({
                         {b.pickupAt.toISOString().replace('T', ' ').slice(0, 16)} UTC
                       </span>
                     </Td>
-                    <Td>{b.accountCode}</Td>
+                    <Td>{b.accountCode ?? '—'}</Td>
                     <Td>
                       <form action={fastForwardAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="bookingId" value={b.id} />
