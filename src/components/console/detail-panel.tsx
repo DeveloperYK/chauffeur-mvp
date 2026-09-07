@@ -27,6 +27,7 @@ import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { type CompletionLink, CompletionLinkModal } from './completion-link-modal';
+import { execEmailsDue, execHealthLabel } from './exec-email-due';
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
 import { Icon } from './icons';
 import { Lozenge, StateLozenge, Tag } from './lozenge';
@@ -563,7 +564,11 @@ export function DetailPanel({
                   24H NO ACCEPT
                 </Lozenge>
               ) : null}
-              <ExecHealthLozenge status={booking.execNotificationStatus} onClick={toggleExec} />
+              <ExecHealthLozenge
+                status={booking.execNotificationStatus}
+                due={execEmailsDue(booking)}
+                onClick={toggleExec}
+              />
               {booking.mirrorStatus === 'failed' ? (
                 <Lozenge tone="red">BACKUP SHEET STALE</Lozenge>
               ) : null}
@@ -1409,21 +1414,22 @@ function execStatusMeta(status: ConsoleBooking['execNotificationStatus']): strin
   }
 }
 
-/** Clickable health pill in the panel hero; opens the exec-messages drawer. */
+/**
+ * Clickable health pill in the panel hero; opens the exec-messages drawer.
+ * Says "due" rather than "notified" while any of the operator's emails is
+ * still owed, so it agrees with the tile tag and the Exec emails rows.
+ */
 function ExecHealthLozenge({
   status,
+  due,
   onClick,
 }: {
   status: ConsoleBooking['execNotificationStatus'];
+  due: boolean;
   onClick: () => void;
 }) {
-  if (status === 'none') return null;
-  const cfg =
-    status === 'failed'
-      ? { tone: 'red' as const, label: 'EXEC MESSAGE FAILED' }
-      : status === 'pending'
-        ? { tone: 'orange' as const, label: 'EXEC EMAIL PENDING' }
-        : { tone: 'green' as const, label: 'EXEC NOTIFIED' };
+  const cfg = execHealthLabel(status, due);
+  if (!cfg) return null;
   return (
     <button
       type="button"

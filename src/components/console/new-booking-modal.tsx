@@ -366,12 +366,7 @@ export function NewBookingModal({
       <form className="modal__card" style={{ width: 720 }} onSubmit={submit} ref={formRef}>
         <header className="modal__head">
           <div className="row">
-            <div>
-              <div className="modal__title">Create booking</div>
-              <div className="modal__sub">
-                Capture the call. The exec receives an SMS once a driver accepts.
-              </div>
-            </div>
+            <div className="modal__title">Create booking</div>
             <span style={{ flex: 1 }} />
             <button type="button" className="icon-btn" onClick={onClose}>
               <Icon.Close />
