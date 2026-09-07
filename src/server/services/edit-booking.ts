@@ -121,8 +121,8 @@ export type EditBookingResult =
       booking: Booking;
       changedFields: string[];
       /**
-       * True when a driver-facing field was edited on an already-dispatched
-       * booking (assigned/in_progress). The booking is now flagged
+       * True when a driver-facing field was edited on an accepted-but-not-
+       * started booking (assigned). The booking is now flagged
        * `change pending` and the console should prompt the operator to confirm
        * the driver knows the new plan. See docs/shaping/mid-flight-changes.
        */
@@ -132,10 +132,11 @@ export type EditBookingResult =
   | { ok: false; reason: 'booking_not_found' }
   | { ok: false; reason: 'not_editable'; state: string };
 
-// Booking details may only be amended before the trip is closed out. Once a
-// booking is completed or cancelled it is immutable — those are terminal,
-// billing-relevant states.
-const TERMINAL_STATES = new Set(['completed', 'cancelled']);
+// A booking stays editable for its whole life — mid-trip (the exec asks to go
+// somewhere else) and after completion (the record is corrected before it is
+// invoiced). Only a cancelled booking is immutable; undo-cancel is the way back
+// in. See docs/adr/0013-edit-in-any-live-state.md.
+const IMMUTABLE_STATES = new Set(['cancelled']);
 
 /**
  * Amend the operator-captured details of a booking (trip, passenger, caller,
@@ -160,7 +161,7 @@ export async function editBooking(
     .where(eq(bookings.id, data.bookingId))
     .limit(1);
   if (!existing) return { ok: false, reason: 'booking_not_found' };
-  if (TERMINAL_STATES.has(existing.state)) {
+  if (IMMUTABLE_STATES.has(existing.state)) {
     return { ok: false, reason: 'not_editable', state: existing.state };
   }
 
@@ -194,10 +195,13 @@ export async function editBooking(
     return { ok: true, booking: existing, changedFields, materialChange: false };
   }
 
-  // A driver-facing change on an already-dispatched booking flags it for driver
-  // re-confirmation (advisory — the new details go live immediately regardless).
-  const isDispatched = existing.state === 'assigned' || existing.state === 'in_progress';
-  const materialChange = isDispatched && isMaterialChange(changedFields);
+  // A driver-facing change while ASSIGNED flags the booking for driver
+  // re-confirmation (advisory — the new details go live immediately regardless):
+  // the driver accepted one plan and hasn't started, so they must be told.
+  // Once the trip has started the driver is with the exec and already knows
+  // about any change, so in_progress and later never flag. ADR 0013.
+  const awaitingStart = existing.state === 'assigned';
+  const materialChange = awaitingStart && isMaterialChange(changedFields);
   // Whether this change is also worth emailing the exec about once confirmed.
   const execRelevant = materialChange && isExecFacingChange(changedFields);
 

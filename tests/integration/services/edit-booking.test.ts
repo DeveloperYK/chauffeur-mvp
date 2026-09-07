@@ -41,7 +41,9 @@ describe('services/edit-booking (integration)', () => {
     await db.delete(auditEvents);
   });
 
-  async function seed(state: 'unassigned' | 'assigned' | 'completed' | 'cancelled') {
+  async function seed(
+    state: 'unassigned' | 'assigned' | 'in_progress' | 'completed' | 'cancelled',
+  ) {
     const [row] = await db
       .insert(bookings)
       .values({
@@ -60,7 +62,7 @@ describe('services/edit-booking (integration)', () => {
         notes: null,
         createdByOperatorId: operatorId,
         assignedOperatorId: operatorId,
-        assignedDriverId: state === 'assigned' ? driverId : null,
+        assignedDriverId: state === 'unassigned' || state === 'cancelled' ? null : driverId,
       })
       .returning();
     if (!row) throw new Error('seed failed');
@@ -231,22 +233,60 @@ describe('services/edit-booking (integration)', () => {
     expect(result.reason).toBe('booking_not_found');
   });
 
-  it('refuses to edit a completed booking', async () => {
+  it('is permitted mid-trip (in_progress) — the plan can change while the exec is in the car', async () => {
+    const seeded = await seed('in_progress');
+    const result = await editBooking(
+      fullEdit(seeded.id, { dropoffAddress: 'The Shard, London SE1 9SG' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changedFields).toEqual(['drop-off']);
+    expect(result.booking.state).toBe('in_progress');
+  });
+
+  it('is permitted after completion: amends the record, audits and mirrors it', async () => {
     const seeded = await seed('completed');
+    const mirror = new FakeSpreadsheetMirror();
+    const result = await editBooking(
+      fullEdit(seeded.id, { dropoffAddress: 'The Shard, London SE1 9SG', notes: 'Extra stop' }),
+      operatorId,
+      { db, mirror },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changedFields).toEqual(['drop-off', 'notes']);
+    expect(result.booking.state).toBe('completed');
+    // The trip is over — nobody needs to re-confirm a plan.
+    expect(result.materialChange).toBe(false);
+    expect(result.booking.changeConfirmationStatus).toBe('none');
+    const events = await db.select().from(auditEvents);
+    expect(events.map((e) => e.action)).toEqual(['edit']);
+    expect(mirror.rows.size).toBeGreaterThan(0);
+  });
+
+  it('a completed booking that is not touched writes neither audit nor mirror', async () => {
+    const seeded = await seed('completed');
+    const mirror = new FakeSpreadsheetMirror();
+    const result = await editBooking(fullEdit(seeded.id), operatorId, { db, mirror });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changedFields).toEqual([]);
+    expect(mirror.rows.size).toBe(0);
+    expect((await db.select().from(auditEvents)).length).toBe(0);
+  });
+
+  it('refuses to edit a cancelled booking — cancelled is the only immutable state', async () => {
+    const seeded = await seed('cancelled');
     const result = await editBooking(fullEdit(seeded.id, { notes: 'too late' }), operatorId, {
       db,
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('not_editable');
-  });
-
-  it('refuses to edit a cancelled booking', async () => {
-    const seeded = await seed('cancelled');
-    const result = await editBooking(fullEdit(seeded.id), operatorId, { db });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.reason).toBe('not_editable');
+    if (result.reason !== 'not_editable') return;
+    expect(result.state).toBe('cancelled');
   });
 
   it('rejects an invalid phone number', async () => {

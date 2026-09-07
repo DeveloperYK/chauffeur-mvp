@@ -59,7 +59,7 @@ What exists today:
 | R3 | When a change affects something the driver was already told (time, pickup, dropoff, exec mobile), the assigned driver is re-notified — operator doesn't have to remember | Must-have |
 | R4 | Every edit writes an audit row capturing actor + before/after + which fields changed (CURRENT already does this for field edits) | Must-have |
 | R5 | Sheet mirror reflects the edit on the same write (CURRENT already does this) | Must-have |
-| R6 | Editing is blocked on terminal states (`completed`, `cancelled`) with a clear reason shown to the operator | Must-have |
+| R6 | ~~Editing is blocked on terminal states (`completed`, `cancelled`)~~ **Superseded 2026-09-07 (ADR 0013):** editing is allowed in every state except `cancelled`, including mid-trip and after completion | Must-have |
 | R7 | Visual + interaction language matches the existing console (same modal shell, same field components, same lozenges, same address autocomplete) | Must-have |
 | R8 | A no-op submit (operator opened the modal but changed nothing) is silently a no-op — no audit, no mirror write, no SMS (CURRENT already does this for fields) | Nice-to-have |
 | 🟡 R9 | Driver-swap is allowed ONLY when booking is in `assigned` state. Not in `in_progress` / `awaiting_*` / terminal. | Must-have (decided) |
