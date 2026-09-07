@@ -7,7 +7,13 @@ import { parsePoundsFieldToPence } from '@/lib/money';
 import { addressPostcodeErrors } from '@/lib/postcode';
 import { currentSession } from '@/server/auth/current';
 import { spreadsheetMirror } from '@/server/composition';
-import { getDb } from '@/server/db';
+import { getDb, resetDb } from '@/server/db';
+import {
+  DB_TIMEOUT_MS,
+  DB_TIMEOUT_USER_MESSAGE,
+  DbTimeoutError,
+  withDbTimeout,
+} from '@/server/db/timeout';
 import { createBooking } from '@/server/services/bookings';
 import {
   type AccountSuggestion,
@@ -83,11 +89,19 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
   }
 
   const { db } = getDb(url);
-  const result = await createBooking(raw, {
-    db,
-    operatorId: session.operator.id,
-    mirror: spreadsheetMirror(),
-  });
+  let result: Awaited<ReturnType<typeof createBooking>>;
+  try {
+    result = await withDbTimeout(
+      'create booking',
+      DB_TIMEOUT_MS.action,
+      () =>
+        createBooking(raw, { db, operatorId: session.operator.id, mirror: spreadsheetMirror() }),
+      resetDb,
+    );
+  } catch (err) {
+    if (err instanceof DbTimeoutError) return { error: DB_TIMEOUT_USER_MESSAGE };
+    throw err;
+  }
 
   if (!result.ok) {
     if (result.reason === 'pickup_in_past') {

@@ -13,8 +13,9 @@ import {
 } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
-import { type Database, getDb } from '@/server/db';
+import { type Database, getDb, resetDb } from '@/server/db';
 import type { Booking } from '@/server/db/schema';
+import { DB_TIMEOUT_MS, withDbTimeout } from '@/server/db/timeout';
 import { waitingFee } from '@/server/domain/waiting-fee';
 import { sampleGeneratorEnabled } from '@/server/feature-flags';
 import {
@@ -38,6 +39,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
+// Hard ceiling for the board render and the server actions posted to it. The
+// client-side DB guard (DB_TIMEOUT_MS) fires well before this; this is the
+// backstop so a hung instance never holds a request for Vercel's 300 s default.
+export const maxDuration = 60;
 
 const SAVED_VIEW_LABEL: Record<string, string> = {
   unassigned: 'Unassigned tickets',
@@ -176,15 +181,23 @@ export default async function DashboardHome({
       .filter(Boolean),
   );
 
-  const [viewRows, countsMap, drivers, operatorList, dispatch] = await Promise.all([
-    savedView
-      ? (SAVED_VIEW_QUERY[savedView] as (db: Database) => Promise<Booking[]>)(db)
-      : listBookingsForDay(db, selectedDay),
-    monthlyDayCounts(db, visibleMonth),
-    listAllDrivers(db),
-    listOperators(db),
-    driverDispatchData(db),
-  ]);
+  // A wedged connection pool would otherwise hang this render for minutes; on
+  // the deadline the pool is torn down and the error boundary offers a retry.
+  const [viewRows, countsMap, drivers, operatorList, dispatch] = await withDbTimeout(
+    'board load',
+    DB_TIMEOUT_MS.page,
+    () =>
+      Promise.all([
+        savedView
+          ? (SAVED_VIEW_QUERY[savedView] as (db: Database) => Promise<Booking[]>)(db)
+          : listBookingsForDay(db, selectedDay),
+        monthlyDayCounts(db, visibleMonth),
+        listAllDrivers(db),
+        listOperators(db),
+        driverDispatchData(db),
+      ]),
+    resetDb,
+  );
 
   const counts: Record<string, DayCounts> = {};
   for (const [day, c] of countsMap.entries()) counts[day] = c;
@@ -277,13 +290,20 @@ export default async function DashboardHome({
   // Open dispatch offers for the unassigned bookings on screen, so each card can
   // show "Offered to N · awaiting". Only unassigned bookings can have open offers.
   const unassignedIds = filtered.filter((b) => b.state === 'unassigned').map((b) => b.id);
-  const offersByBooking = await openOffersForBookings(db, unassignedIds);
-
   // Which of the two operator emails each booking has had — drives the
   // "email not sent" flags on cards and in the panel.
-  const emailSends = await execEmailSendMap(
-    db,
-    filtered.map((b) => b.id),
+  const [offersByBooking, emailSends] = await withDbTimeout(
+    'board details',
+    DB_TIMEOUT_MS.page,
+    () =>
+      Promise.all([
+        openOffersForBookings(db, unassignedIds),
+        execEmailSendMap(
+          db,
+          filtered.map((b) => b.id),
+        ),
+      ]),
+    resetDb,
   );
 
   // Serialize for the client console shell.
