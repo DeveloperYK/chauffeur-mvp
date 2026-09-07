@@ -12,6 +12,7 @@ import { CompleteFormModal } from './complete-form-modal';
 import { DetailPanel } from './detail-panel';
 import { DispatchModal } from './dispatch-modal';
 import { EditBookingModal } from './edit-booking-modal';
+import { execEmailsDue } from './exec-email-due';
 import { fmtPrice, fmtTime, fmtTimeWithDay, passengerName, truncate } from './format';
 import { Icon } from './icons';
 import { COL_LABEL, Lozenge, StateLozenge, Tag } from './lozenge';
@@ -537,20 +538,7 @@ function ExecFailureTag({ status }: { status: ConsoleBooking['execNotificationSt
  * operator sends both from the booking's Exec emails section.
  */
 function EmailDueTag({ booking }: { booking: ConsoleBooking }) {
-  const active = ['assigned', 'in_progress', 'awaiting_driver_form', 'awaiting_operator_review'];
-  const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
-  const updateDue =
-    booking.state !== 'cancelled' &&
-    booking.changeConfirmationStatus === 'confirmed' &&
-    booking.changeExecRelevant &&
-    booking.changeConfirmedAt != null &&
-    (!booking.changeUpdateEmailSentAt ||
-      booking.changeUpdateEmailSentAt < booking.changeConfirmedAt);
-  const bothDue =
-    active.includes(booking.state) &&
-    hasDriver &&
-    (!booking.confirmationEmailSentAt || !booking.driverDetailsEmailSentAt);
-  if (!updateDue && !bothDue) return null;
+  if (!execEmailsDue(booking)) return null;
   return (
     <span
       title="Exec email(s) not sent yet — open the booking to preview and send"
