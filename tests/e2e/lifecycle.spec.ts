@@ -285,6 +285,30 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // The clock no longer messages the exec — the operator already sent the
   // driver-details email manually above.
 
+  // ── Console: the exec changes plan MID-TRIP — edit the destination while
+  //    in_progress. The panel offers Edit; the change flags the driver as not
+  //    told, and the operator attests by phone. ──
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('IN PROGRESS');
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
+  const midTripModal = page.locator('.modal.is-open');
+  await expect(midTripModal).toBeVisible();
+  await midTripModal
+    .locator('input[aria-label="Dropoff address"]')
+    .fill('The Shard, 32 London Bridge St, London SE1 9SG');
+  await midTripModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking updated/i);
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
+  await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('SE1 9SG');
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Driver confirmed by phone/i })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/confirmed/i);
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'In progress');
+
   // ── Clock: in_progress → awaiting_driver_form (trip ended) ───
   await row(page, LEGO).locator('select[name="scenario"]').selectOption('trip_finished');
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
@@ -310,6 +334,26 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);
 
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Completed');
+
+  // ── Console: the record is still correctable AFTER completion — a private
+  //    note added from the panel's Edit. No driver re-confirm flag: the trip
+  //    is over. ──
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('DONE');
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
+  const postTripModal = page.locator('.modal.is-open');
+  await expect(postTripModal).toBeVisible();
+  await postTripModal
+    .locator('.field', { hasText: 'Private notes' })
+    .locator('textarea')
+    .fill('Client asked for the Shard on the day — invoice the extra leg.');
+  await postTripModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText(/1 field changed/i);
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open')).toContainText('invoice the extra leg');
+  await expect(page.locator('.panel.is-open')).not.toContainText('DRIVER NOT CONFIRMED');
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Completed');
 

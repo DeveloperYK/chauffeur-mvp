@@ -132,10 +132,11 @@ export type EditBookingResult =
   | { ok: false; reason: 'booking_not_found' }
   | { ok: false; reason: 'not_editable'; state: string };
 
-// Booking details may only be amended before the trip is closed out. Once a
-// booking is completed or cancelled it is immutable — those are terminal,
-// billing-relevant states.
-const TERMINAL_STATES = new Set(['completed', 'cancelled']);
+// A booking stays editable for its whole life — mid-trip (the exec asks to go
+// somewhere else) and after completion (the record is corrected before it is
+// invoiced). Only a cancelled booking is immutable; undo-cancel is the way back
+// in. See docs/adr/0013-edit-in-any-live-state.md.
+const IMMUTABLE_STATES = new Set(['cancelled']);
 
 /**
  * Amend the operator-captured details of a booking (trip, passenger, caller,
@@ -160,7 +161,7 @@ export async function editBooking(
     .where(eq(bookings.id, data.bookingId))
     .limit(1);
   if (!existing) return { ok: false, reason: 'booking_not_found' };
-  if (TERMINAL_STATES.has(existing.state)) {
+  if (IMMUTABLE_STATES.has(existing.state)) {
     return { ok: false, reason: 'not_editable', state: existing.state };
   }
 
@@ -196,6 +197,8 @@ export async function editBooking(
 
   // A driver-facing change on an already-dispatched booking flags it for driver
   // re-confirmation (advisory — the new details go live immediately regardless).
+  // Once the trip is over (awaiting_* / completed) there is no plan left to
+  // confirm, so post-trip edits never flag.
   const isDispatched = existing.state === 'assigned' || existing.state === 'in_progress';
   const materialChange = isDispatched && isMaterialChange(changedFields);
   // Whether this change is also worth emailing the exec about once confirmed.

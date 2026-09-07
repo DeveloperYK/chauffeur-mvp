@@ -192,6 +192,44 @@ describe('services/edit-booking — mid-flight change flag (integration)', () =>
     expect(row?.changeConfirmationStatus).toBe('none');
   });
 
+  it.each(['awaiting_driver_form', 'awaiting_operator_review', 'completed'] as const)(
+    'does NOT flag a driver-facing change once the trip is over (%s)',
+    async (state) => {
+      const b = await seed(state);
+      const res = await editBooking(
+        fullEdit(b.id, { dropoffAddress: 'Gatwick South' }),
+        operatorId,
+        { db },
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.materialChange).toBe(false);
+      const [row] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+      expect(row?.changeConfirmationStatus).toBe('none');
+      expect(row?.dropoffAddress).toBe('Gatwick South');
+    },
+  );
+
+  it('a post-trip edit leaves an existing driver confirmation untouched', async () => {
+    const b = await seed('completed', {
+      changeConfirmationStatus: 'confirmed',
+      changeConfirmedMethod: 'operator_attested',
+      changeConfirmedByOperatorId: operatorId,
+      changeConfirmedAt: new Date('2026-05-30T09:00:00.000Z'),
+    });
+    const res = await editBooking(
+      fullEdit(b.id, { notes: 'Dropped at side entrance' }),
+      operatorId,
+      {
+        db,
+      },
+    );
+    expect(res.ok).toBe(true);
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(row?.changeConfirmationStatus).toBe('confirmed');
+    expect(row?.changeConfirmedMethod).toBe('operator_attested');
+  });
+
   it('a fresh material change supersedes a prior confirmation (back to pending)', async () => {
     const b = await seed('assigned', {
       changeConfirmationStatus: 'confirmed',
