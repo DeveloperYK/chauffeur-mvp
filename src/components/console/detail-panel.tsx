@@ -481,6 +481,9 @@ export function DetailPanel({
                 <Icon.Send /> Message passenger (SMS)
               </a>
             ) : null}
+            <button type="button" className="btn" onClick={onEdit}>
+              <Icon.Pencil /> Edit
+            </button>
           </div>
         );
       case 'awaiting_driver_form':
@@ -510,6 +513,9 @@ export function DetailPanel({
             <button type="button" className="btn" onClick={onCompleteOnBehalf}>
               <Icon.Check /> Enter completion details
             </button>
+            <button type="button" className="btn" onClick={onEdit}>
+              <Icon.Pencil /> Edit
+            </button>
           </div>
         );
       case 'awaiting_operator_review':
@@ -525,6 +531,19 @@ export function DetailPanel({
             </button>
             <button type="button" className="btn btn--danger" onClick={reject} disabled={isPending}>
               Reject — driver to resubmit
+            </button>
+            <button type="button" className="btn" onClick={onEdit}>
+              <Icon.Pencil /> Edit
+            </button>
+          </div>
+        );
+      case 'completed':
+        // The record stays correctable until it is invoiced. Cancelled is the
+        // only state with no actions (undo-cancel lives in the toast).
+        return (
+          <div className="dp-actions">
+            <button type="button" className="btn" onClick={onEdit}>
+              <Icon.Pencil /> Edit
             </button>
           </div>
         );
