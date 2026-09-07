@@ -348,7 +348,17 @@ export function NewBookingModal({
     fd.set('notes', form.notes);
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
-      const result = await createBookingAction(fd);
+      let result: Awaited<ReturnType<typeof createBookingAction>>;
+      try {
+        result = await createBookingAction(fd);
+      } catch {
+        // The request itself failed (network drop, or the server gave up on a
+        // hung instance). Never leave the button on "Creating…".
+        setError(
+          'Could not reach the server. Check the board for this booking before trying again.',
+        );
+        return;
+      }
       if (result.error || result.fieldErrors) {
         setError(result.error ?? 'Please fix the highlighted fields.');
         setFieldErrors(result.fieldErrors ?? {});
