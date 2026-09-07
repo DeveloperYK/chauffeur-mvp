@@ -286,8 +286,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // driver-details email manually above.
 
   // ── Console: the exec changes plan MID-TRIP — edit the destination while
-  //    in_progress. The panel offers Edit; the change flags the driver as not
-  //    told, and the operator attests by phone. ──
+  //    in_progress. The panel offers Edit; no driver-not-confirmed flag is
+  //    raised, because the driver is in the car and already knows. ──
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('IN PROGRESS');
   await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
@@ -299,13 +299,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await midTripModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
   await openBookingPanel(page, LEGO);
-  await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
   await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('SE1 9SG');
-  await page
-    .locator('.panel.is-open')
-    .getByRole('button', { name: /Driver confirmed by phone/i })
-    .click();
-  await expect(page.locator('.toast')).toContainText(/confirmed/i);
+  await expect(page.locator('.panel.is-open')).not.toContainText('DRIVER NOT CONFIRMED');
+  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'In progress');
 

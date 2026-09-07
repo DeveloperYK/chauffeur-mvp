@@ -1,12 +1,14 @@
 /**
  * Mid-flight change classification.
  *
- * After a booking is dispatched, an operator can still edit it. Some fields are
+ * After a booking is accepted (`assigned`), an operator can still edit it. Some fields are
  * shown to the driver on the dispatch link page (pickup, drop-off, time,
  * duration, service type, passenger, driver-facing notes); the rest (exec
  * contact, customer account, case code, contract price, subcontractor price,
  * private notes) are invisible to the driver. Only a change to a driver-facing field means the
  * driver was told something now stale and must re-confirm the new plan.
+ * Once the trip is in progress the driver is with the exec and already knows,
+ * so no flag is raised (ADR 0013).
  *
  * See docs/shaping/mid-flight-changes.
  */

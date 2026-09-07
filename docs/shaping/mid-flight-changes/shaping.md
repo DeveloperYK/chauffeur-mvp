@@ -68,7 +68,7 @@ These collapse to **Shape A**. They reject **B** (link round-trip is the exact f
 | R2.1 | The system distinguishes "changed but driver not yet confirmed" from "driver confirmed", visible at a glance in the console | Must-have |
 | R2.2 | Only **material** changes (destination, pickup, time, duration — things the driver was told) flag for re-confirmation; cosmetic/operator-only changes (operator notes, account code) don't | Must-have |
 | **R3** | **Lifecycle fit** | |
-| R3.1 | Works mid-trip (`in_progress`), where an SMS link is impractical and operator-attest is the primary path | Must-have |
+| R3.1 | ~~Works mid-trip (`in_progress`)~~ **Superseded 2026-09-07 (ADR 0013):** mid-trip edits do not flag — the driver is in the car and already knows. Flag is `assigned`-only. | Must-have |
 | R3.2 | Works just-before-start (`assigned`), where either channel is reasonable | Must-have |
 | 🟡 R4 | The change notification to the driver is handled by the system (operator picks the channel; the system does the sending/linking) — not remembered manually. Resolves the deferred booking-edit R3 | Must-have |
 | R5 | Every change + confirmation writes an audit row: actor, before/after, confirmation method | Must-have |

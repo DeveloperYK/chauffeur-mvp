@@ -121,8 +121,8 @@ export type EditBookingResult =
       booking: Booking;
       changedFields: string[];
       /**
-       * True when a driver-facing field was edited on an already-dispatched
-       * booking (assigned/in_progress). The booking is now flagged
+       * True when a driver-facing field was edited on an accepted-but-not-
+       * started booking (assigned). The booking is now flagged
        * `change pending` and the console should prompt the operator to confirm
        * the driver knows the new plan. See docs/shaping/mid-flight-changes.
        */
@@ -195,12 +195,13 @@ export async function editBooking(
     return { ok: true, booking: existing, changedFields, materialChange: false };
   }
 
-  // A driver-facing change on an already-dispatched booking flags it for driver
-  // re-confirmation (advisory — the new details go live immediately regardless).
-  // Once the trip is over (awaiting_* / completed) there is no plan left to
-  // confirm, so post-trip edits never flag.
-  const isDispatched = existing.state === 'assigned' || existing.state === 'in_progress';
-  const materialChange = isDispatched && isMaterialChange(changedFields);
+  // A driver-facing change while ASSIGNED flags the booking for driver
+  // re-confirmation (advisory — the new details go live immediately regardless):
+  // the driver accepted one plan and hasn't started, so they must be told.
+  // Once the trip has started the driver is with the exec and already knows
+  // about any change, so in_progress and later never flag. ADR 0013.
+  const awaitingStart = existing.state === 'assigned';
+  const materialChange = awaitingStart && isMaterialChange(changedFields);
   // Whether this change is also worth emailing the exec about once confirmed.
   const execRelevant = materialChange && isExecFacingChange(changedFields);
 

@@ -19,12 +19,13 @@ and `completed` was refused outright.
 1. **One rule: editable unless cancelled.** `editBooking` refuses only
    `cancelled` (undo-cancel is the way back in). The Edit button appears in
    the detail panel for every other state, including `completed`.
-2. **Driver re-confirmation flags only while the trip is live.** The
-   mid-flight `change pending` flag (ADR / shaping `mid-flight-changes`) is
-   set for driver-facing edits in `assigned` and `in_progress` only. Once the
-   trip is over (`awaiting_driver_form`, `awaiting_operator_review`,
-   `completed`) there is no plan left to confirm, so post-trip edits never
-   flag and never disturb an existing confirmation.
+2. **Driver re-confirmation flags only while `assigned`.** The mid-flight
+   `change pending` flag (shaping `mid-flight-changes`) is set for
+   driver-facing edits in `assigned` only: the driver accepted one plan and
+   has not started. Once the trip is `in_progress` the driver is with the exec
+   and already knows about any change, so mid-trip and post-trip edits
+   (`in_progress`, `awaiting_*`, `completed`) never flag and never disturb an
+   existing confirmation. This narrows mid-flight-changes R3.1.
 3. **Same side effects everywhere.** Every effective edit writes an `edit`
    audit event and re-mirrors the row to the backup sheet; a no-op edit writes
    neither. Post-completion edits carry no exec message: the "Booking update"
