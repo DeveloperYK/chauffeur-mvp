@@ -11,6 +11,15 @@ test.describe('smoke', () => {
     expect(res.headers()['cache-control']).toContain('no-store');
   });
 
+  test('readiness endpoint runs the board queries and reports a timing', async ({ request }) => {
+    const res = await request.get('/api/readyz');
+    expect(res.ok()).toBe(true);
+    const body = (await res.json()) as { ok: boolean; ms: number };
+    expect(body.ok).toBe(true);
+    expect(body.ms).toBeGreaterThanOrEqual(0);
+    expect(res.headers()['cache-control']).toContain('no-store');
+  });
+
   test('login page renders for unauthenticated user', async ({ page }) => {
     await page.goto('/login');
     await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();

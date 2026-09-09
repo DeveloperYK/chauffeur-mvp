@@ -109,6 +109,10 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+      # /api/readyz runs the board's real queries, so the smoke DB must carry
+      # the schema (healthz alone only needs `select 1`).
+      - name: Apply migrations
+        run: pnpm db:migrate
       # No continue-on-error: a smoke regression must fail the check. The
       # script is scoped to smoke.spec.ts — the lifecycle spec needs the dev
       # auth bypass and runs in its own job below.
