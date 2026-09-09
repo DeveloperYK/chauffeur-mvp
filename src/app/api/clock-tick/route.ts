@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { db, email, notifications } from '@/server/composition';
 import { authorizeCronRequest } from '@/server/domain/cron-auth';
 import { clockTick } from '@/server/services/clock-tick';
+import { pingHeartbeat } from '@/server/services/heartbeat';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,9 @@ const SHARED_SECRET_HEADER = 'x-clock-secret';
 async function runTick(): Promise<Response> {
   try {
     const report = await clockTick({ db: db(), notifications: notifications(), email: email() });
-    return NextResponse.json({ ok: true, report });
+    // Tell the heartbeat monitor this tick ran; it alerts when pings stop.
+    const heartbeat = await pingHeartbeat(env().CLOCK_TICK_HEARTBEAT_URL);
+    return NextResponse.json({ ok: true, report, heartbeat });
   } catch (err) {
     logger.error({ err }, 'clock tick failed');
     return new NextResponse('internal error', { status: 500 });

@@ -14,6 +14,10 @@ const schema = z.object({
   // invocation (the var MUST be named CRON_SECRET for that injection to happen).
   // Optional: when unset the GET endpoint reports the clock loop as disabled (503).
   CRON_SECRET: z.string().min(16).optional(),
+  // Heartbeat URL (Better Stack / Healthchecks.io) pinged after every successful
+  // clock tick. Optional: unset means no ping. The monitor alerts when pings
+  // stop, which is how a silently dead cron gets noticed.
+  CLOCK_TICK_HEARTBEAT_URL: z.string().url().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
