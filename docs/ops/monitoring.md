@@ -44,10 +44,14 @@ An hourly cloud routine (https://claude.ai/code/routines) with the Vercel and Gm
 
 Cadence is limited to once an hour by the platform; Better Stack covers the minutes in between.
 
+## 3b. Automatic self-heal (ADR 0016)
+
+When `VERCEL_DEPLOY_HOOK_URL` is set in production, every clock tick ends by running the readyz probe. If it fails twice 15 s apart, the tick `POST`s the Vercel Deploy Hook for the `production` branch, which redeploys the current code and replaces every function instance. Guards: at most **one attempt per hour** (recorded in `audit_events`, action `self_heal_redeploy`, whether or not the hook accepted); a blip that recovers on the second probe is ignored; the hook only ever builds the `production` branch. Log lines: `board path stall confirmed — triggering production redeploy` (error) then `self-heal redeploy triggered` (warn). The hourly watchdog reports any self-heal in the last hour and whether readyz recovered afterwards. To disable: unset the env var and redeploy.
+
 ## 4. When an alert fires — first 5 minutes
 
 1. Open `https://chauffeur-prod.vercel.app/api/readyz` in a browser. Read `reason`/`message`.
-2. `reason: "timeout"` → the pool/pooler is stalling. Check Supabase status (https://status.supabase.com) and Vercel runtime errors for `CONNECTION_DESTROYED` / `statement timeout`. Redeploying the current production deployment (Vercel → Deployments → ⋯ → Redeploy) replaces every function instance and usually clears a wedged pool.
+2. `reason: "timeout"` → the pool/pooler is stalling. Check Vercel → Deployments first: the self-heal may already have redeployed (deploy hook `watchdog-auto-redeploy`). If it did and readyz is still failing, the redeploy did not clear it — see the next steps. Check Supabase status (https://status.supabase.com) and Vercel runtime errors for `CONNECTION_DESTROYED` / `statement timeout`. Redeploying the current production deployment (Vercel → Deployments → ⋯ → Redeploy) replaces every function instance and usually clears a wedged pool.
 3. `reason: "error"` → read `message`. `column … does not exist` means a migration did not run: check the deploy's build log.
 4. Heartbeat "Down" but readyz 200 → the cron is not firing. Vercel → project → Cron Jobs: confirm it is listed and its last runs are 200. `CRON_SECRET` must be set in Production.
 5. Post what you found in `#chauffeur-alerts` so the next person does not redo it.

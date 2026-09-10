@@ -4,10 +4,14 @@ import { db, email, notifications } from '@/server/composition';
 import { authorizeCronRequest } from '@/server/domain/cron-auth';
 import { clockTick } from '@/server/services/clock-tick';
 import { pingHeartbeat } from '@/server/services/heartbeat';
+import { selfHealRedeploy } from '@/server/services/self-heal';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// The self-heal path can spend ~25 s confirming a stall (two probes, 15 s
+// apart) before the hook call; keep well clear of the platform default.
+export const maxDuration = 60;
 
 const SHARED_SECRET_HEADER = 'x-clock-secret';
 
@@ -17,7 +21,10 @@ async function runTick(): Promise<Response> {
     const report = await clockTick({ db: db(), notifications: notifications(), email: email() });
     // Tell the heartbeat monitor this tick ran; it alerts when pings stop.
     const heartbeat = await pingHeartbeat(env().CLOCK_TICK_HEARTBEAT_URL);
-    return NextResponse.json({ ok: true, report, heartbeat });
+    // Self-heal a confirmed board-path stall by redeploying (ADR 0016). Runs
+    // after the tick so a stall can never block booking transitions.
+    const selfHeal = await selfHealRedeploy({ db: db(), hookUrl: env().VERCEL_DEPLOY_HOOK_URL });
+    return NextResponse.json({ ok: true, report, heartbeat, selfHeal });
   } catch (err) {
     logger.error({ err }, 'clock tick failed');
     return new NextResponse('internal error', { status: 500 });
