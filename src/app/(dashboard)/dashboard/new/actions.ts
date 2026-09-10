@@ -75,6 +75,7 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     subcontractorPricePence,
     travelMode: String(formData.get('travelMode') ?? '') || null,
     travelRef: String(formData.get('travelRef') ?? '') || null,
+    requestedCarType: String(formData.get('requestedCarType') ?? '') || null,
     notes: (formData.get('notes') as string | null) ?? null,
     operatorNotes: (formData.get('operatorNotes') as string | null) ?? null,
     assignedDriverId: assignedDriverId ? String(assignedDriverId) : null,

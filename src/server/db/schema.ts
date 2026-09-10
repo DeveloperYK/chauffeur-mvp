@@ -209,6 +209,10 @@ export const bookings = pgTable(
     // (BA268); trains a short arrival description. Both set or both null.
     travelMode: text('travel_mode', { enum: ['flight', 'train'] }),
     travelRef: text('travel_ref'),
+    // Optional car type the PA asked for at booking time ("MPV", "Luxury",
+    // "S-Class"). Free text; shown to the driver and mirrored to the sheet's
+    // Car Type column. Not the assigned driver's vehicle.
+    requestedCarType: text('requested_car_type'),
     passengerFirstName: text('passenger_first_name').notNull(),
     passengerLastName: text('passenger_last_name'),
     execMobile: text('exec_mobile'),

@@ -288,6 +288,12 @@ function JobCard({ booking }: { booking: JobBooking }) {
             <div className="v">{booking.travelRef}</div>
           </div>
         ) : null}
+        {booking.requestedCarType ? (
+          <div className="m">
+            <div className="k">Car type</div>
+            <div className="v">{booking.requestedCarType}</div>
+          </div>
+        ) : null}
       </div>
       {booking.notes ? (
         <div
@@ -624,6 +630,12 @@ async function ChangeConfirmPage({
             <div className="m">
               <div className="k">{booking.travelMode === 'flight' ? 'Flight' : 'Train'}</div>
               <div className="v">{booking.travelRef}</div>
+            </div>
+          ) : null}
+          {booking.requestedCarType ? (
+            <div className="m">
+              <div className="k">Car type</div>
+              <div className="v">{booking.requestedCarType}</div>
             </div>
           ) : null}
         </div>

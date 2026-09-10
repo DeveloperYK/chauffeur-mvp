@@ -396,6 +396,45 @@ describe('services/edit-booking (integration)', () => {
     expect(result.materialChange).toBe(true);
   });
 
+  // ── Requested car type ───────────────────────────────────────────
+  it('adds a requested car type and reports it as a car type change', async () => {
+    const seeded = await seed('unassigned');
+    const result = await editBooking(
+      fullEdit(seeded.id, { requestedCarType: ' Luxury ' }),
+      operatorId,
+      { db },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.requestedCarType).toBe('Luxury');
+    expect(result.changedFields).toContain('car type');
+  });
+
+  it('flags an assigned booking for driver re-confirmation when the car type changes', async () => {
+    const seeded = await seed('assigned');
+    const result = await editBooking(fullEdit(seeded.id, { requestedCarType: 'MPV' }), operatorId, {
+      db,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.materialChange).toBe(true);
+  });
+
+  it('clears the requested car type when the field is blanked', async () => {
+    const seeded = await seed('unassigned');
+    const first = await editBooking(fullEdit(seeded.id, { requestedCarType: 'MPV' }), operatorId, {
+      db,
+    });
+    expect(first.ok).toBe(true);
+    const second = await editBooking(fullEdit(seeded.id, { requestedCarType: '' }), operatorId, {
+      db,
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.booking.requestedCarType).toBeNull();
+    expect(second.changedFields).toContain('car type');
+  });
+
   it('clears the travel reference when both fields are removed', async () => {
     const seeded = await seed('unassigned');
     const first = await editBooking(

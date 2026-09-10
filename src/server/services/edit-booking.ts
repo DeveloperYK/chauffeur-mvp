@@ -89,6 +89,8 @@ export const editBookingSchema = z
     // Optional flight/train reference (paired fields, validated below).
     travelMode: z.enum(['flight', 'train']).optional().nullable(),
     travelRef: z.string().max(80).optional().nullable(),
+    // Optional requested car type (free text). Blank → null.
+    requestedCarType: z.string().trim().max(60).optional().nullable(),
     // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
     // Operator-only notes — never shown to the driver.
@@ -175,6 +177,7 @@ export async function editBooking(
   const dropoffAddress = isHourly ? null : (data.dropoffAddress ?? null);
   const distanceMeters = isHourly ? null : (data.distanceMeters ?? null);
   const travel = normalizedTravelPair(data);
+  const requestedCarType = data.requestedCarType || null;
   const bookedBy = normalizedBookedBy(data);
 
   const changedFields = diffFields(existing, {
@@ -187,6 +190,7 @@ export async function editBooking(
     notes,
     operatorNotes,
     ...travel,
+    requestedCarType,
     ...bookedBy,
   });
 
@@ -227,6 +231,7 @@ export async function editBooking(
       subcontractorPricePence,
       travelMode: travel.travelMode,
       travelRef: travel.travelRef,
+      requestedCarType,
       notes,
       operatorNotes,
       // Flag for driver re-confirmation on a material mid-flight change. A new
@@ -266,7 +271,12 @@ export async function editBooking(
 
 type EditableFields = Omit<
   EditBookingInput,
-  'bookingId' | 'dropoffAddress' | 'distanceMeters' | 'travelMode' | 'travelRef'
+  | 'bookingId'
+  | 'dropoffAddress'
+  | 'distanceMeters'
+  | 'travelMode'
+  | 'travelRef'
+  | 'requestedCarType'
 > & {
   dropoffAddress: string | null;
   distanceMeters: number | null;
@@ -277,6 +287,7 @@ type EditableFields = Omit<
   operatorNotes: string | null;
   travelMode: 'flight' | 'train' | null;
   travelRef: string | null;
+  requestedCarType: string | null;
   bookedByName: string | null;
   bookedByPhone: string | null;
   bookedByEmail: string | null;
@@ -325,6 +336,7 @@ function diffFields(existing: Booking, next: EditableFields): string[] {
   ) {
     out.push('flight/train');
   }
+  if ((existing.requestedCarType ?? null) !== next.requestedCarType) out.push('car type');
   if ((existing.notes ?? null) !== next.notes) out.push('notes');
   if ((existing.operatorNotes ?? null) !== next.operatorNotes) out.push('private notes');
   return out;

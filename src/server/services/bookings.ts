@@ -99,6 +99,8 @@ export const createBookingSchema = z
     // validated + normalized per mode in the superRefine.
     travelMode: z.enum(['flight', 'train']).optional().nullable(),
     travelRef: z.string().max(80).optional().nullable(),
+    // Optional car type the PA asked for (free text, e.g. "MPV"). Blank → null.
+    requestedCarType: z.string().trim().max(60).optional().nullable(),
     // Driver-facing notes (shown to the driver on the dispatch link).
     notes: z.string().max(2000).optional().nullable(),
     // Operator-only notes — never shown to the driver.
@@ -273,6 +275,7 @@ export async function createBooking(
       pickupAddress: parsed.data.pickupAddress,
       dropoffAddress,
       ...normalizedTravelPair(parsed.data),
+      requestedCarType: parsed.data.requestedCarType || null,
       passengerFirstName: parsed.data.passengerFirstName,
       passengerLastName: parsed.data.passengerLastName ?? null,
       execMobile: parsed.data.execMobile ?? null,

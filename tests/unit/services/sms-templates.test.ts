@@ -148,3 +148,16 @@ describe('dispatch SMS — flight/train reference', () => {
     expect(body).not.toContain('Train');
   });
 });
+
+describe('dispatch SMS — requested car type', () => {
+  it('tells the driver which car type was requested', () => {
+    const withCar = { ...booking, requestedCarType: 'MPV' } as unknown as Booking;
+    const body = dispatchSms(withCar, 'https://app.test/s/Ab3xK7');
+    expect(body).toContain('Car: MPV');
+  });
+
+  it('omits the car line when nothing was requested', () => {
+    const body = dispatchSms(booking, 'https://app.test/s/Ab3xK7');
+    expect(body).not.toContain('Car:');
+  });
+});

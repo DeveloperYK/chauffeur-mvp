@@ -502,6 +502,7 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     subcontractorPricePence,
     travelMode: String(formData.get('travelMode') ?? '') || null,
     travelRef: String(formData.get('travelRef') ?? '') || null,
+    requestedCarType: String(formData.get('requestedCarType') ?? '') || null,
     notes: (formData.get('notes') as string | null) || null,
     operatorNotes: (formData.get('operatorNotes') as string | null) || null,
   };

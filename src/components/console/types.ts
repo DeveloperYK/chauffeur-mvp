@@ -22,6 +22,8 @@ export interface ConsoleBooking {
   /** Optional flight/train the passenger arrives on (paired; null when unset). */
   travelMode: 'flight' | 'train' | null;
   travelRef: string | null;
+  /** Optional car type the PA asked for (free text, e.g. "MPV"). */
+  requestedCarType: string | null;
   pickupAddress: string;
   /** Empty string for hourly as-directed bookings (no destination). */
   dropoffAddress: string;
