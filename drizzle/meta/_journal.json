@@ -225,6 +225,13 @@
       "when": 1788700000000,
       "tag": "0031_optional_account_case_mobile",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789000000000,
+      "tag": "0032_add_requested_car_type",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,7 @@ interface NewForm {
   serviceType: ServiceType;
   travelMode: '' | 'flight' | 'train';
   travelRef: string;
+  requestedCarType: string;
   pickupAt: string;
   expectedDurationMinutes: number;
   distanceMeters: number | null;
@@ -55,6 +56,11 @@ interface NewForm {
 }
 
 /** Hourly as-directed hire is booked in whole-hour blocks. */
+import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
+
+/** Datalist hints for the requested car type; the field stays free text. */
+const CAR_TYPE_SUGGESTIONS = Object.values(VEHICLE_CLASS_LABEL);
+
 const HOURS = [2, 3, 4, 6, 8, 12];
 const DEFAULT_HOURLY_MINUTES = 240; // 4 hours
 const DEFAULT_TRANSFER_MINUTES = 60;
@@ -64,6 +70,7 @@ const EMPTY: NewForm = {
   serviceType: 'transfer',
   travelMode: '',
   travelRef: '',
+  requestedCarType: '',
   pickupAt: '',
   expectedDurationMinutes: DEFAULT_TRANSFER_MINUTES,
   distanceMeters: null,
@@ -94,6 +101,7 @@ const SAMPLES: Array<
     | 'distanceMeters'
     | 'travelMode'
     | 'travelRef'
+    | 'requestedCarType'
     | 'pickupPostcode'
     | 'dropoffPostcode'
   > & {
@@ -345,6 +353,7 @@ export function NewBookingModal({
     fd.set('subcontractorPricePounds', form.subcontractorPricePounds);
     fd.set('travelMode', form.travelMode);
     fd.set('travelRef', form.travelMode ? form.travelRef : '');
+    fd.set('requestedCarType', form.requestedCarType);
     fd.set('notes', form.notes);
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
@@ -568,6 +577,24 @@ export function NewBookingModal({
                 {fieldErrors.travelRef || fieldErrors.travelMode ? (
                   <div className="err">{fieldErrors.travelRef ?? fieldErrors.travelMode}</div>
                 ) : null}
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="new-requested-car-type">Car type</label>
+              <div className="ctrl">
+                <input
+                  id="new-requested-car-type"
+                  list="new-car-type-options"
+                  value={form.requestedCarType}
+                  onChange={(e) => set('requestedCarType', e.target.value)}
+                  placeholder="e.g. MPV, Luxury — optional"
+                  maxLength={60}
+                />
+                <datalist id="new-car-type-options">
+                  {CAR_TYPE_SUGGESTIONS.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             </div>
           </div>

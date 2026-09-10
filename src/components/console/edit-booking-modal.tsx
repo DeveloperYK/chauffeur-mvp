@@ -30,6 +30,7 @@ interface EditForm {
   serviceType: ServiceType;
   travelMode: '' | 'flight' | 'train';
   travelRef: string;
+  requestedCarType: string;
   pickupAt: string;
   expectedDurationMinutes: number;
   distanceMeters: number | null;
@@ -53,6 +54,11 @@ interface EditForm {
   operatorNotes: string;
 }
 
+import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
+
+/** Datalist hints for the requested car type; the field stays free text. */
+const CAR_TYPE_SUGGESTIONS = Object.values(VEHICLE_CLASS_LABEL);
+
 const HOURS = [2, 3, 4, 6, 8, 12];
 const DEFAULT_HOURLY_MINUTES = 240;
 const DEFAULT_TRANSFER_MINUTES = 60;
@@ -73,6 +79,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         serviceType: booking.serviceType,
         travelMode: booking.travelMode ?? '',
         travelRef: booking.travelRef ?? '',
+        requestedCarType: booking.requestedCarType ?? '',
         pickupAt: toLocalDateTimeInput(booking.pickupAt),
         expectedDurationMinutes: booking.expectedDurationMinutes,
         distanceMeters: booking.distanceMeters,
@@ -219,6 +226,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     fd.set('subcontractorPricePounds', form.subcontractorPricePounds);
     fd.set('travelMode', form.travelMode);
     fd.set('travelRef', form.travelMode ? form.travelRef : '');
+    fd.set('requestedCarType', form.requestedCarType);
     fd.set('notes', form.notes);
     fd.set('operatorNotes', form.operatorNotes);
     startTransition(async () => {
@@ -420,6 +428,24 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     />
                   ) : null}
                 </div>
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="edit-requested-car-type">Car type</label>
+              <div className="ctrl">
+                <input
+                  id="edit-requested-car-type"
+                  list="edit-car-type-options"
+                  value={form.requestedCarType}
+                  onChange={(e) => set('requestedCarType', e.target.value)}
+                  placeholder="e.g. MPV, Luxury — optional"
+                  maxLength={60}
+                />
+                <datalist id="edit-car-type-options">
+                  {CAR_TYPE_SUGGESTIONS.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             </div>
           </div>

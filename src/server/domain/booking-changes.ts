@@ -26,6 +26,7 @@ export const DRIVER_FACING_CHANGE_LABELS = [
   'drop-off',
   'passenger name',
   'flight/train',
+  'car type',
   'notes',
 ] as const;
 

@@ -25,6 +25,7 @@ export function createValidMirrorInput(overrides: Partial<MirrorRowInput> = {}):
       distanceMeters: 28000,
       travelMode: null,
       travelRef: null,
+      requestedCarType: null,
       pickupAddress: '11 Belsize Park Gardens, London',
       dropoffAddress: 'Heathrow Terminal 5',
       passengerFirstName: 'Eric',
