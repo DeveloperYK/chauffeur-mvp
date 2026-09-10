@@ -451,6 +451,42 @@ describe('services/bookings — flight/train reference', () => {
   });
 
   // Unhappy paths
+  // ── Requested car type ───────────────────────────────────────────
+  it('stores the requested car type, trimmed', async () => {
+    const result = await createBooking(input({ requestedCarType: '  MPV ' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.booking.requestedCarType).toBe('MPV');
+  });
+
+  it('stores null when no car type was requested (blank or omitted)', async () => {
+    const omitted = await createBooking(input(), { db: db2, clock, operatorId: opId });
+    expect(omitted.ok).toBe(true);
+    if (!omitted.ok) return;
+    expect(omitted.booking.requestedCarType).toBeNull();
+    const blank = await createBooking(input({ requestedCarType: '   ' }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(blank.ok).toBe(true);
+    if (!blank.ok) return;
+    expect(blank.booking.requestedCarType).toBeNull();
+  });
+
+  it('rejects a requested car type longer than 60 characters', async () => {
+    const result = await createBooking(input({ requestedCarType: 'x'.repeat(61) }), {
+      db: db2,
+      clock,
+      operatorId: opId,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+  });
+
   it('rejects a travel reference without a mode', async () => {
     const result = await createBooking(input({ travelRef: 'BA268' }), {
       db: db2,

@@ -19,6 +19,7 @@ const baseBooking: Booking = {
   distanceMeters: 28000,
   travelMode: null,
   travelRef: null,
+  requestedCarType: null,
   pickupAddress: '11 Belsize Park Gardens',
   dropoffAddress: 'LHR T5',
   passengerFirstName: 'Eric',
@@ -87,6 +88,34 @@ const driver: Driver = {
 };
 
 describe('rowFromBooking', () => {
+  // Car Type (K) is what the PA asked for at booking time — not the car the
+  // assigned driver happens to drive.
+  it('writes the requested car type into Car Type (K), even when a driver is assigned', () => {
+    const row = rowFromBooking({ booking: { ...baseBooking, requestedCarType: 'MPV' }, driver });
+    expect(SHEET_HEADERS[10]).toBe('Car Type');
+    expect(row[10]).toBe('MPV');
+  });
+
+  it('writes the requested car type for a backfill job instead of the subcontractor car', () => {
+    const row = rowFromBooking({
+      booking: {
+        ...baseBooking,
+        requestedCarType: 'Luxury',
+        isBackfill: true,
+        backfillCar: 'Mercedes V-Class',
+      },
+      driver: null,
+    });
+    expect(row[10]).toBe('Luxury');
+  });
+
+  it('falls back to the assigned driver class when nothing was requested (legacy rows)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[10]).toBe('Executive');
+    const unassigned = rowFromBooking({ booking: baseBooking, driver: null });
+    expect(unassigned[10]).toBe('');
+  });
+
   it('produces a 19-column row (A–S) of JJ input columns — the client layout, nothing past Mileage', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);

@@ -748,11 +748,14 @@ export function DetailPanel({
                   </div>
                 </div>
               </div>
-              {vehicle || booking.travelRef ? (
+              {vehicle || booking.travelRef || booking.requestedCarType ? (
                 <div className="trip-meta">
                   {vehicle ? <Tag>{vehicle}</Tag> : null}
                   {booking.travelRef ? (
                     <Tag>{travelRefLabel(booking.travelMode, booking.travelRef)}</Tag>
+                  ) : null}
+                  {booking.requestedCarType ? (
+                    <Tag>Requested: {booking.requestedCarType}</Tag>
                   ) : null}
                 </div>
               ) : null}

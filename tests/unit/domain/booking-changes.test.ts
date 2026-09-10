@@ -90,3 +90,13 @@ describe('domain/booking-changes — flight/train reference', () => {
     expect(isExecFacingChange(['flight/train'])).toBe(false);
   });
 });
+
+describe('domain/booking-changes — requested car type', () => {
+  it('is material when the requested car type changed (the driver must bring the right car)', () => {
+    expect(isMaterialChange(['car type'])).toBe(true);
+  });
+
+  it('is NOT exec-facing (the PA asked for it; nothing new to tell the exec)', () => {
+    expect(isExecFacingChange(['car type'])).toBe(false);
+  });
+});

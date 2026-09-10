@@ -114,6 +114,7 @@ export function dispatchSms(booking: Booking, url: string): string {
   }
   const travel = travelRefLabel(booking.travelMode, booking.travelRef);
   if (travel) lines.push(travel);
+  if (booking.requestedCarType) lines.push(`Car: ${booking.requestedCarType}`);
   lines.push(`Accept: ${url}`);
   return lines.join('\n');
 }

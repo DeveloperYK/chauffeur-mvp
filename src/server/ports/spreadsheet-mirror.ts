@@ -132,15 +132,19 @@ export function bookedByLabel(booking: Booking): string {
 
 export function rowFromBooking(input: MirrorRowInput): string[] {
   const { booking, driver } = input;
-  // Car Type (column K): the company classifies vehicles by class
-  // (Executive / Luxury / MPV / Coach), so an internal driver's row shows their
-  // class. A backfill subcontractor has no class on file, so keep the free-text
-  // car the operator entered. Empty until a driver is assigned.
-  const car = booking.isBackfill
-    ? carLabel(booking.backfillCar)
-    : driver
-      ? VEHICLE_CLASS_LABEL[driver.vehicleClass]
-      : '';
+  // Car Type (column K): what the PA asked for at booking time, as the client
+  // records it in their own workbook. Legacy rows with no request fall back to
+  // the car that actually ran the job — an internal driver's class
+  // (Executive / Luxury / MPV / Coach) or the backfill subcontractor's car —
+  // and stay empty until a driver is assigned.
+  const requested = booking.requestedCarType?.trim() ?? '';
+  const car = requested
+    ? requested
+    : booking.isBackfill
+      ? carLabel(booking.backfillCar)
+      : driver
+        ? VEHICLE_CLASS_LABEL[driver.vehicleClass]
+        : '';
   // Driver Name (column M): a backfill name lives on the booking; an internal
   // driver's name is on the driver record.
   const driverName = booking.isBackfill ? (booking.backfillDriverName ?? '') : (driver?.name ?? '');
