@@ -18,6 +18,10 @@ const schema = z.object({
   // clock tick. Optional: unset means no ping. The monitor alerts when pings
   // stop, which is how a silently dead cron gets noticed.
   CLOCK_TICK_HEARTBEAT_URL: z.string().url().optional(),
+  // Vercel Deploy Hook for the production branch. When set, the clock tick
+  // self-heals a CONFIRMED board-path stall by triggering a redeploy (at most
+  // once an hour, audited). Unset = self-heal disabled. See ADR 0016.
+  VERCEL_DEPLOY_HOOK_URL: z.string().url().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
