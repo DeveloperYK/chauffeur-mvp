@@ -47,6 +47,7 @@ import { setContractPrice } from '@/server/services/set-contract-price';
 import { undoCancel } from '@/server/services/undo-cancel';
 import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 // All console actions return a typed result so client overlays can react in
 // place (toast + close + router.refresh) rather than navigating to a new page.
@@ -83,9 +84,16 @@ export interface HistoryEntry {
   text: string;
 }
 
-async function requireOperator(): Promise<{ id: string } | null> {
+/**
+ * The acting operator, or a redirect to /login when the session is gone.
+ * Returning an error string here used to leave the operator staring at
+ * "Not authenticated." on a dead session; a redirect from a server action is
+ * honoured by the router, so they land on the login screen straight away.
+ */
+async function requireOperator(): Promise<{ id: string }> {
   const session = await currentSession();
-  return session ? { id: session.operator.id } : null;
+  if (!session) redirect('/login');
+  return { id: session.operator.id };
 }
 
 // Driver messaging is WhatsApp-only — operators use the WhatsApp Web
@@ -98,7 +106,6 @@ export async function generateCompletionLinkAction(
   bookingId: string,
 ): Promise<DispatchActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await generateCompletionLink(bookingId, op.id, {
@@ -122,7 +129,6 @@ export async function completeFormOnBehalfAction(
   },
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await completeFormOnBehalf(
@@ -166,7 +172,6 @@ export async function dispatchManyAction(
   driverIds: string[],
 ): Promise<DispatchManyActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
   if (!Array.isArray(driverIds) || driverIds.length === 0) {
     return { ok: false, error: 'Select at least one driver.' };
@@ -211,7 +216,6 @@ export async function confirmAssignByPhoneAction(
   driverId: string,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId || !driverId) return { ok: false, error: 'Missing booking or driver.' };
 
   const result = await assignDriverDirect(bookingId, driverId, op.id, {
@@ -245,7 +249,6 @@ export async function confirmAssignByPhoneAction(
  */
 export async function confirmChangeOnBehalfAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await confirmChangeOnBehalf(bookingId, op.id, {
@@ -274,7 +277,6 @@ export async function generateChangeConfirmLinkAction(
   bookingId: string,
 ): Promise<DispatchActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await generateChangeConfirmLink(bookingId, op.id, {
@@ -302,7 +304,6 @@ export async function generateChangeConfirmLinkAction(
 
 export async function approveBookingAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   const result = await approveBooking(bookingId, op.id, {
     db: db(),
     secret: driverLinkSecret(),
@@ -316,7 +317,6 @@ export async function approveBookingAction(bookingId: string): Promise<ActionRes
 
 export async function rejectBookingAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   const result = await rejectBooking(bookingId, op.id, {
     db: db(),
     secret: driverLinkSecret(),
@@ -330,7 +330,6 @@ export async function rejectBookingAction(bookingId: string): Promise<ActionResu
 
 export async function releaseDriverAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   const result = await releaseDriver(bookingId, op.id, {
     db: db(),
     notifications: notifications(),
@@ -354,7 +353,6 @@ export async function handToBackfillAction(
   input: { name: string; phone: string; car: string; payPence: number },
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await handToBackfill(bookingId, input, op.id, {
@@ -386,7 +384,6 @@ export async function updateBackfillPayAction(
   payPence: number,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await updateBackfillPay(bookingId, payPence, op.id, {
@@ -412,7 +409,6 @@ export async function cancelBookingAction(
   reason?: string,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   const result = await cancelBooking({ bookingId, reason: reason ?? null }, op.id, {
     db: db(),
     mirror: spreadsheetMirror(),
@@ -433,7 +429,6 @@ export async function cancelBookingAction(
 /** Take back a cancel within the undo window (see `undo-window.ts`). */
 export async function undoCancelAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   const result = await undoCancel(bookingId, op.id, { db: db(), mirror: spreadsheetMirror() });
   if (!result.ok) {
     const error =
@@ -455,7 +450,6 @@ export async function assignBookingOperatorAction(
   operatorId: string | null,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   await assignOperator(bookingId, operatorId, op.id, {
     db: db(),
     mirror: spreadsheetMirror(),
@@ -470,7 +464,6 @@ export interface EditBookingActionResult extends ActionResult {
 
 export async function editBookingAction(formData: FormData): Promise<EditBookingActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
 
   const contractPricePence = parsePoundsFieldToPence(formData.get('contractPricePounds'));
   const subcontractorPricePence = parsePoundsFieldToPence(formData.get('subcontractorPricePounds'));
@@ -544,8 +537,7 @@ export interface ExecMessageEntry {
 
 /** Full timeline of automated exec messages for a booking (newest first). */
 export async function execNotificationsAction(bookingId: string): Promise<ExecMessageEntry[]> {
-  const op = await requireOperator();
-  if (!op) return [];
+  await requireOperator();
   if (!bookingId) return [];
   try {
     const rows = await listExecNotifications(db(), bookingId);
@@ -574,8 +566,7 @@ export async function execEmailDraftAction(
   bookingId: string,
   kind: ManualEmailKind,
 ): Promise<ExecEmailDraftActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
+  await requireOperator();
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await execEmailDraft(db(), bookingId, kind);
@@ -600,7 +591,6 @@ export async function sendExecEmailAction(input: {
   body: string;
 }): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
 
   const result = await sendManualExecEmail({ db: db(), email: email() }, input, op.id);
   if (!result.ok) {
@@ -628,8 +618,7 @@ export async function sendExecEmailAction(input: {
 
 /** Re-send a failed/bounced exec message, rebuilt from the booking's current state. */
 export async function resendExecNotificationAction(notificationId: string): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
+  await requireOperator();
   if (!notificationId) return { ok: false, error: 'Missing message.' };
 
   const result = await resendExecNotification(
@@ -652,7 +641,6 @@ export async function resendExecNotificationAction(notificationId: string): Prom
 /** Re-run a booking's backup-sheet write, to clear a failed mirror flag on demand. */
 export async function retryMirrorAction(bookingId: string): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await retryMirror(
@@ -671,8 +659,7 @@ export async function retryMirrorAction(bookingId: string): Promise<ActionResult
 }
 
 export async function bookingHistoryAction(bookingId: string): Promise<HistoryEntry[]> {
-  const op = await requireOperator();
-  if (!op) return [];
+  await requireOperator();
   try {
     const trail = await listBookingHistory(db(), bookingId);
     return trail.map((e) => ({ id: e.id, ts: e.ts.toISOString(), actor: e.actor, text: e.text }));
@@ -689,8 +676,7 @@ export async function bookingHistoryAction(bookingId: string): Promise<HistoryEn
  * malformed month.
  */
 export async function dayCountsAction(month: string): Promise<Record<string, DayCounts>> {
-  const op = await requireOperator();
-  if (!op) return {};
+  await requireOperator();
   if (!parseMonthString(month)) return {};
   const map = await monthlyDayCounts(db(), month);
   const out: Record<string, DayCounts> = {};
@@ -709,7 +695,6 @@ export async function setContractPriceAction(
   pricePence: number | null,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await setContractPrice(bookingId, pricePence, op.id, {
@@ -738,7 +723,6 @@ export async function setWaitingChargeAction(
   chargePence: number | null,
 ): Promise<ActionResult> {
   const op = await requireOperator();
-  if (!op) return { ok: false, error: 'Not authenticated.' };
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await setWaitingCharge(bookingId, chargePence, op.id, { db: db() });

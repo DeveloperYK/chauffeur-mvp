@@ -1,10 +1,10 @@
 import type { Database } from '@/server/db';
 import { type Operator, operators, sessions } from '@/server/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { SESSION_LIFETIME_MS, SESSION_REFRESH_THRESHOLD_MS } from './session-policy';
 import { generateSessionToken, hashSessionToken } from './tokens';
 
-export const SESSION_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-export const SESSION_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // refresh if older than 7 days
+export { SESSION_LIFETIME_MS, SESSION_REFRESH_THRESHOLD_MS } from './session-policy';
 
 export interface CreatedSession {
   token: string; // raw token for the cookie
