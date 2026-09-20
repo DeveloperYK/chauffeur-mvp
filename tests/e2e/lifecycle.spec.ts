@@ -710,14 +710,14 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   const carType = editModal.locator('#edit-requested-car-type');
   const carTypePicks = editModal.locator('.car-type__picks');
   await carType.fill('Range Rover');
-  await carTypePicks.getByRole('button', { name: 'MPV' }).click();
-  await expect(carType).toHaveValue('MPV');
-  await carTypePicks.getByRole('button', { name: 'Luxury' }).click();
-  await expect(carType).toHaveValue('Luxury');
-  await carTypePicks.getByRole('button', { name: 'Luxury' }).click();
+  await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
+  await expect(carType).toHaveValue('MPV S – 7 Seater');
+  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
+  await expect(carType).toHaveValue('VIP – S Class');
+  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
   await expect(carType).toHaveValue('');
-  await carTypePicks.getByRole('button', { name: 'MPV' }).click();
-  await expect(carType).toHaveValue('MPV');
+  await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
+  await expect(carType).toHaveValue('MPV S – 7 Seater');
   // LEGO's seeded destination has no postcode; the edit form insists on one.
   await editModal.locator('input[aria-label="Dropoff postcode"]').fill('TW6 2GA');
   await editModal.getByRole('button', { name: 'Save changes' }).click();
@@ -732,11 +732,13 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   // flags the mismatch, and ticking it raises the footer warning — but nothing
   // stops the operator assigning them.
   const firstFree = modal.locator('.driver-row:not(.is-busy)').first();
-  await expect(firstFree.locator('.car-type-mismatch')).toContainText('Booking asks for MPV');
+  await expect(firstFree.locator('.car-type-mismatch')).toContainText(
+    'Booking asks for MPV S – 7 Seater',
+  );
   await expect(modal.getByTestId('car-type-mismatch-warning')).toHaveCount(0);
   await firstFree.click();
   await expect(modal.getByTestId('car-type-mismatch-warning')).toContainText(
-    "1 selected driver doesn't match the requested car type (MPV)",
+    "1 selected driver doesn't match the requested car type (MPV S – 7 Seater)",
   );
   await modal.getByRole('button', { name: /Confirmed by phone/i }).click();
   await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
@@ -751,7 +753,7 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await expect(page.locator('.panel.is-open')).toContainText('Confirmed by phone');
   await expect(
     page.locator('.panel.is-open').getByTestId('car-type-mismatch-warning'),
-  ).toContainText('Booking asks for MPV');
+  ).toContainText('Booking asks for MPV S – 7 Seater');
 
   // ── Reassign to a different driver, also by phone ──
   await page.locator('.panel.is-open').getByRole('button', { name: 'Reassign driver' }).click();

@@ -351,7 +351,7 @@ export function DispatchModal({
                         ? '1 selected driver'
                         : `${pickedMismatches} selected drivers`}{' '}
                       {pickedMismatches === 1 ? "doesn't" : "don't"} match the requested car type (
-                      {VEHICLE_CLASS_LABEL[wantedClass]}).
+                      {booking.requestedCarType?.trim()}).
                     </strong>{' '}
                     You can still assign — just make sure the client is happy with the car.
                   </span>

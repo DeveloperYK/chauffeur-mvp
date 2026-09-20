@@ -1,28 +1,66 @@
 /**
  * Requested car type vs. driver vehicle class.
  *
- * The booking's requested car type is free text (the PA may ask for "MPV",
- * "Luxury", or "Range Rover"). When it names one of our vehicle classes we can
- * compare it with the assigned/candidate driver's class and warn the operator
- * on a mismatch. This only flags — it never blocks an assignment.
+ * Bookings carry a free-text requested car type. The console offers JJ's six
+ * vehicle types as quick-picks ({@link CAR_TYPES}); the PA may still ask for
+ * something else, which is typed in as-is. Drivers are classified more
+ * coarsely (executive / luxury / mpv / coach), so each type maps to the class
+ * that serves it and we warn the operator when the assigned or candidate
+ * driver's class differs. This only flags — it never blocks an assignment.
  */
 import type { VehicleClass } from '@/server/db/schema';
 import { VEHICLE_CLASS_LABEL } from './labels';
 
 export type CarTypeMatch = 'match' | 'mismatch' | 'unknown';
 
-const CLASS_BY_TOKEN: ReadonlyMap<string, VehicleClass> = new Map(
-  (Object.keys(VEHICLE_CLASS_LABEL) as VehicleClass[]).flatMap((cls) => [
-    [cls, cls] as const,
-    [VEHICLE_CLASS_LABEL[cls].toLowerCase(), cls] as const,
-  ]),
-);
+export interface CarType {
+  /** Stored on the booking, shown to the driver and mirrored to the sheet. */
+  label: string;
+  /** JJ's short code, accepted when typed by hand. */
+  code: string;
+  /** Driver class that serves this type; null when no class does (E Car). */
+  vehicleClass: VehicleClass | null;
+}
 
-/** The vehicle class a requested car type names, or null for other free text. */
+export const CAR_TYPES: readonly CarType[] = [
+  { label: 'Executive', code: 'Ex', vehicleClass: 'executive' },
+  { label: 'VIP – S Class', code: 'VIP', vehicleClass: 'luxury' },
+  { label: 'MPV S – 7 Seater', code: 'MPV S', vehicleClass: 'mpv' },
+  { label: 'MPV L – 8 Seater', code: 'MPV L', vehicleClass: 'mpv' },
+  { label: 'E Car – Electric Only', code: 'E Car', vehicleClass: null },
+  { label: 'Coach', code: 'C', vehicleClass: 'coach' },
+];
+
+/** Lower-case, dashes/en-dashes and runs of whitespace collapsed to one space. */
+function normalise(value: string): string {
+  return value.toLowerCase().replace(/[-–—]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+const CLASS_BY_TOKEN: ReadonlyMap<string, VehicleClass | null> = new Map([
+  ...CAR_TYPES.flatMap((t) => [
+    [normalise(t.label), t.vehicleClass] as const,
+    [normalise(t.code), t.vehicleClass] as const,
+  ]),
+  // Legacy class names typed before the quick-picks existed.
+  ...(Object.keys(VEHICLE_CLASS_LABEL) as VehicleClass[]).flatMap((cls) => [
+    [cls, cls] as const,
+    [normalise(VEHICLE_CLASS_LABEL[cls]), cls] as const,
+  ]),
+]);
+
+/** The driver class a requested car type is served by, or null when unknown. */
 export function requestedVehicleClass(requested: string | null | undefined): VehicleClass | null {
-  const token = requested?.trim().toLowerCase();
+  if (!requested) return null;
+  const token = normalise(requested);
   if (!token) return null;
   return CLASS_BY_TOKEN.get(token) ?? null;
+}
+
+/** The picker entry a stored value corresponds to, if any. */
+export function carTypeFor(requested: string | null | undefined): CarType | null {
+  if (!requested) return null;
+  const token = normalise(requested);
+  return CAR_TYPES.find((t) => normalise(t.label) === token || normalise(t.code) === token) ?? null;
 }
 
 export function carTypeMatch(
@@ -40,6 +78,6 @@ export function carTypeMismatchNote(
   driverClass: VehicleClass,
 ): string | null {
   const wanted = requestedVehicleClass(requested);
-  if (!wanted || wanted === driverClass) return null;
-  return `Booking asks for ${VEHICLE_CLASS_LABEL[wanted]} — this driver is ${VEHICLE_CLASS_LABEL[driverClass]}`;
+  if (!wanted || wanted === driverClass || !requested) return null;
+  return `Booking asks for ${requested.trim()} — this driver is ${VEHICLE_CLASS_LABEL[driverClass]}`;
 }
