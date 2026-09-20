@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select } from '@/components/ui/field';
-import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
+import { VEHICLE_CLASSES, VEHICLE_CLASS_LABEL } from '@/lib/labels';
 import type { Driver } from '@/server/db/schema';
 
 interface DriverFormProps {
@@ -27,10 +27,11 @@ export function DriverForm({ action, driver, submitLabel }: DriverFormProps) {
 
       <Field label="Type" required>
         <Select name="vehicleClass" required defaultValue={driver?.vehicleClass ?? 'executive'}>
-          <option value="executive">{VEHICLE_CLASS_LABEL.executive}</option>
-          <option value="luxury">{VEHICLE_CLASS_LABEL.luxury}</option>
-          <option value="mpv">{VEHICLE_CLASS_LABEL.mpv}</option>
-          <option value="coach">{VEHICLE_CLASS_LABEL.coach}</option>
+          {VEHICLE_CLASSES.map((c) => (
+            <option key={c} value={c}>
+              {VEHICLE_CLASS_LABEL[c]}
+            </option>
+          ))}
         </Select>
       </Field>
 

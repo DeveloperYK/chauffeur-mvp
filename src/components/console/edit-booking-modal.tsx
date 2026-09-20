@@ -8,6 +8,7 @@ import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
+import { CarTypeField } from './car-type-field';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
@@ -53,11 +54,6 @@ interface EditForm {
   notes: string;
   operatorNotes: string;
 }
-
-import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
-
-/** Datalist hints for the requested car type; the field stays free text. */
-const CAR_TYPE_SUGGESTIONS = Object.values(VEHICLE_CLASS_LABEL);
 
 const HOURS = [2, 3, 4, 6, 8, 12];
 const DEFAULT_HOURLY_MINUTES = 240;
@@ -430,24 +426,11 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                 </div>
               </div>
             </div>
-            <div className="field">
-              <label htmlFor="edit-requested-car-type">Car type</label>
-              <div className="ctrl">
-                <input
-                  id="edit-requested-car-type"
-                  list="edit-car-type-options"
-                  value={form.requestedCarType}
-                  onChange={(e) => set('requestedCarType', e.target.value)}
-                  placeholder="e.g. MPV, Luxury — optional"
-                  maxLength={60}
-                />
-                <datalist id="edit-car-type-options">
-                  {CAR_TYPE_SUGGESTIONS.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
+            <CarTypeField
+              id="edit-requested-car-type"
+              value={form.requestedCarType}
+              onChange={(v) => set('requestedCarType', v)}
+            />
           </div>
 
           <div className="form-section">

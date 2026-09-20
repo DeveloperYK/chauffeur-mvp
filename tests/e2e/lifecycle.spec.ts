@@ -701,22 +701,59 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
   await expectSimState(page, LEGO, 'Unassigned');
 
+  // ── Requested car type: the class quick-picks replace (never append to)
+  // whatever is in the box, and re-picking the active class clears it. ──
+  await openBookingPanel(page, LEGO);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
+  const editModal = page.locator('.modal.is-open');
+  await expect(editModal).toBeVisible();
+  const carType = editModal.locator('#edit-requested-car-type');
+  const carTypePicks = editModal.locator('.car-type__picks');
+  await carType.fill('Range Rover');
+  await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
+  await expect(carType).toHaveValue('MPV S – 7 Seater');
+  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
+  await expect(carType).toHaveValue('VIP – S Class');
+  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
+  await expect(carType).toHaveValue('');
+  await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
+  await expect(carType).toHaveValue('MPV S – 7 Seater');
+  // LEGO's seeded destination has no postcode; the edit form insists on one.
+  await editModal.locator('input[aria-label="Dropoff postcode"]').fill('TW6 2GA');
+  await editModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking updated/i);
+
   // ── Assign a driver by phone (no link round-trip) ──
   await openBookingPanel(page, LEGO);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
   const modal = page.locator('.modal.is-open');
   await expect(modal).toBeVisible();
-  await modal.locator('.driver-row:not(.is-busy)').first().click();
+  // Drivers sort Executive-first, so the first free row is not an MPV: the row
+  // flags the mismatch, and ticking it raises the footer warning — but nothing
+  // stops the operator assigning them.
+  const firstFree = modal.locator('.driver-row:not(.is-busy)').first();
+  await expect(firstFree.locator('.car-type-mismatch')).toContainText(
+    'Booking asks for MPV S – 7 Seater',
+  );
+  await expect(modal.getByTestId('car-type-mismatch-warning')).toHaveCount(0);
+  await firstFree.click();
+  await expect(modal.getByTestId('car-type-mismatch-warning')).toContainText(
+    "1 selected driver doesn't match the requested car type (MPV S – 7 Seater)",
+  );
   await modal.getByRole('button', { name: /Confirmed by phone/i }).click();
   await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
 
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
 
-  // The panel records the assignment method.
+  // The panel records the assignment method and keeps the car-type mismatch
+  // visible against the assigned driver.
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('ASSIGNED');
   await expect(page.locator('.panel.is-open')).toContainText('Confirmed by phone');
+  await expect(
+    page.locator('.panel.is-open').getByTestId('car-type-mismatch-warning'),
+  ).toContainText('Booking asks for MPV S – 7 Seater');
 
   // ── Reassign to a different driver, also by phone ──
   await page.locator('.panel.is-open').getByRole('button', { name: 'Reassign driver' }).click();
@@ -729,6 +766,29 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
 
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Assigned');
+});
+
+test('driver roster and driver form offer the same six vehicle types as the booking picker', async ({
+  page,
+}) => {
+  await page.goto('/dashboard/drivers', { waitUntil: 'networkidle' });
+  // Class filter tabs, one per class, each with its driver count.
+  for (const short of ['Executive', 'VIP', 'MPV S', 'MPV L', 'E Car', 'Coach']) {
+    await expect(
+      page.getByRole('link', { name: new RegExp(`^${short} \\(\\d+\\)$`) }),
+    ).toBeVisible();
+  }
+
+  await page.goto('/dashboard/drivers/new', { waitUntil: 'networkidle' });
+  const options = page.locator('select[name="vehicleClass"] option');
+  await expect(options).toHaveText([
+    'Executive',
+    'VIP – S Class',
+    'MPV S – 7 Seater',
+    'MPV L – 8 Seater',
+    'E Car – Electric Only',
+    'Coach',
+  ]);
 });
 
 test('standalone create + detail routes redirect into the board surfaces', async ({ page }) => {

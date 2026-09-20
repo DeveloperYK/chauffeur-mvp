@@ -4,9 +4,9 @@ import { Lozenge } from '@/components/console/lozenge';
 import { formatLondonDay, londonDayRangeUtc, londonTodayString, parseDayString } from '@/lib/dates';
 import type { DriverStatus } from '@/lib/driver-status';
 import { env } from '@/lib/env';
-import { VEHICLE_CLASS_LABEL, carDescription, carLabel } from '@/lib/labels';
+import { VEHICLE_CLASSES, VEHICLE_CLASS_SHORT, carDescription, carLabel } from '@/lib/labels';
 import { getDb } from '@/server/db';
-import type { Booking, Driver, VehicleClass } from '@/server/db/schema';
+import type { Booking, Driver } from '@/server/db/schema';
 import { driverStatusData, listBookingsBetween } from '@/server/services/bookings-query';
 import { listAllDrivers } from '@/server/services/drivers';
 import Link from 'next/link';
@@ -15,7 +15,6 @@ import { deactivateDriverAction, reactivateDriverAction } from './actions';
 export const dynamic = 'force-dynamic';
 
 /** The four driver vehicle classes, in display order. */
-const VEHICLE_CLASSES: VehicleClass[] = ['executive', 'luxury', 'mpv', 'coach'];
 
 const SCHEDULE_START_HOUR = 6;
 const SCHEDULE_END_HOUR = 23;
@@ -144,7 +143,7 @@ export default async function DriversPage({
                 </Link>
                 {VEHICLE_CLASSES.map((c) => (
                   <Link key={c} className={vc === c ? 'is-active' : ''} href={qs({ vc: c })}>
-                    {VEHICLE_CLASS_LABEL[c]} (
+                    {VEHICLE_CLASS_SHORT[c]} (
                     {allDrivers.filter((d) => d.vehicleClass === c).length})
                   </Link>
                 ))}
@@ -236,7 +235,7 @@ function DriverRoster({
             </span>
             <span>
               <span className={`vc-tag ${d.vehicleClass}`}>
-                {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                {VEHICLE_CLASS_SHORT[d.vehicleClass]}
               </span>
             </span>
             <span className="car" title={carDescription(d.car, d.carColour)}>
@@ -435,7 +434,7 @@ function ScheduleDay({
                   <div className="sched-day__driver-name">{d.name}</div>
                   <div className="sched-day__driver-meta">
                     <span className={`vc-tag ${d.vehicleClass}`}>
-                      {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                      {VEHICLE_CLASS_SHORT[d.vehicleClass]}
                     </span>
                   </div>
                 </div>
@@ -518,7 +517,7 @@ function ScheduleWeek({
                   <div className="sched-day__driver-name">{d.name}</div>
                   <div className="sched-day__driver-meta">
                     <span className={`vc-tag ${d.vehicleClass}`}>
-                      {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                      {VEHICLE_CLASS_SHORT[d.vehicleClass]}
                     </span>
                   </div>
                 </div>

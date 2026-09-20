@@ -135,7 +135,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
   // Car Type (column K): what the PA asked for at booking time, as the client
   // records it in their own workbook. Legacy rows with no request fall back to
   // the car that actually ran the job — an internal driver's class
-  // (Executive / Luxury / MPV / Coach) or the backfill subcontractor's car —
+  // (the driver's vehicle class) or the backfill subcontractor's car —
   // and stay empty until a driver is assigned.
   const requested = booking.requestedCarType?.trim() ?? '';
   const car = requested

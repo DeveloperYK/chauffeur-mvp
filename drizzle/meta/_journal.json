@@ -232,6 +232,13 @@
       "when": 1789000000000,
       "tag": "0032_add_requested_car_type",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789950000000,
+      "tag": "0033_six_vehicle_classes",
+      "breakpoints": true
     }
   ]
 }
