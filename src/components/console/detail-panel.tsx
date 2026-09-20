@@ -19,6 +19,7 @@ import {
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { carTypeMismatchNote } from '@/lib/car-type-match';
 import { formatMiles } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import { hasPostcode } from '@/lib/postcode';
@@ -122,6 +123,10 @@ export function DetailPanel({
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
   const isAssignedToMe = booking.assignedOperatorId === me.id;
+  // Requested car type vs. the assigned driver's class — flagged, never blocked.
+  const carTypeMismatch = driver
+    ? carTypeMismatchNote(booking.requestedCarType, driver.vehicleClass)
+    : null;
   const vehicle = booking.isBackfill
     ? booking.backfillCar
     : driver
@@ -865,6 +870,16 @@ export function DetailPanel({
                           {booking.assignmentMethod === 'operator_attested'
                             ? 'Confirmed by phone'
                             : 'Accepted link'}
+                        </div>
+                      ) : null}
+                      {carTypeMismatch ? (
+                        <div
+                          className="link-warning car-type-mismatch"
+                          style={{ marginTop: 6 }}
+                          data-testid="car-type-mismatch-warning"
+                        >
+                          <Icon.Flag style={{ width: 13, height: 13 }} />
+                          <span>{carTypeMismatch}</span>
                         </div>
                       ) : null}
                     </>

@@ -6,6 +6,7 @@ import {
   dispatchManyAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { carTypeMismatchNote, requestedVehicleClass } from '@/lib/car-type-match';
 import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
 import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
 import type { VehicleClass } from '@/server/db/schema';
@@ -94,7 +95,12 @@ export function DispatchModal({
       .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
       .map((d) => {
         const clash = clashOf(d.id);
-        return { ...d, busy: clash !== null, clash };
+        return {
+          ...d,
+          busy: clash !== null,
+          clash,
+          mismatch: carTypeMismatchNote(booking?.requestedCarType, d.vehicleClass),
+        };
       })
       .sort((a, b) => {
         if (a.vehicleClass !== b.vehicleClass)
@@ -102,7 +108,7 @@ export function DispatchModal({
         if (a.busy !== b.busy) return a.busy ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
-  }, [drivers, filter, search, clashOf]);
+  }, [drivers, filter, search, clashOf, booking?.requestedCarType]);
 
   if (!booking) return null;
 
@@ -177,6 +183,11 @@ export function DispatchModal({
   );
 
   const offerLabel = picked.size <= 1 ? 'Offer to 1 driver' : `Offer to ${picked.size} drivers`;
+  // Requested car type vs. the ticked drivers' classes — a flag, never a block.
+  const wantedClass = requestedVehicleClass(booking.requestedCarType);
+  const pickedMismatches = drivers.filter(
+    (d) => picked.has(d.id) && carTypeMismatchNote(booking.requestedCarType, d.vehicleClass),
+  ).length;
   const allOpened = offers?.every((o) => opened.has(o.driverId)) ?? false;
 
   return (
@@ -310,6 +321,11 @@ export function DispatchModal({
                           <span className="dotsep" />
                           <span>{carDescription(d.car, d.carColour)}</span>
                         </div>
+                        {d.mismatch ? (
+                          <div className="driver-row__meta car-type-mismatch">
+                            <Icon.Flag style={{ width: 11, height: 11 }} /> {d.mismatch}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="driver-row__avail">
                         {offeredIds.has(d.id) ? (
@@ -326,6 +342,21 @@ export function DispatchModal({
                   );
                 })}
               </div>
+              {pickedMismatches > 0 && wantedClass ? (
+                <div className="link-warning" data-testid="car-type-mismatch-warning">
+                  <Icon.Flag style={{ width: 14, height: 14 }} />
+                  <span>
+                    <strong>
+                      {pickedMismatches === 1
+                        ? '1 selected driver'
+                        : `${pickedMismatches} selected drivers`}{' '}
+                      {pickedMismatches === 1 ? "doesn't" : "don't"} match the requested car type (
+                      {VEHICLE_CLASS_LABEL[wantedClass]}).
+                    </strong>{' '}
+                    You can still assign — just make sure the client is happy with the car.
+                  </span>
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="dispatch-result">

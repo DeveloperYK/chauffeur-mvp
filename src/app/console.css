@@ -3897,6 +3897,24 @@ button.driver-row {
   flex: 0 0 auto;
 }
 
+/* Requested car type: class quick-picks above the free-text box */
+.car-type__picks {
+  justify-self: start;
+  height: auto;
+  flex-wrap: wrap;
+}
+.car-type__picks button {
+  height: 22px;
+}
+/* Requested car type vs. driver class — a flag, never a block */
+.driver-row__meta.car-type-mismatch {
+  color: var(--lz-orange-fg);
+  font-weight: 600;
+}
+.link-warning.car-type-mismatch {
+  font-size: 12px;
+}
+
 /* Inline link-styled button (e.g. "Use" the suggested price) */
 .linklike {
   background: none;
