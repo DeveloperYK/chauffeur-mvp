@@ -46,6 +46,38 @@ describe('db schema — integration (pglite)', () => {
     ).rejects.toThrow();
   });
 
+  it('accepts every one of the six vehicle classes', async () => {
+    const classes = ['executive', 'vip', 'mpv_s', 'mpv_l', 'e_car', 'coach'] as const;
+    const inserted = await db
+      .insert(drivers)
+      .values(
+        classes.map((vehicleClass, i) => ({
+          name: `Driver ${vehicleClass}`,
+          vehicleClass,
+          car: 'Car',
+          carColour: 'Black',
+          whatsappNumber: `+44791100009${i}`,
+        })),
+      )
+      .returning();
+    expect(inserted.map((d) => d.vehicleClass).sort()).toEqual([...classes].sort());
+  });
+
+  it('rejects the retired luxury / mpv classes', async () => {
+    for (const retired of ['luxury', 'mpv']) {
+      await expect(
+        db.insert(drivers).values({
+          name: 'Old',
+          // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid enum value
+          vehicleClass: retired as any,
+          car: 'Car',
+          carColour: 'Black',
+          whatsappNumber: '+447911000098',
+        }),
+      ).rejects.toThrow();
+    }
+  });
+
   it('inserts a driver and a booking referencing it', async () => {
     const [driver] = await db
       .insert(drivers)

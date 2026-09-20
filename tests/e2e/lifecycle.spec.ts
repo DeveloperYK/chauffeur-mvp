@@ -768,6 +768,29 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await expectSimState(page, LEGO, 'Assigned');
 });
 
+test('driver roster and driver form offer the same six vehicle types as the booking picker', async ({
+  page,
+}) => {
+  await page.goto('/dashboard/drivers', { waitUntil: 'networkidle' });
+  // Class filter tabs, one per class, each with its driver count.
+  for (const short of ['Executive', 'VIP', 'MPV S', 'MPV L', 'E Car', 'Coach']) {
+    await expect(
+      page.getByRole('link', { name: new RegExp(`^${short} \\(\\d+\\)$`) }),
+    ).toBeVisible();
+  }
+
+  await page.goto('/dashboard/drivers/new', { waitUntil: 'networkidle' });
+  const options = page.locator('select[name="vehicleClass"] option');
+  await expect(options).toHaveText([
+    'Executive',
+    'VIP – S Class',
+    'MPV S – 7 Seater',
+    'MPV L – 8 Seater',
+    'E Car – Electric Only',
+    'Coach',
+  ]);
+});
+
 test('standalone create + detail routes redirect into the board surfaces', async ({ page }) => {
   // #8 — the legacy /dashboard/new page now opens the board's create slide-over.
   await page.goto('/dashboard/new', { waitUntil: 'networkidle' });

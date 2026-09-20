@@ -6,9 +6,9 @@ import {
   dispatchManyAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
-import { carTypeMismatchNote, requestedVehicleClass } from '@/lib/car-type-match';
+import { carTypeMismatchNote, requestedVehicleClasses } from '@/lib/car-type-match';
 import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
-import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { VEHICLE_CLASSES, VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
 import type { VehicleClass } from '@/server/db/schema';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
@@ -27,8 +27,6 @@ interface DispatchModalProps {
 }
 
 type ClassFilter = 'all' | VehicleClass;
-
-const VEHICLE_CLASSES: VehicleClass[] = ['executive', 'luxury', 'mpv', 'coach'];
 
 /** HH:MM (London) for a busy-window epoch. */
 function hhmm(ms: number): string {
@@ -184,7 +182,7 @@ export function DispatchModal({
 
   const offerLabel = picked.size <= 1 ? 'Offer to 1 driver' : `Offer to ${picked.size} drivers`;
   // Requested car type vs. the ticked drivers' classes — a flag, never a block.
-  const wantedClass = requestedVehicleClass(booking.requestedCarType);
+  const wantedKnown = requestedVehicleClasses(booking.requestedCarType).length > 0;
   const pickedMismatches = drivers.filter(
     (d) => picked.has(d.id) && carTypeMismatchNote(booking.requestedCarType, d.vehicleClass),
   ).length;
@@ -242,7 +240,7 @@ export function DispatchModal({
                       className={filter === c ? 'is-active' : ''}
                       onClick={() => setFilter(c)}
                     >
-                      {VEHICLE_CLASS_LABEL[c]}
+                      {VEHICLE_CLASS_SHORT[c]}
                     </button>
                   ))}
                 </div>
@@ -316,7 +314,7 @@ export function DispatchModal({
                         <div className="driver-row__name">{d.name}</div>
                         <div className="driver-row__meta">
                           <span className={`vc-tag ${d.vehicleClass}`}>
-                            {VEHICLE_CLASS_LABEL[d.vehicleClass]}
+                            {VEHICLE_CLASS_SHORT[d.vehicleClass]}
                           </span>
                           <span className="dotsep" />
                           <span>{carDescription(d.car, d.carColour)}</span>
@@ -342,7 +340,7 @@ export function DispatchModal({
                   );
                 })}
               </div>
-              {pickedMismatches > 0 && wantedClass ? (
+              {pickedMismatches > 0 && wantedKnown ? (
                 <div className="link-warning" data-testid="car-type-mismatch-warning">
                   <Icon.Flag style={{ width: 14, height: 14 }} />
                   <span>

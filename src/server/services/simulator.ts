@@ -25,7 +25,7 @@ const SAMPLE_DRIVERS = [
   },
   {
     name: 'Andy Patel',
-    vehicleClass: 'luxury',
+    vehicleClass: 'vip',
     car: 'BMW 7 Series',
     carColour: 'Black',
     pcoNumber: '118220',
@@ -41,7 +41,7 @@ const SAMPLE_DRIVERS = [
   },
   {
     name: 'Alex Mercier',
-    vehicleClass: 'mpv',
+    vehicleClass: 'mpv_s',
     car: 'Mercedes V-Class',
     carColour: 'Silver',
     pcoNumber: '131442',

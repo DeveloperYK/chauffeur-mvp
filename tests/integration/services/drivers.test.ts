@@ -180,13 +180,13 @@ describe('services/drivers (integration)', () => {
     if (!created.ok) throw new Error('setup');
     const updated = await updateDriver(
       created.driver.id,
-      { name: 'Renamed', vehicleClass: 'luxury' },
+      { name: 'Renamed', vehicleClass: 'vip' },
       { db, operatorId },
     );
     expect(updated.ok).toBe(true);
     if (updated.ok) {
       expect(updated.driver.name).toBe('Renamed');
-      expect(updated.driver.vehicleClass).toBe('luxury');
+      expect(updated.driver.vehicleClass).toBe('vip');
     }
     const events = await db.select().from(auditEvents);
     const updateEvents = events.filter((e) => e.action === 'update');
@@ -251,7 +251,7 @@ describe('services/drivers (integration)', () => {
       { db, operatorId },
     );
     await createDriver(
-      valid({ name: 'B MPV', vehicleClass: 'mpv', whatsappNumber: '+447911000102' }),
+      valid({ name: 'B MPV', vehicleClass: 'mpv_s', whatsappNumber: '+447911000102' }),
       { db, operatorId },
     );
     await createDriver(
@@ -259,12 +259,12 @@ describe('services/drivers (integration)', () => {
       { db, operatorId },
     );
     const list = await listActiveDrivers(db);
-    // Postgres enum declaration order: executive, luxury, mpv, coach.
+    // Postgres enum declaration order: executive, vip, mpv_s, mpv_l, e_car, coach.
     // listActiveDrivers orders by vehicle_class ASC, then name.
     expect(list.map((d) => `${d.vehicleClass}:${d.name}`)).toEqual([
       'executive:A Exec',
       'executive:C Exec',
-      'mpv:B MPV',
+      'mpv_s:B MPV',
     ]);
   });
 });

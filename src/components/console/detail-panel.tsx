@@ -21,7 +21,7 @@ import {
 import { bookingRef } from '@/lib/booking-ref';
 import { carTypeMismatchNote } from '@/lib/car-type-match';
 import { formatMiles } from '@/lib/distance';
-import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
 import { hasPostcode } from '@/lib/postcode';
 import { travelRefLabel } from '@/lib/travel-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
@@ -859,7 +859,7 @@ export function DetailPanel({
                         <Avatar name={driver.name} id={driver.id} size={22} />
                         <span>{driver.name}</span>
                         <span className={`vc-tag ${driver.vehicleClass}`}>
-                          {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                          {VEHICLE_CLASS_SHORT[driver.vehicleClass]}
                         </span>
                         <span className="ir__sub mono" style={{ marginLeft: 4 }}>
                           {driver.whatsappNumber}

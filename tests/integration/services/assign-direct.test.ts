@@ -67,7 +67,7 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
       .insert(drivers)
       .values({
         name: 'Bea B',
-        vehicleClass: 'luxury',
+        vehicleClass: 'vip',
         car: 'BMW 7 Series',
         carColour: 'Blue',
         whatsappNumber: '+447911000002',
