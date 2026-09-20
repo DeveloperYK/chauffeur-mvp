@@ -1,5 +1,6 @@
 import type { Database } from '@/server/db';
 import { operators } from '@/server/db/schema';
+import { recordAuditEvent } from '@/server/services/audit';
 import { sql } from 'drizzle-orm';
 import { verifyPassword } from './password';
 import { type RateLimiter, loginRateLimiter } from './rate-limit';
@@ -48,6 +49,17 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
   limiter.reset(key);
 
   const session = await createSession(deps.db, op.id, nowDate);
+  // Audit the login itself (never the token) so a "got logged out" report can
+  // be checked against when the operator last signed in.
+  await recordAuditEvent(deps.db, {
+    actorType: 'operator',
+    actorId: op.id,
+    entityType: 'operator',
+    entityId: op.id,
+    action: 'login',
+    before: null,
+    after: { sessionExpiresAt: session.expiresAt.toISOString() },
+  });
   return { ok: true, session };
 }
 

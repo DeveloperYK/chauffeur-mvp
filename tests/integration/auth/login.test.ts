@@ -6,7 +6,7 @@ import {
   invalidateAllSessionsForOperator,
   validateSession,
 } from '@/server/auth/sessions';
-import { sessions } from '@/server/db/schema';
+import { auditEvents, sessions } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
@@ -174,5 +174,95 @@ describe('auth/login + sessions (integration)', () => {
     await invalidateAllSessionsForOperator(db, created.id);
     const rows = await db.select().from(sessions);
     expect(rows.length).toBe(0);
+  });
+
+  describe('login audit trail', () => {
+    async function seedAlice() {
+      return createOperator(db, {
+        email: 'alice@example.com',
+        password: 'correct-horse-battery',
+        name: 'Alice',
+      });
+    }
+
+    it('records a login audit event for the operator on success', async () => {
+      const { id } = await seedAlice();
+      const result = await login(
+        { email: 'alice@example.com', password: 'correct-horse-battery' },
+        { db, rateLimiter: freshLimiter() },
+      );
+      expect(result.ok).toBe(true);
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.actorType).toBe('operator');
+      expect(rows[0]?.actorId).toBe(id);
+      expect(rows[0]?.entityType).toBe('operator');
+      expect(rows[0]?.entityId).toBe(id);
+    });
+
+    it('stores the session expiry in the event, never the token', async () => {
+      await seedAlice();
+      const result = await login(
+        { email: 'alice@example.com', password: 'correct-horse-battery' },
+        { db, rateLimiter: freshLimiter() },
+      );
+      if (!result.ok) throw new Error('login should succeed');
+      const [row] = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      const after = row?.after as { sessionExpiresAt?: string } | null;
+      expect(after?.sessionExpiresAt).toBe(result.session.expiresAt.toISOString());
+      expect(JSON.stringify(row)).not.toContain(result.session.token);
+    });
+
+    it('records one event per successful login', async () => {
+      await seedAlice();
+      for (let i = 0; i < 3; i++) {
+        await login(
+          { email: 'alice@example.com', password: 'correct-horse-battery' },
+          { db, rateLimiter: freshLimiter() },
+        );
+      }
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      expect(rows).toHaveLength(3);
+    });
+
+    it('records nothing for a wrong password', async () => {
+      await seedAlice();
+      await login(
+        { email: 'alice@example.com', password: 'wrong-password-here' },
+        { db, rateLimiter: freshLimiter() },
+      );
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      expect(rows).toHaveLength(0);
+    });
+
+    it('records nothing for an unknown email', async () => {
+      await login(
+        { email: 'nobody@example.com', password: 'whatever-12char' },
+        { db, rateLimiter: freshLimiter() },
+      );
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      expect(rows).toHaveLength(0);
+    });
+
+    it('records nothing when the account is rate-limited', async () => {
+      await seedAlice();
+      const limiter = new RateLimiter({
+        capacity: 1,
+        refillIntervalMs: 60_000,
+        baseLockoutMs: 60_000,
+        maxLockoutMs: 60_000,
+      });
+      await login(
+        { email: 'alice@example.com', password: 'wrong-password-here' },
+        { db, rateLimiter: limiter },
+      );
+      const blocked = await login(
+        { email: 'alice@example.com', password: 'correct-horse-battery' },
+        { db, rateLimiter: limiter },
+      );
+      expect(blocked.ok).toBe(false);
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.action, 'login'));
+      expect(rows).toHaveLength(0);
+    });
   });
 });

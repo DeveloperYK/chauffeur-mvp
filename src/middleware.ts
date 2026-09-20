@@ -1,3 +1,4 @@
+import { SESSION_COOKIE_NAME, refreshedSessionCookie } from '@/server/auth/cookie';
 import { type NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -64,7 +65,28 @@ export function middleware(request: NextRequest): NextResponse {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
+  refreshSessionCookie(request, response);
   return response;
+}
+
+/**
+ * Sliding cookie expiry. A cookie's `Expires` is fixed when it is set, so a
+ * 14-day cookie issued at login dies 14 days later even though the server-side
+ * session keeps sliding — an operator gets thrown to /login mid-shift. Re-issue
+ * the cookie with a fresh expiry on every document GET that carries one.
+ *
+ * Only GETs: server actions and the login form POST, and a Set-Cookie written
+ * by an action (login / logout) must never be overridden by ours. Only when a
+ * cookie is present: a logged-out visitor must not be handed an empty session.
+ * No validation here — the middleware has no DB; `validateSession` remains
+ * the authority, so a stale cookie still ends at /login.
+ * See docs/adr/0017-sliding-session-cookie.md.
+ */
+function refreshSessionCookie(request: NextRequest, response: NextResponse): void {
+  if (request.method !== 'GET') return;
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!token || token.trim().length === 0) return;
+  response.cookies.set(refreshedSessionCookie(token));
 }
 
 export const config = {

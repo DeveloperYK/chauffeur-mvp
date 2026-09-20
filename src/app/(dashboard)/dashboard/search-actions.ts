@@ -5,6 +5,7 @@ import { currentSession } from '@/server/auth/current';
 import { db } from '@/server/composition';
 import type { BookingState } from '@/server/db/schema';
 import { type BookingMatchType, searchBookings } from '@/server/services/bookings-query';
+import { redirect } from 'next/navigation';
 
 /** Serializable search result row for the command palette. */
 export interface SearchResult {
@@ -28,7 +29,7 @@ export interface SearchResult {
  */
 export async function searchBookingsAction(query: string): Promise<SearchResult[]> {
   const session = await currentSession();
-  if (!session) return [];
+  if (!session) redirect('/login');
 
   const q = query.trim();
   if (!q) return [];

@@ -33,9 +33,7 @@ export interface CreateBookingActionResult {
 
 export async function createBookingAction(formData: FormData): Promise<CreateBookingActionResult> {
   const session = await currentSession();
-  if (!session) {
-    return { error: 'Not authenticated' };
-  }
+  if (!session) redirect('/login');
 
   const url = env().DATABASE_URL;
   if (!url) {
