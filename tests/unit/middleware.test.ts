@@ -1,4 +1,6 @@
 import { middleware } from '@/middleware';
+import { SESSION_COOKIE_NAME } from '@/server/auth/cookie';
+import { SESSION_LIFETIME_MS } from '@/server/auth/session-policy';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -72,6 +74,63 @@ describe('CSP middleware', () => {
       const csp = cspFor();
       expect(csp).toContain("'unsafe-eval'");
       expect(csp).not.toContain('upgrade-insecure-requests');
+    });
+  });
+
+  describe('session cookie refresh (sliding expiry)', () => {
+    const URL = 'https://example.com/dashboard';
+    const withCookie = (method = 'GET') =>
+      new NextRequest(URL, {
+        method,
+        headers: { cookie: `${SESSION_COOKIE_NAME}=tok-abc; other=1` },
+      });
+    const setCookie = (res: Response) => res.headers.get('set-cookie') ?? '';
+
+    it('re-issues the session cookie on a GET that carries one', () => {
+      const res = middleware(withCookie());
+      const sc = setCookie(res);
+      expect(sc).toContain(`${SESSION_COOKIE_NAME}=tok-abc`);
+      expect(sc).toMatch(/HttpOnly/i);
+      expect(sc).toMatch(/SameSite=lax/i);
+      expect(sc).toMatch(/Path=\//i);
+    });
+
+    it('pushes the cookie expiry a full lifetime into the future', () => {
+      const before = Date.now();
+      const res = middleware(withCookie());
+      const m = setCookie(res).match(/Expires=([^;]+)/i);
+      expect(m).toBeTruthy();
+      const expires = new Date(m?.[1] ?? '').getTime();
+      // Allow a second of slack either side for the Date header's precision.
+      expect(expires).toBeGreaterThanOrEqual(before + SESSION_LIFETIME_MS - 1_000);
+      expect(expires).toBeLessThanOrEqual(Date.now() + SESSION_LIFETIME_MS + 1_000);
+    });
+
+    it('marks the refreshed cookie Secure in production', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      expect(setCookie(middleware(withCookie()))).toMatch(/Secure/i);
+    });
+
+    it('does not touch the response when the request has no session cookie', () => {
+      const res = middleware(new NextRequest(URL, { headers: { cookie: 'other=1' } }));
+      expect(res.headers.get('set-cookie')).toBeNull();
+    });
+
+    it('does not touch the response on a POST (server actions and the login form)', () => {
+      const res = middleware(withCookie('POST'));
+      expect(res.headers.get('set-cookie')).toBeNull();
+    });
+
+    it('does not re-issue an empty session cookie', () => {
+      const res = middleware(
+        new NextRequest(URL, { headers: { cookie: `${SESSION_COOKIE_NAME}=` } }),
+      );
+      expect(res.headers.get('set-cookie')).toBeNull();
+    });
+
+    it('still sets the CSP header alongside the refreshed cookie', () => {
+      const res = middleware(withCookie());
+      expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
     });
   });
 });
