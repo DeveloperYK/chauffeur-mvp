@@ -91,7 +91,7 @@ export const DriverFactory = {
 
   premiumSarah: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Sarah Chen',
-    vehicleClass: 'luxury',
+    vehicleClass: 'vip',
     car: 'BMW 7 Series',
     carColour: 'Black',
     pcoNumber: '223344',
@@ -102,7 +102,7 @@ export const DriverFactory = {
 
   ordinaryMario: (overrides?: DriverOverrides): NewDriver => ({
     name: 'Mario Rossi',
-    vehicleClass: 'mpv',
+    vehicleClass: 'mpv_l',
     car: 'Mercedes V-Class',
     carColour: 'Silver',
     pcoNumber: '334455',

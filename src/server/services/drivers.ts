@@ -1,6 +1,6 @@
 import { phoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
-import { type Driver, drivers } from '@/server/db/schema';
+import { type Driver, drivers, vehicleClassEnum } from '@/server/db/schema';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
@@ -8,7 +8,7 @@ import { recordAuditEvent } from './audit';
 export const createDriverSchema = z
   .object({
     name: z.string().min(2).max(120),
-    vehicleClass: z.enum(['executive', 'luxury', 'mpv', 'coach']),
+    vehicleClass: z.enum(vehicleClassEnum.enumValues),
     car: z.string().trim().min(1).max(80),
     carColour: z.string().trim().min(1).max(40),
     // Optional registration plate, shown to the exec in the email.

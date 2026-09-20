@@ -26,9 +26,17 @@ export const bookingStateEnum = pgEnum('booking_state', [
 
 // A driver's vehicle class. Each class implies the actual car(s) the driver
 // runs, so the system no longer records a separate car/vehicle descriptor —
-// the class is the vehicle. Executive and Luxury are saloons; MPV is a people
-// carrier; Coach is a minibus/coach.
-export const vehicleClassEnum = pgEnum('vehicle_class', ['executive', 'luxury', 'mpv', 'coach']);
+// the class is the vehicle — JJ's six vehicle types: Executive, VIP (S Class),
+// MPV S (7 seater), MPV L (8 seater), E Car (electric only), Coach. The same
+// list is offered as the booking's requested car type, so ask and driver line up.
+export const vehicleClassEnum = pgEnum('vehicle_class', [
+  'executive',
+  'vip',
+  'mpv_s',
+  'mpv_l',
+  'e_car',
+  'coach',
+]);
 
 export const actorTypeEnum = pgEnum('actor_type', ['operator', 'system', 'driver']);
 
@@ -152,7 +160,7 @@ export const drivers = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
-    // The driver's vehicle class — one of the four fixed categories. Implies the
+    // The driver's vehicle class — one of the six fixed categories. Implies the
     // kind of car; the exact car + colour below let the exec identify it kerbside.
     vehicleClass: vehicleClassEnum('vehicle_class').notNull(),
     // The driver's actual car (make/model, e.g. "Mercedes S-Class") and its

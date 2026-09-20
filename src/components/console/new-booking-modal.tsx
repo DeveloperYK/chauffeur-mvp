@@ -9,6 +9,7 @@ import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
+import { CarTypeField } from './car-type-field';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { Icon } from './icons';
 import { POSTCODE_INVALID_MESSAGE, PostcodeField } from './postcode-field';
@@ -56,10 +57,6 @@ interface NewForm {
 }
 
 /** Hourly as-directed hire is booked in whole-hour blocks. */
-import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
-
-/** Datalist hints for the requested car type; the field stays free text. */
-const CAR_TYPE_SUGGESTIONS = Object.values(VEHICLE_CLASS_LABEL);
 
 const HOURS = [2, 3, 4, 6, 8, 12];
 const DEFAULT_HOURLY_MINUTES = 240; // 4 hours
@@ -579,24 +576,11 @@ export function NewBookingModal({
                 ) : null}
               </div>
             </div>
-            <div className="field">
-              <label htmlFor="new-requested-car-type">Car type</label>
-              <div className="ctrl">
-                <input
-                  id="new-requested-car-type"
-                  list="new-car-type-options"
-                  value={form.requestedCarType}
-                  onChange={(e) => set('requestedCarType', e.target.value)}
-                  placeholder="e.g. MPV, Luxury — optional"
-                  maxLength={60}
-                />
-                <datalist id="new-car-type-options">
-                  {CAR_TYPE_SUGGESTIONS.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
+            <CarTypeField
+              id="new-requested-car-type"
+              value={form.requestedCarType}
+              onChange={(v) => set('requestedCarType', v)}
+            />
           </div>
 
           <div className="form-section">

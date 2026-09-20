@@ -18,10 +18,33 @@ export function carLabel(value: string | null | undefined): string {
   return LEGACY_CAR_ALIAS[v] ?? v;
 }
 
+/** Roster order for the six vehicle classes. */
+export const VEHICLE_CLASSES: readonly VehicleClass[] = [
+  'executive',
+  'vip',
+  'mpv_s',
+  'mpv_l',
+  'e_car',
+  'coach',
+];
+
+/** Full name — driver form, booking car-type picker, sheet, warnings. */
 export const VEHICLE_CLASS_LABEL: Record<VehicleClass, string> = {
   executive: 'Executive',
-  luxury: 'Luxury',
-  mpv: 'MPV',
+  vip: 'VIP – S Class',
+  mpv_s: 'MPV S – 7 Seater',
+  mpv_l: 'MPV L – 8 Seater',
+  e_car: 'E Car – Electric Only',
+  coach: 'Coach',
+};
+
+/** Short name — pills, filter tabs and anywhere space is tight. */
+export const VEHICLE_CLASS_SHORT: Record<VehicleClass, string> = {
+  executive: 'Executive',
+  vip: 'VIP',
+  mpv_s: 'MPV S',
+  mpv_l: 'MPV L',
+  e_car: 'E Car',
   coach: 'Coach',
 };
 
@@ -57,7 +80,9 @@ export const STATE_BADGE: Record<BookingState, string> = {
 
 export const VEHICLE_CLASS_BADGE: Record<VehicleClass, string> = {
   executive: 'bg-brand-50 text-brand-700 border border-brand-100',
-  luxury: 'bg-violet-50 text-violet-700 border border-violet-100',
-  mpv: 'bg-info-100 text-info-700 border border-info-200',
+  vip: 'bg-violet-50 text-violet-700 border border-violet-100',
+  mpv_s: 'bg-info-100 text-info-700 border border-info-200',
+  mpv_l: 'bg-info-100 text-info-700 border border-info-200',
+  e_car: 'bg-success-50 text-success-700 border border-success-100',
   coach: 'bg-warning-50 text-warning-700 border border-warning-100',
 };

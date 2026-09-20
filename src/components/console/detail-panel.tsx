@@ -19,8 +19,9 @@ import {
   updateBackfillPayAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { carTypeMismatchNote } from '@/lib/car-type-match';
 import { formatMiles } from '@/lib/distance';
-import { VEHICLE_CLASS_LABEL, carDescription } from '@/lib/labels';
+import { VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
 import { hasPostcode } from '@/lib/postcode';
 import { travelRefLabel } from '@/lib/travel-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
@@ -122,6 +123,10 @@ export function DetailPanel({
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
   const isAssignedToMe = booking.assignedOperatorId === me.id;
+  // Requested car type vs. the assigned driver's class — flagged, never blocked.
+  const carTypeMismatch = driver
+    ? carTypeMismatchNote(booking.requestedCarType, driver.vehicleClass)
+    : null;
   const vehicle = booking.isBackfill
     ? booking.backfillCar
     : driver
@@ -854,7 +859,7 @@ export function DetailPanel({
                         <Avatar name={driver.name} id={driver.id} size={22} />
                         <span>{driver.name}</span>
                         <span className={`vc-tag ${driver.vehicleClass}`}>
-                          {VEHICLE_CLASS_LABEL[driver.vehicleClass]}
+                          {VEHICLE_CLASS_SHORT[driver.vehicleClass]}
                         </span>
                         <span className="ir__sub mono" style={{ marginLeft: 4 }}>
                           {driver.whatsappNumber}
@@ -865,6 +870,16 @@ export function DetailPanel({
                           {booking.assignmentMethod === 'operator_attested'
                             ? 'Confirmed by phone'
                             : 'Accepted link'}
+                        </div>
+                      ) : null}
+                      {carTypeMismatch ? (
+                        <div
+                          className="link-warning car-type-mismatch"
+                          style={{ marginTop: 6 }}
+                          data-testid="car-type-mismatch-warning"
+                        >
+                          <Icon.Flag style={{ width: 13, height: 13 }} />
+                          <span>{carTypeMismatch}</span>
                         </div>
                       ) : null}
                     </>
