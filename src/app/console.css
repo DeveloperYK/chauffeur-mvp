@@ -1996,6 +1996,14 @@ a:hover {
    Dispatch result card
    ───────────────────────────────────────────────────────────── */
 
+.driver-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 1px;
+}
+.driver-list--offers {
+  max-height: 360px;
+}
 .dispatch-result {
   border: 1px solid var(--hairline);
   border-radius: var(--r);
@@ -4093,7 +4101,15 @@ button.driver-row {
    The detail panel and modals already cap to the viewport
    (max-width: 96vw / max-height: 92vh), so they need only minor tweaks.
    ───────────────────────────────────────────────────────────── */
+/* Only offered on phone-sized screens (the shell is pointless on a desk). */
+.rail__item--mobile-only {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .rail__item--mobile-only {
+    display: flex;
+  }
   /* Shell: stack top bar → rail → main in one column. */
   .app {
     grid-template-columns: 1fr;

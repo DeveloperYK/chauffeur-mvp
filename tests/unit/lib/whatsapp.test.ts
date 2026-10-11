@@ -1,4 +1,4 @@
-import { whatsappWebLink } from '@/lib/whatsapp';
+import { whatsappMobileLink, whatsappWebLink } from '@/lib/whatsapp';
 import { describe, expect, it } from 'vitest';
 
 describe('whatsappWebLink', () => {
@@ -30,5 +30,13 @@ describe('whatsappWebLink', () => {
     const link = whatsappWebLink('+447911000001', 'Anything');
     expect(link.startsWith('https://web.whatsapp.com/send?')).toBe(true);
     expect(link).not.toContain('wa.me');
+  });
+});
+
+describe('whatsappMobileLink', () => {
+  it('targets wa.me with digits only and an encoded message', () => {
+    expect(whatsappMobileLink('+44 7700 900001', 'Hi Mario, job?')).toBe(
+      'https://wa.me/447700900001?text=Hi%20Mario%2C%20job%3F',
+    );
   });
 });

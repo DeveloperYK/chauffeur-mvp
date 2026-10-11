@@ -16,7 +16,6 @@ import { currentSession } from '@/server/auth/current';
 import { type Database, getDb, resetDb } from '@/server/db';
 import type { Booking } from '@/server/db/schema';
 import { DB_TIMEOUT_MS, withDbTimeout } from '@/server/db/timeout';
-import { waitingFee } from '@/server/domain/waiting-fee';
 import { sampleGeneratorEnabled } from '@/server/feature-flags';
 import {
   type DayCounts,
@@ -27,12 +26,9 @@ import {
   listUnpricedBookings,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
+import { toConsoleBooking, toConsoleDriver } from '@/server/services/console-view';
 import { listAllDrivers } from '@/server/services/drivers';
-import {
-  type ExecEmailSends,
-  execEmailSendMap,
-  listEmailAttentionBookings,
-} from '@/server/services/exec-notifications';
+import { execEmailSendMap, listEmailAttentionBookings } from '@/server/services/exec-notifications';
 import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
@@ -63,80 +59,6 @@ const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
 };
 
 const UNASSIGNED = 'unassigned';
-
-function toConsoleBooking(
-  b: Booking,
-  openOffers: { driverId: string; driverName: string }[] = [],
-  emailSends?: Map<string, ExecEmailSends>,
-): ConsoleBooking {
-  return {
-    id: b.id,
-    seq: b.seq,
-    state: b.state,
-    pickupAt: b.pickupAt.toISOString(),
-    expectedDurationMinutes: b.expectedDurationMinutes,
-    serviceType: b.serviceType,
-    distanceMeters: b.distanceMeters,
-    travelMode: b.travelMode,
-    travelRef: b.travelRef,
-    requestedCarType: b.requestedCarType,
-    pickupAddress: b.pickupAddress,
-    dropoffAddress: b.dropoffAddress ?? '',
-    passengerFirstName: b.passengerFirstName,
-    passengerLastName: b.passengerLastName,
-    execMobile: b.execMobile,
-    execEmail: b.execEmail,
-    bookedByName: b.bookedByName,
-    confirmationEmailSentAt: emailSends?.get(b.id)?.confirmationSentAt?.toISOString() ?? null,
-    driverDetailsEmailSentAt: emailSends?.get(b.id)?.driverDetailsSentAt?.toISOString() ?? null,
-    changeUpdateEmailSentAt: emailSends?.get(b.id)?.changeUpdateSentAt?.toISOString() ?? null,
-    changeExecRelevant: b.changeExecRelevant,
-    bookedByPhone: b.bookedByPhone,
-    bookedByEmail: b.bookedByEmail,
-    clientName: b.clientName,
-    accountCode: b.accountCode,
-    caseCode: b.caseCode,
-    contractPricePence: b.contractPricePence,
-    subcontractorPricePence: b.subcontractorPricePence,
-    notes: b.notes,
-    operatorNotes: b.operatorNotes,
-    createdByOperatorId: b.createdByOperatorId,
-    assignedOperatorId: b.assignedOperatorId,
-    assignedDriverId: b.assignedDriverId,
-    assignmentMethod: b.assignmentMethod,
-    isBackfill: b.isBackfill,
-    backfillDriverName: b.backfillDriverName,
-    backfillDriverPhone: b.backfillDriverPhone,
-    backfillCar: b.backfillCar,
-    backfillDriverPayPence: b.backfillDriverPayPence,
-    completionByOperator: b.completionByOperator,
-    execNotificationStatus: b.execNotificationStatus,
-    mirrorStatus: b.mirrorStatus,
-    mirroredAt: b.mirroredAt ? b.mirroredAt.toISOString() : null,
-    carParkPence: b.carParkPence,
-    waitingTimeMinutes: b.waitingTimeMinutes,
-    arrivalAt: b.arrivalAt ? b.arrivalAt.toISOString() : null,
-    passengerOnBoardAt: b.passengerOnBoardAt ? b.passengerOnBoardAt.toISOString() : null,
-    waitingFee: (() => {
-      const f = waitingFee(b.waitingTimeMinutes);
-      return {
-        chargeableMinutes: f.chargeableMinutes,
-        // Effective charge: operator override if set, else the computed £1/min fee.
-        customerFeePence: b.waitingChargePence ?? f.customerFeePence,
-        driverPayPence: f.driverPayPence,
-      };
-    })(),
-    waitingChargePence: b.waitingChargePence,
-    dropoffAt: b.dropoffAt ? b.dropoffAt.toISOString() : null,
-    cancelledAt: b.cancelledAt ? b.cancelledAt.toISOString() : null,
-    cancellationReason: b.cancellationReason,
-    flaggedAt: b.flaggedAt ? b.flaggedAt.toISOString() : null,
-    changeConfirmationStatus: b.changeConfirmationStatus,
-    changeConfirmedMethod: b.changeConfirmedMethod,
-    changeConfirmedAt: b.changeConfirmedAt ? b.changeConfirmedAt.toISOString() : null,
-    openOffers,
-  };
-}
 
 export default async function DashboardHome({
   searchParams,
@@ -311,15 +233,7 @@ export default async function DashboardHome({
   const consoleBookings: ConsoleBooking[] = filtered.map((b) =>
     toConsoleBooking(b, offersByBooking.get(b.id) ?? [], emailSends),
   );
-  const consoleDrivers: ConsoleDriver[] = drivers.map((d) => ({
-    id: d.id,
-    name: d.name,
-    vehicleClass: d.vehicleClass,
-    car: d.car,
-    carColour: d.carColour,
-    whatsappNumber: d.whatsappNumber,
-    active: d.active,
-  }));
+  const consoleDrivers: ConsoleDriver[] = drivers.map(toConsoleDriver);
   const consoleOperators: ConsoleOperator[] = operatorList.map((o) => ({ id: o.id, name: o.name }));
 
   return (
