@@ -1,0 +1,567 @@
+/* ─────────────────────────────────────────────────────────────
+   Mobile shell (/m) — the phone-sized operator console.
+   One column, big tap targets, one obvious action per screen.
+   Shares the design tokens in console.css; the reused modals
+   (create / dispatch / edit / cancel) become full-screen sheets.
+   ───────────────────────────────────────────────────────────── */
+
+.m-app {
+  --m-gutter: 16px;
+  --m-tap: 48px;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.4;
+  padding-bottom: calc(var(--m-tap) + 40px + env(safe-area-inset-bottom));
+}
+
+/* Top bar */
+.m-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 var(--m-gutter);
+  padding-top: env(safe-area-inset-top);
+  background: var(--rail-bg);
+  color: var(--rail-text-strong);
+}
+.m-top__back,
+.m-top__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  color: var(--rail-active-fg);
+  font-weight: 500;
+  text-decoration: none;
+}
+.m-top__back .icon,
+.m-top__link .icon {
+  width: 18px;
+  height: 18px;
+}
+.m-top__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-top__mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #f5c84c;
+  color: #1a1a1a;
+  font-weight: 700;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+/* Day stepper */
+.m-day {
+  display: grid;
+  grid-template-columns: var(--m-tap) 1fr var(--m-tap);
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--m-gutter) 6px;
+}
+.m-day__btn {
+  display: grid;
+  place-items: center;
+  width: var(--m-tap);
+  height: var(--m-tap);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.m-day__btn .icon {
+  width: 20px;
+  height: 20px;
+}
+.m-day__label {
+  text-align: center;
+  min-width: 0;
+}
+.m-day__label b {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+}
+.m-day__label a,
+.m-day__label span {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+/* Needs-attention banner (cross-day) */
+.m-attn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px var(--m-gutter) 4px;
+  padding: 12px 14px;
+  min-height: var(--m-tap);
+  border-radius: var(--r-lg);
+  background: var(--lz-red-bg);
+  color: var(--lz-red-fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+.m-attn--calm {
+  background: var(--surface);
+  color: var(--ink-3);
+  border: 1px solid var(--hairline);
+  font-weight: 500;
+}
+.m-attn .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+.m-attn__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sections + cards */
+.m-section {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px var(--m-gutter) 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.m-section--hot {
+  color: var(--prio-high);
+}
+.m-section__count {
+  color: var(--ink-4);
+  font-weight: 500;
+}
+.m-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 var(--m-gutter);
+}
+.m-card {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  padding: 12px 12px 12px 10px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  text-decoration: none;
+}
+.m-card:active {
+  background: var(--surface-2);
+}
+.m-card--hot {
+  border-color: var(--prio-high);
+}
+.m-card--done {
+  opacity: 0.6;
+}
+.m-card__time {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.1;
+  padding-top: 2px;
+}
+.m-card__time small {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-4);
+  font-weight: 500;
+  margin-top: 3px;
+}
+.m-card__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.m-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.m-card__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-card__meta,
+.m-card__route {
+  font-size: 13px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-card__route span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-card__route .icon {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+.m-card__flag {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--prio-high);
+}
+.m-card__driver {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.m-empty {
+  padding: 28px var(--m-gutter);
+  text-align: center;
+  color: var(--ink-4);
+}
+
+/* Sticky bottom action */
+.m-fab {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 10px var(--m-gutter) calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.m-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--m-tap);
+  padding: 10px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+.m-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+.m-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.m-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.m-btn--success {
+  background: #1e6c3d;
+  border-color: #1e6c3d;
+  color: #fff;
+}
+.m-btn--danger {
+  background: var(--surface);
+  border-color: var(--lz-red-fg);
+  color: var(--lz-red-fg);
+}
+.m-btn--armed {
+  outline: 3px solid var(--primary-ring);
+  outline-offset: 2px;
+}
+.m-btn--lg {
+  min-height: 56px;
+  font-size: 16px;
+}
+
+/* Booking screen */
+.m-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px var(--m-gutter) 0;
+}
+.m-hero {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.m-hero__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.m-hero__ref {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-4);
+}
+.m-hero__when {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.m-hero__when small {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.m-hero__who {
+  font-size: 17px;
+  font-weight: 600;
+}
+.m-hero__sub {
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.m-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--lz-red-bg);
+  color: var(--lz-red-fg);
+  font-weight: 600;
+  font-size: 14px;
+}
+.m-flag .icon {
+  width: 16px;
+  height: 16px;
+}
+.m-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.m-actions__err {
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--lz-red-bg);
+  color: var(--lz-red-fg);
+  font-size: 14px;
+}
+.m-facts {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.m-facts__title {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.m-fact {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+  font-size: 14px;
+}
+.m-fact:last-child {
+  border-bottom: none;
+}
+.m-fact__k {
+  color: var(--ink-3);
+}
+.m-fact__v {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.m-fact__v a {
+  font-weight: 500;
+}
+.m-fact__v .mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.m-route {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 4px 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+.m-route__dot {
+  width: 10px;
+  height: 10px;
+  margin: 5px 2px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--primary);
+}
+.m-route__dot--end {
+  background: transparent;
+}
+.m-route__line {
+  width: 2px;
+  min-height: 14px;
+  margin: 0 6px;
+  background: var(--hairline);
+}
+.m-route__k {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.m-more {
+  display: block;
+  text-align: center;
+  padding: 14px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.m-foot {
+  padding: 24px var(--m-gutter) 8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-4);
+}
+.m-foot a {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* The reused console modals become full-screen sheets in the shell. */
+.m-app .modal {
+  place-items: stretch;
+}
+.m-app .modal__card {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  border: none;
+  transform: translateY(16px);
+}
+.m-app .modal.is-open .modal__card {
+  transform: none;
+}
+.m-app .modal__body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.m-app .modal .field {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+.m-app .modal .field > label {
+  padding-top: 0;
+}
+.m-app .modal .field-grid {
+  grid-template-columns: 1fr;
+}
+.m-app .modal input,
+.m-app .modal select,
+.m-app .modal textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 16px; /* stops iOS zooming into the field */
+}
+.m-app .modal__foot {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+.m-app .modal__foot .btn {
+  min-height: 44px;
+}
+.m-app .toast-stack {
+  bottom: calc(var(--m-tap) + 24px + env(safe-area-inset-bottom));
+  width: calc(100% - 2 * var(--m-gutter));
+}
+.m-app .toast {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Dispatch sheet: the driver list takes the whole sheet, chips scroll sideways. */
+.m-app .modal__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.m-app .modal__body > * {
+  flex: 0 0 auto;
+}
+.m-app .driver-list {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+}
+.m-app .viewswitch {
+  max-width: 100%;
+  overflow-x: auto;
+  height: auto;
+  min-height: 36px;
+}
+.m-app .viewswitch button {
+  white-space: nowrap;
+  min-height: 30px;
+}
+
+/* Sheet footers: the primary action is the full-width bottom button. */
+.m-app .modal__foot .btn--primary {
+  order: 10;
+  flex: 1 0 100%;
+  min-height: 52px;
+  font-size: 15px;
+}

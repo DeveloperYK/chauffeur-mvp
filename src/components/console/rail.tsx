@@ -120,6 +120,10 @@ export function Rail({
         <button type="button" className="rail__item">
           <Icon.Settings /> <span>Settings</span>
         </button>
+        {/* Phones that opted into the full console get a way back to the shell. */}
+        <a className="rail__item rail__item--mobile-only" href="/m?console=mobile">
+          <Icon.Board /> <span>Mobile view</span>
+        </a>
       </div>
     </aside>
   );

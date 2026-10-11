@@ -1,3 +1,9 @@
+import {
+  CONSOLE_MODE_COOKIE,
+  type ConsoleMode,
+  isMobileClient,
+  resolveConsoleRoute,
+} from '@/lib/console-mode';
 import { SESSION_COOKIE_NAME, refreshedSessionCookie } from '@/server/auth/cookie';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -63,10 +69,54 @@ export function middleware(request: NextRequest): NextResponse {
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const response =
+    consoleRedirect(request) ?? NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
   refreshSessionCookie(request, response);
   return response;
+}
+
+const CONSOLE_MODE_MAX_AGE_S = 365 * 24 * 60 * 60;
+
+/**
+ * Phones land on the mobile shell (`/m`); `?console=desktop|mobile` switches
+ * explicitly and remembers the choice. Only document GETs: a server action
+ * POSTed to /dashboard from the shell's reused modals must reach its handler.
+ * See src/lib/console-mode.ts and docs/adr/0018-mobile-shell.md.
+ */
+function consoleRedirect(request: NextRequest): NextResponse | null {
+  if (request.method !== 'GET') return null;
+  const cookieMode = request.cookies.get(CONSOLE_MODE_COOKIE)?.value;
+  const decision = resolveConsoleRoute({
+    pathname: request.nextUrl.pathname,
+    search: request.nextUrl.searchParams,
+    isMobile: isMobileClient({
+      userAgent: request.headers.get('user-agent'),
+      chUaMobile: request.headers.get('sec-ch-ua-mobile'),
+    }),
+    cookieMode: cookieMode === 'desktop' || cookieMode === 'mobile' ? cookieMode : null,
+  });
+  // Same-origin, single-slash-rooted targets only; anything else is a bug upstream.
+  if (!decision.redirectTo || !/^\/(?![/\\])/.test(decision.redirectTo)) return null;
+  const response = NextResponse.redirect(new URL(decision.redirectTo, request.nextUrl.origin), 307);
+  if (decision.setMode) setConsoleMode(response, decision.setMode);
+  return response;
+}
+
+function setConsoleMode(response: NextResponse, mode: ConsoleMode): void {
+  if (mode === 'mobile') {
+    response.cookies.set({ name: CONSOLE_MODE_COOKIE, value: '', path: '/', maxAge: 0 });
+    return;
+  }
+  response.cookies.set({
+    name: CONSOLE_MODE_COOKIE,
+    value: mode,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: CONSOLE_MODE_MAX_AGE_S,
+  });
 }
 
 /**

@@ -14,3 +14,13 @@ export function whatsappWebLink(number: string, text: string): string {
   const phone = number.replace(/\D/g, '');
   return `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * The phone-side equivalent: `wa.me` hands straight to the installed WhatsApp
+ * app, which is what an operator on a mobile wants (the Web deep link above
+ * would open a browser tab instead).
+ */
+export function whatsappMobileLink(number: string, text: string): string {
+  const phone = number.replace(/\D/g, '');
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
