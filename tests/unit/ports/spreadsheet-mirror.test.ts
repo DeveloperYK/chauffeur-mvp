@@ -1,6 +1,7 @@
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import type { Booking, Driver } from '@/server/db/schema';
 import {
+  MONEY_COLUMN_INDICES,
   SHEET_HEADERS,
   SHEET_LAST_COLUMN,
   rowFromBooking,
@@ -116,14 +117,68 @@ describe('rowFromBooking', () => {
     expect(unassigned[10]).toBe('');
   });
 
-  it('produces a 19-column row (A–S) of JJ input columns — the client layout, nothing past Mileage', () => {
+  it('produces a 21-column row (A–U): the JJ input columns, then Waiting (£) and Total (£)', () => {
     const row = rowFromBooking({ booking: baseBooking, driver });
     expect(row.length).toBe(SHEET_HEADERS.length);
-    expect(row.length).toBe(19);
+    expect(row.length).toBe(21);
     expect(SHEET_HEADERS[18]).toBe('Mileage (miles)');
-    expect(SHEET_LAST_COLUMN).toBe('S');
+    expect(SHEET_HEADERS[19]).toBe('Waiting (£)');
+    expect(SHEET_HEADERS[20]).toBe('Total (£)');
+    expect(SHEET_LAST_COLUMN).toBe('U');
     expect(SHEET_HEADERS).not.toContain('PA Name');
     expect(SHEET_HEADERS).not.toContain('PA Contact');
+  });
+
+  it('formats Waiting (£) and Total (£) as currency like the other money columns', () => {
+    expect(MONEY_COLUMN_INDICES).toContain(19);
+    expect(MONEY_COLUMN_INDICES).toContain(20);
+  });
+
+  // Waiting (£) and Total (£) carry the same figures the console's detail panel
+  // shows: waiting = the operator's override, else £1/min × waiting minutes;
+  // total = agreed fare + car park + waiting.
+  it('writes the computed £1/min waiting charge into Waiting (£) (T)', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver }); // 12 min, no override
+    expect(row[19]).toBe('12.00');
+  });
+
+  it('writes the operator override into Waiting (£) when one is set', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, waitingTimeMinutes: 12, waitingChargePence: 500 },
+      driver,
+    });
+    expect(row[19]).toBe('5.00');
+  });
+
+  it('leaves Waiting (£) blank until a waiting time is recorded', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, waitingTimeMinutes: null, waitingChargePence: null },
+      driver,
+    });
+    expect(row[19]).toBe('');
+  });
+
+  it('writes Total (£) = contract price + car park + waiting charge', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver }); // 300 + 7.50 + 12
+    expect(row[20]).toBe('319.50');
+  });
+
+  it('writes Total (£) as just the fare before any completion data lands', () => {
+    const row = rowFromBooking({
+      booking: {
+        ...baseBooking,
+        carParkPence: null,
+        waitingTimeMinutes: null,
+        waitingChargePence: null,
+      },
+      driver,
+    });
+    expect(row[20]).toBe('300.00');
+  });
+
+  it('leaves Total (£) blank when the booking has no agreed fare yet, even with extras', () => {
+    const row = rowFromBooking({ booking: { ...baseBooking, contractPricePence: null }, driver });
+    expect(row[20]).toBe('');
   });
 
   // Booked By (E) is the PA who booked on the exec's behalf — name plus contact —
