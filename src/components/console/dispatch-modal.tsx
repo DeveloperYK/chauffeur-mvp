@@ -9,6 +9,7 @@ import { bookingRef } from '@/lib/booking-ref';
 import { carTypeMismatchNote, requestedVehicleClasses } from '@/lib/car-type-match';
 import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
 import { VEHICLE_CLASSES, VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
+import { whatsappMobileLink } from '@/lib/whatsapp';
 import type { VehicleClass } from '@/server/db/schema';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
@@ -24,6 +25,11 @@ interface DispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSent: (summary: string) => void;
+  /**
+   * Mobile shell: hand the offer to the WhatsApp app (`wa.me`) rather than
+   * WhatsApp Web, which does not run on a phone browser.
+   */
+  mobile?: boolean;
 }
 
 type ClassFilter = 'all' | VehicleClass;
@@ -45,6 +51,7 @@ export function DispatchModal({
   isOpen,
   onClose,
   onSent,
+  mobile = false,
 }: DispatchModalProps) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<ClassFilter>('all');
@@ -85,6 +92,11 @@ export function DispatchModal({
         end,
       );
   }, [booking, assignments]);
+
+  const mobileWhatsappFor = (o: DispatchOfferResult): string => {
+    const number = drivers.find((d) => d.id === o.driverId)?.whatsappNumber;
+    return number ? whatsappMobileLink(number, o.message) : o.whatsappUrl;
+  };
 
   const visible = useMemo(() => {
     return drivers
@@ -271,7 +283,7 @@ export function DispatchModal({
                 </span>
               </div>
 
-              <div style={{ maxHeight: 380, overflowY: 'auto', padding: 1 }}>
+              <div className="driver-list">
                 {visible.length === 0 ? (
                   <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-4)' }}>
                     No active drivers match.
@@ -376,7 +388,7 @@ export function DispatchModal({
                 </div>
               ) : null}
 
-              <div style={{ maxHeight: 360, overflowY: 'auto', padding: 1 }}>
+              <div className="driver-list driver-list--offers">
                 {offers.map((o) => (
                   <div key={o.driverId} className="offer-row" data-link={o.url}>
                     <Avatar name={o.driverName} id={o.driverId} size={32} />
@@ -403,7 +415,7 @@ export function DispatchModal({
                       </button>
                       <a
                         className="btn btn--primary"
-                        href={o.whatsappUrl}
+                        href={mobile ? mobileWhatsappFor(o) : o.whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => markOpened(o.driverId)}
