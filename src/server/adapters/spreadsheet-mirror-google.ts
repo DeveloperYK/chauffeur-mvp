@@ -43,6 +43,7 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
   private sheetId: number | undefined;
   /** Currency number format applied to the money columns once per process. */
   private currencyFormatApplied = false;
+  private headerVerified = false;
 
   constructor(private readonly cfg: GoogleSheetsConfig) {
     if (!cfg.spreadsheetId) throw new Error('spreadsheetId required');
@@ -94,6 +95,10 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
         if (!headerResult.ok) return headerResult;
         columnA = [[SHEET_HEADERS[0]]];
         headerRowIndex = 0;
+      } else {
+        // A sheet laid out under an older layout has a header row that stops
+        // short of today's columns — complete it so new columns are labelled.
+        await this.ensureHeaderComplete(token, headerRowIndex);
       }
 
       // Make the money columns read as currency (£275.50). Best-effort and once
@@ -195,6 +200,51 @@ export class GoogleSheetsSpreadsheetMirror implements SpreadsheetMirrorPort {
 
   private async writeHeaders(token: string): Promise<{ ok: true } | { ok: false; reason: string }> {
     return this.putValues(token, `A1:${SHEET_LAST_COLUMN}1`, Array.from(SHEET_HEADERS));
+  }
+
+  /**
+   * Rewrite the existing header row when it is missing any of today's columns
+   * (e.g. the live sheets predate Waiting (£)/Total (£) at T–U). Checked once
+   * per process and best-effort: a failure is logged, never surfaced, so it
+   * cannot block the booking row from being mirrored.
+   */
+  private async ensureHeaderComplete(token: string, headerRowIndex: number): Promise<void> {
+    if (this.headerVerified) return;
+    try {
+      const rowNumber = headerRowIndex + 1;
+      const current = await this.readRow(token, rowNumber);
+      const complete = SHEET_HEADERS.every((h, i) => current[i] === h);
+      if (!complete) {
+        const result = await this.putValues(
+          token,
+          `A${rowNumber}:${SHEET_LAST_COLUMN}${rowNumber}`,
+          Array.from(SHEET_HEADERS),
+        );
+        if (!result.ok) return;
+        logger.info({ rowNumber }, 'sheets header row completed to current layout');
+      }
+      this.headerVerified = true;
+    } catch (err) {
+      logger.warn({ err }, 'sheets header check failed');
+    }
+  }
+
+  /** Read one row across the mirror's columns (A..SHEET_LAST_COLUMN). */
+  private async readRow(token: string, rowNumber: number): Promise<string[]> {
+    const url = this.valuesUrl(
+      `${this.sheetName}!A${rowNumber}:${SHEET_LAST_COLUMN}${rowNumber}`,
+      '?majorDimension=ROWS',
+    );
+    const res = await this.withTimeout((signal) =>
+      this.fetchImpl(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        signal,
+      }),
+    );
+    if (!res.ok) throw new Error(`sheets read row ${rowNumber} failed: ${res.status}`);
+    const json = (await res.json()) as { values?: string[][] };
+    return json.values?.[0] ?? [];
   }
 
   /** Overwrite the row at the given 1-based row number. */

@@ -3,18 +3,22 @@ import { formatLondonDay, formatLondonTimeOfDay } from '@/lib/dates';
 import { milesStringFromMeters } from '@/lib/distance';
 import { VEHICLE_CLASS_LABEL } from '@/lib/labels';
 import type { Booking, Driver } from '@/server/db/schema';
+import { effectiveWaitingChargePence } from '@/server/domain/waiting-fee';
 
 /**
  * Columns A–S: the *input* columns of the JJ "Main Data" workbook, grouped as
  * the operators know them — Step 1 Job Details (A–L), Step 2 Job Allocation
- * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S). The mirror writes
- * only these, so the backup matches the client's own layout column-for-column.
+ * (M–O), Step 3 Job Completion (P–R) — plus Mileage (S). Then the two fee
+ * columns the client's workbook derives, Waiting (£) and Total (£) (T–U),
+ * written as the same figures the console's detail panel shows (2026-10-11:
+ * the live backup is a plain mirror with no template formulas left to
+ * protect, so the fees are written as values).
  *
  * "Booked By" (E) is the PA who booked on the exec's behalf — name plus
  * contact — exactly as the client fills it in. It is NOT the operator.
  * (2026-09-05: the short-lived extra PA columns T–U were folded back into E
- * at the client's request.) Everything right of S is left for any manual
- * columns the operators add — the mirror never writes past S.
+ * at the client's request.) Everything right of U is left for any manual
+ * columns the operators add — the mirror never writes past U.
  */
 export const SHEET_HEADERS = [
   'Job #', // A
@@ -36,18 +40,20 @@ export const SHEET_HEADERS = [
   'Waiting Time (hh:mm)', // Q
   'Drop Off Time (24hr)', // R
   'Mileage (miles)', // S
+  'Waiting (£)', // T
+  'Total (£)', // U
 ] as const;
 
-/** Last spreadsheet column the mirror writes (19 input columns → S). */
-export const SHEET_LAST_COLUMN = 'S';
+/** Last spreadsheet column the mirror writes (19 input columns + 2 fees → U). */
+export const SHEET_LAST_COLUMN = 'U';
 
 /**
- * Zero-based indices of the money columns — Contract Price (L), Driver Cost (O)
- * and Car Park (P). The Google adapter sets a currency number format on these so
- * they read as "£275.50" (2dp, no dropped trailing zero) while staying real
- * numbers the operators can total in the sheet.
+ * Zero-based indices of the money columns — Contract Price (L), Driver Cost (O),
+ * Car Park (P), Waiting (T) and Total (U). The Google adapter sets a currency
+ * number format on these so they read as "£275.50" (2dp, no dropped trailing
+ * zero) while staying real numbers the operators can total in the sheet.
  */
-export const MONEY_COLUMN_INDICES = [11, 14, 15] as const;
+export const MONEY_COLUMN_INDICES = [11, 14, 15, 19, 20] as const;
 
 export interface MirrorRowInput {
   booking: Booking;
@@ -104,6 +110,32 @@ function driverType(booking: Booking, driver: Driver | null | undefined): string
 /** Pence → "£" string with 2 decimals; blank when null. */
 function poundsOrBlank(pence: number | null): string {
   return pence != null ? (pence / 100).toFixed(2) : '';
+}
+
+/**
+ * Waiting (£): the operator's override when set, else the £1/min charge for the
+ * recorded minutes; blank until a waiting time is recorded. Mirrors the
+ * console's "Waiting charge" stat.
+ */
+function waitingChargeOrBlank(booking: Booking): string {
+  if (booking.waitingTimeMinutes == null && booking.waitingChargePence == null) return '';
+  return poundsOrBlank(
+    effectiveWaitingChargePence(booking.waitingTimeMinutes, booking.waitingChargePence),
+  );
+}
+
+/**
+ * Total (£): agreed fare + car park + waiting charge — the panel's headline
+ * price and the invoicing line total. Blank while the fare is still unknown,
+ * since a total without the fare would read as a real figure.
+ */
+function totalOrBlank(booking: Booking): string {
+  if (booking.contractPricePence == null) return '';
+  const waiting =
+    booking.waitingTimeMinutes == null && booking.waitingChargePence == null
+      ? 0
+      : effectiveWaitingChargePence(booking.waitingTimeMinutes, booking.waitingChargePence);
+  return poundsOrBlank(booking.contractPricePence + (booking.carParkPence ?? 0) + waiting);
 }
 
 /** Waiting minutes → "hh:mm"; blank when not recorded. */
@@ -171,5 +203,7 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     waitingHoursMinutes(booking.waitingTimeMinutes), // Q Waiting Time (hh:mm)
     booking.dropoffAt ? formatTimeOfDay(booking.dropoffAt) : '', // R Drop Off Time (24hr)
     milesStringFromMeters(booking.distanceMeters), // S Mileage (miles)
+    waitingChargeOrBlank(booking), // T Waiting (£)
+    totalOrBlank(booking), // U Total (£)
   ];
 }

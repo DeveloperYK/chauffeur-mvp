@@ -106,6 +106,12 @@ function makeFakeSheet(): FakeSheet {
       return jsonResponse({ sheets: [{ properties: { sheetId: 0, title: 'Main Data' } }] });
     }
     if (method === 'GET') {
+      // A single-row range (the header check): `!A<n>:<col><n>` → that row.
+      const rowMatch = /!A(\d+)(?:%3A|:)[A-Z]+\1(?:\?|$)/.exec(decodeURIComponent(url));
+      if (rowMatch) {
+        const r = rows[Number(rowMatch[1]) - 1];
+        return jsonResponse(r?.length ? { values: [r] } : {});
+      }
       // readColumnA — only column A is returned by Sheets for an A:A range.
       return jsonResponse({ values: rows.map((r) => [r[0] ?? '']) });
     }
@@ -160,13 +166,13 @@ describe('GoogleSheetsSpreadsheetMirror upsert semantics', () => {
     expect(sheet.rows[1]?.[0]).toBe(bookingRef(base.seq));
   });
 
-  it('sets a currency format on the money columns (Contract Price L, Driver Cost O, Car Park P)', async () => {
+  it('sets a currency format on the money columns (Contract Price L, Driver Cost O, Car Park P, Waiting T, Total U)', async () => {
     const { adapter, sheet } = createAdapterWithFakeSheet();
 
     await adapter.upsertRow(createValidMirrorInput());
 
     const formattedColumns = sheet.formats.map((f) => f.columnIndex).sort((a, b) => a - b);
-    expect(formattedColumns).toEqual([11, 14, 15]);
+    expect(formattedColumns).toEqual([11, 14, 15, 19, 20]);
     for (const f of sheet.formats) {
       expect(f.type).toBe('CURRENCY');
       expect(f.pattern).toBe('£#,##0.00');
@@ -180,8 +186,44 @@ describe('GoogleSheetsSpreadsheetMirror upsert semantics', () => {
     await adapter.upsertRow(createValidMirrorInput({ booking: { ...base, state: 'assigned' } }));
     await adapter.upsertRow(createValidMirrorInput({ booking: { ...base, state: 'completed' } }));
 
-    // 3 money columns formatted exactly once, not re-sent on every write.
-    expect(sheet.formats).toHaveLength(3);
+    // 5 money columns formatted exactly once, not re-sent on every write.
+    expect(sheet.formats).toHaveLength(5);
+  });
+
+  // The live sheets were laid out before Waiting (£)/Total (£) existed, so their
+  // header row stops at S. The adapter must complete the header itself — the
+  // operators should never have to type a column name by hand.
+  it('completes a header row that stops short of the current layout (adds T–U)', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    sheet.rows.push(SHEET_HEADERS.slice(0, 19) as unknown as string[]);
+
+    const result = await adapter.upsertRow(createValidMirrorInput());
+
+    expect(result).toEqual({ ok: true });
+    expect(sheet.rows[0]).toEqual(Array.from(SHEET_HEADERS));
+    expect(sheet.rows[1]?.[0]).toBe('BKNG-00001');
+    expect(sheet.rows[1]).toHaveLength(SHEET_HEADERS.length);
+  });
+
+  it('completes a short header row wherever the template put it (header mid-sheet)', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    sheet.rows.push(['Lists & Reference'], [], [], ['Data Input']);
+    sheet.rows.push(SHEET_HEADERS.slice(0, 19) as unknown as string[]); // row 5
+
+    await adapter.upsertRow(createValidMirrorInput());
+
+    expect(sheet.rows[4]).toEqual(Array.from(SHEET_HEADERS));
+    expect(sheet.rows[5]?.[0]).toBe('BKNG-00001');
+  });
+
+  it('leaves a complete header row untouched', async () => {
+    const { adapter, sheet } = createAdapterWithFakeSheet();
+    sheet.rows.push(Array.from(SHEET_HEADERS));
+
+    await adapter.upsertRow(createValidMirrorInput());
+
+    expect(sheet.rows[0]).toEqual(Array.from(SHEET_HEADERS));
+    expect(sheet.rows).toHaveLength(2);
   });
 
   it('updates the same booking in place instead of appending a duplicate', async () => {
