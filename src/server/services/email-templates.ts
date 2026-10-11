@@ -53,24 +53,35 @@ const CONFIDENTIALITY_NOTICE =
   'disclosure, or distribution of the information in this email is strictly prohibited. We ' +
   'respect your privacy and are committed to protecting your personal data.';
 
+/** One line of the details table: a short label and its value. */
+export interface EmailDetailRow {
+  label: string;
+  value: string;
+}
+
+/**
+ * The operator-editable content of an exec email — everything between the
+ * brand header and the signature footer. The console edits these parts as
+ * structured fields (not free text) so a changed or added detail can never
+ * fall out of the branded layout; `renderExecEmail` turns them back into the
+ * same HTML/text the pre-filled templates produce.
+ */
+export interface EmailParts {
+  intro: string;
+  rows: EmailDetailRow[];
+  closing: string;
+}
+
 export interface RenderedEmail {
   subject: string;
   html: string;
   text: string;
-  /**
-   * Operator-editable body: the message content (intro, details, closing)
-   * WITHOUT the brand header, signature or confidentiality notice — those are
-   * re-applied automatically when the edited draft is sent (see
-   * renderCustomExecEmail). Pre-fills the console's send-email form.
-   */
-  draft: string;
+  /** Pre-fills the console's send-email form; see `EmailParts`. */
+  parts: EmailParts;
 }
 
-interface Layout {
+interface Layout extends EmailParts {
   heading: string;
-  intro: string;
-  rows: { label: string; value: string }[];
-  closing: string;
 }
 
 function escapeHtml(s: string): string {
@@ -99,26 +110,17 @@ function destination(b: Booking): string {
   return b.dropoffAddress ?? 'As directed';
 }
 
-/** The editable draft body for a layout: content only, no brand or footer. */
-function renderDraft({ intro, rows, closing }: Layout): string {
-  const lines = rows.map((r) => `${r.label}: ${r.value}`);
-  return [intro, '', ...lines, '', closing].join('\n');
-}
-
 function renderText({ heading, intro, rows, closing }: Layout): string {
-  const width = Math.max(...rows.map((r) => r.label.length));
+  const width = Math.max(0, ...rows.map((r) => r.label.length));
   const lines = rows.map((r) => `  ${r.label.padEnd(width)}   ${r.value}`);
   return [
     SMS_BRAND_NAME,
     '',
     heading,
     '',
-    intro,
-    '',
-    ...lines,
-    '',
-    closing,
-    '',
+    ...(intro ? [intro, ''] : []),
+    ...(lines.length ? [...lines, ''] : []),
+    ...(closing ? [closing, ''] : []),
     '--',
     COMPANY.legalName,
     COMPANY.email,
@@ -127,7 +129,7 @@ function renderText({ heading, intro, rows, closing }: Layout): string {
     '',
     CONFIDENTIALITY_NOTICE,
     '',
-    `${SMS_BRAND_NAME} · Automated booking notification`,
+    `${SMS_BRAND_NAME} · Booking notification`,
   ].join('\n');
 }
 
@@ -145,18 +147,30 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
     `<div style="padding:18px 28px;border-bottom:3px solid #111827;"><span style="font-size:17px;font-weight:700;letter-spacing:.02em;color:#111827;">${brand}</span></div>`,
     '<div style="padding:26px 28px;">',
     `<h1 style="margin:0 0 14px;font-size:19px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h1>`,
-    `<p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#374151;">${escapeHtml(intro)}</p>`,
-    `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;">${rowsHtml}</table>`,
-    `<p style="margin:22px 0 0;font-size:14px;line-height:1.5;color:#4b5563;">${escapeHtml(closing)}</p>`,
+    intro
+      ? `<p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#374151;white-space:pre-line;">${escapeHtml(intro)}</p>`
+      : '',
+    rows.length
+      ? `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;">${rowsHtml}</table>`
+      : '',
+    closing
+      ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.5;color:#4b5563;white-space:pre-line;">${escapeHtml(closing)}</p>`
+      : '',
     '</div>',
     '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
     `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
     `<p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:#6b7280;"><a href="mailto:${COMPANY.email}" style="color:#6b7280;">${COMPANY.email}</a><br><a href="https://${COMPANY.website}" style="color:#6b7280;">${COMPANY.website}</a><br>T: ${escapeHtml(COMPANY.phone)}</p>`,
     `<p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;">${escapeHtml(CONFIDENTIALITY_NOTICE)}</p>`,
-    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Automated booking notification</p>`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Booking notification</p>`,
     '</div>',
     '</div></body></html>',
   ].join('');
+}
+
+/** Render a layout as the full email: subject + HTML + text + editable parts. */
+function render(subject: string, layout: Layout): RenderedEmail {
+  const { heading: _heading, ...parts } = layout;
+  return { subject, html: renderHtml(layout), text: renderText(layout), parts };
 }
 
 /**
@@ -189,12 +203,7 @@ export function assignedEmail(
     ],
     closing: 'To make any changes, please contact our team.',
   };
-  return {
-    subject: `Booking confirmed — ${ref} · ${when}`,
-    html: renderHtml(layout),
-    text: renderText(layout),
-    draft: renderDraft(layout),
-  };
+  return render(`Booking confirmed — ${ref} · ${when}`, layout);
 }
 
 /**
@@ -225,117 +234,22 @@ export function driverDetailsEmail(
     ],
     closing: 'To make any changes, please contact our team.',
   };
-  return {
-    subject: `Your driver details — ${ref} · ${when}`,
-    html: renderHtml(layout),
-    text: renderText(layout),
-    draft: renderDraft(layout),
-  };
+  return render(`Your driver details — ${ref} · ${when}`, layout);
 }
 
 /**
- * One line of the operator's edited draft that reads as "Label: value" —
- * short label, colon-space separator. These lines are upgraded back into the
- * branded details table so an edited email looks exactly as polished as the
- * pre-filled one. Everything else stays an ordinary paragraph.
+ * Render the operator-edited parts of an exec email in the branded shell:
+ * JJ header, the email's fixed headline, intro, details table, closing, then
+ * the signature + confidentiality footer. Same renderer as the pre-filled
+ * templates, so an edited email is pixel-identical in layout to an unedited
+ * one — there is no parsing step that could lose the table.
  */
-function parseDetailLine(line: string): { label: string; value: string } | null {
-  const idx = line.indexOf(': ');
-  if (idx <= 0 || idx > 32) return null;
-  const label = line.slice(0, idx).trim();
-  const value = line.slice(idx + 2).trim();
-  if (!label || !value) return null;
-  // A sentence ("Note: please wait at the side entrance.") is not a row —
-  // labels are short noun phrases without their own punctuation.
-  if (/https?:\/\//.test(label)) return null;
-  return { label, value };
-}
-
-type CustomBlock =
-  | { type: 'paragraph'; text: string }
-  | { type: 'table'; rows: { label: string; value: string }[] };
-
-/** Group the draft into paragraphs and consecutive-detail-line tables. */
-function parseCustomBody(bodyText: string): CustomBlock[] {
-  const blocks: CustomBlock[] = [];
-  for (const rawPara of bodyText.split(/\n{2,}/)) {
-    const para = rawPara.trim();
-    if (!para) continue;
-    const lines = para.split('\n').map((l) => l.trim());
-    const rows = lines.map(parseDetailLine);
-    // Only a run of ≥2 recognisable rows becomes a table; a lone "Label: x"
-    // sentence stays prose.
-    if (rows.length >= 2 && rows.every((r) => r !== null)) {
-      blocks.push({ type: 'table', rows: rows as { label: string; value: string }[] });
-    } else {
-      blocks.push({ type: 'paragraph', text: para });
-    }
-  }
-  return blocks;
-}
-
-/**
- * Wrap an operator-edited draft in the branded shell: JJ header, optional
- * headline, the edited text — with "Label: value" runs rendered as the same
- * details table the pre-filled emails use — then the standard signature +
- * confidentiality footer. The operator controls the words; the email always
- * reads clean and scannable.
- */
-export function renderCustomExecEmail(
+export function renderExecEmail(
   subject: string,
-  bodyText: string,
-  heading?: string,
+  parts: EmailParts,
+  heading: string,
 ): RenderedEmail {
-  const brand = escapeHtml(SMS_BRAND_NAME);
-  const content = parseCustomBody(bodyText)
-    .map((block) => {
-      if (block.type === 'table') {
-        const rowsHtml = block.rows
-          .map(
-            (r) =>
-              `<tr><td style="padding:7px 0;color:#6b7280;font-size:13px;width:130px;vertical-align:top;">${escapeHtml(r.label)}</td><td style="padding:7px 0;color:#111827;font-size:14px;font-weight:600;">${escapeHtml(r.value)}</td></tr>`,
-          )
-          .join('');
-        return `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;margin:0 0 20px;">${rowsHtml}</table>`;
-      }
-      return `<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#374151;white-space:pre-line;">${escapeHtml(block.text)}</p>`;
-    })
-    .join('');
-  const html = [
-    '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f5;padding:24px;">',
-    '<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">',
-    `<div style="padding:18px 28px;border-bottom:3px solid #111827;"><span style="font-size:17px;font-weight:700;letter-spacing:.02em;color:#111827;">${brand}</span></div>`,
-    '<div style="padding:26px 28px;">',
-    heading
-      ? `<h1 style="margin:0 0 14px;font-size:19px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h1>`
-      : '',
-    content,
-    '</div>',
-    '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
-    `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
-    `<p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:#6b7280;"><a href="mailto:${COMPANY.email}" style="color:#6b7280;">${COMPANY.email}</a><br><a href="https://${COMPANY.website}" style="color:#6b7280;">${COMPANY.website}</a><br>T: ${escapeHtml(COMPANY.phone)}</p>`,
-    `<p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;">${escapeHtml(CONFIDENTIALITY_NOTICE)}</p>`,
-    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Booking notification</p>`,
-    '</div>',
-    '</div></body></html>',
-  ].join('');
-  const text = [
-    SMS_BRAND_NAME,
-    '',
-    ...(heading ? [heading, ''] : []),
-    bodyText,
-    '',
-    '--',
-    COMPANY.legalName,
-    COMPANY.email,
-    COMPANY.website,
-    `T: ${COMPANY.phone}`,
-    '',
-    CONFIDENTIALITY_NOTICE,
-    '',
-    `${SMS_BRAND_NAME} · Booking notification`,
-  ].join('\n');
-  return { subject, html, text, draft: bodyText };
+  return render(subject, { heading, ...parts });
 }
 
 /**
@@ -359,10 +273,5 @@ export function changeExecEmail(booking: Booking): RenderedEmail {
     ],
     closing: 'If anything looks incorrect, please contact our team.',
   };
-  return {
-    subject: `Booking update confirmed — ${ref} · ${when}`,
-    html: renderHtml(layout),
-    text: renderText(layout),
-    draft: renderDraft(layout),
-  };
+  return render(`Booking update confirmed — ${ref} · ${when}`, layout);
 }

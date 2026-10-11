@@ -1,9 +1,10 @@
 import type { Booking } from '@/server/db/schema';
 import {
+  type EmailParts,
   assignedEmail,
   changeExecEmail,
   driverDetailsEmail,
-  renderCustomExecEmail,
+  renderExecEmail,
 } from '@/server/services/email-templates';
 import { describe, expect, it } from 'vitest';
 
@@ -95,63 +96,104 @@ describe('services/email-templates', () => {
     }
   });
 
-  it('exposes an editable draft body without the brand header or footer', () => {
+  it('exposes the editable parts — intro, detail rows, closing — without brand header or footer', () => {
     const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
-    expect(e.draft).toContain('Marcus Bell');
-    expect(e.draft).toContain('Heathrow Terminal 5');
-    expect(e.draft).not.toContain('JJ Chauffeuring Services (UK) Ltd');
-    expect(e.draft).not.toContain('intended only for the named recipients');
+    expect(e.parts.intro).toContain('booked and confirmed');
+    expect(e.parts.rows).toContainEqual({ label: 'Driver', value: 'Marcus Bell' });
+    expect(e.parts.rows).toContainEqual({ label: 'Destination', value: 'Heathrow Terminal 5' });
+    expect(e.parts.closing).toContain('contact our team');
+    const flat = JSON.stringify(e.parts);
+    expect(flat).not.toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(flat).not.toContain('intended only for the named recipients');
   });
 
-  it('renders "Label: value" lines of the edited draft as a styled details table', () => {
-    const e = renderCustomExecEmail(
-      'S',
-      'Your chauffeur is booked and confirmed. The details are below.\n\nReference: BKNG-00042\nDate & time: Sat 23 May, 14:00\nPickup: 11 Belsize Park Gardens, London NW3 4AB\n\nTo make any changes, please contact our team.',
-      'Booking confirmed',
-    );
-    // The details block becomes a two-column table, not a wall of text.
-    expect(e.html).toContain('<table');
-    expect(e.html).toContain('>Reference</td>');
-    expect(e.html).toContain('BKNG-00042');
-    // Values keep their own colons (the time survives the label split).
-    expect(e.html).toContain('Sat 23 May, 14:00');
-    // The heading renders as the email headline.
-    expect(e.html).toContain('Booking confirmed');
-    // Intro and closing stay ordinary paragraphs.
-    expect(e.html).toContain('Your chauffeur is booked and confirmed.');
-    expect(e.html).toContain('To make any changes, please contact our team.');
-  });
-
-  it('a fully rewritten draft with no Label: value lines renders as plain paragraphs', () => {
-    const e = renderCustomExecEmail('S', 'Hello Eric,\n\nSee you at 2pm outside the hotel.');
-    expect(e.html).not.toContain('<table');
-    expect(e.html).toContain('See you at 2pm outside the hotel.');
-  });
-
-  it('the default draft round-trips into the same table the old auto email had', () => {
-    const auto = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
-    const manual = renderCustomExecEmail(auto.subject, auto.draft, 'Booking confirmed');
-    for (const part of ['>Driver</td>', 'Marcus Bell', '>Pickup</td>', 'Heathrow Terminal 5']) {
-      expect(manual.html).toContain(part);
+  it('the default parts render byte-for-byte the same email as the template', () => {
+    for (const auto of [
+      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      changeExecEmail(booking()),
+    ]) {
+      const heading = auto.html.match(/<h1[^>]*>(.*?)<\/h1>/)?.[1] ?? '';
+      const manual = renderExecEmail(auto.subject, auto.parts, heading);
+      expect(manual.html).toBe(auto.html);
+      expect(manual.text).toBe(auto.text);
     }
   });
 
-  it('renderCustomExecEmail wraps operator-edited text in the branded shell', () => {
-    const e = renderCustomExecEmail('Custom subject', 'Hello Eric,\n\nSee you at 2pm.');
-    expect(e.subject).toBe('Custom subject');
-    expect(e.html).toContain('<!doctype html>');
-    expect(e.html).toContain('Hello Eric,');
-    expect(e.html).toContain('See you at 2pm.');
-    // Branding + signature are appended automatically.
-    expect(e.html).toContain('JJ Chauffeuring Services (UK) Ltd');
-    expect(e.text).toContain('JJ Chauffeuring Services (UK) Ltd');
-    expect(e.text).toContain('See you at 2pm.');
+  const parts: EmailParts = {
+    intro: 'Your chauffeur is booked and confirmed. The details are below.',
+    rows: [
+      { label: 'Reference', value: 'BKNG-00042' },
+      { label: 'Date & time', value: 'Sat 23 May, 14:00' },
+      { label: 'Pickup', value: '11 Belsize Park Gardens, London NW3 4AB' },
+    ],
+    closing: 'To make any changes, please contact our team.',
+  };
+
+  it('renderExecEmail renders every detail row as a table row — an added row keeps the table', () => {
+    const added = { ...parts, rows: [...parts.rows, { label: 'Flight', value: 'BA123' }] };
+    const e = renderExecEmail('S', added, 'Booking confirmed');
+    expect(e.html.match(/<tr>/g)?.length).toBe(4);
+    expect(e.html).toContain('>Flight</td>');
+    expect(e.html).toContain('BA123');
+    // Values keep their own colons and the table survives a label with spaces.
+    expect(e.html).toContain('Sat 23 May, 14:00');
+    expect(e.html).toContain('>Date &amp; time</td>');
+    expect(e.html).toContain('<h1');
+    expect(e.html).toContain('Booking confirmed');
+    expect(e.html).toContain('Your chauffeur is booked and confirmed.');
+    expect(e.html).toContain('To make any changes, please contact our team.');
+    // Plain-text fallback lists the new row too.
+    expect(e.text).toMatch(/Flight\s+BA123/);
   });
 
-  it('renderCustomExecEmail HTML-escapes the operator-edited body', () => {
-    const e = renderCustomExecEmail('S', '<script>alert(1)</script> hello');
+  it('renderExecEmail with no rows renders no table, and an empty intro or closing renders nothing', () => {
+    const e = renderExecEmail(
+      'S',
+      { intro: 'Hello Eric,', rows: [], closing: '' },
+      'Booking confirmed',
+    );
+    expect(e.html).not.toContain('<table');
+    expect(e.html).toContain('Hello Eric,');
+    expect(e.html.match(/<p /g)?.length).toBe(1 + 4); // intro only + 4 footer paragraphs
+  });
+
+  it('renderExecEmail never guesses rows from prose — a "Note: …" sentence in the intro stays prose', () => {
+    const e = renderExecEmail(
+      'S',
+      { intro: 'Note: please wait at the side entrance.\nSecond line.', rows: [], closing: '' },
+      'Booking confirmed',
+    );
+    expect(e.html).not.toContain('<table');
+    expect(e.html).toContain('Note: please wait at the side entrance.');
+    // Line breaks inside a paragraph are preserved.
+    expect(e.html).toContain('white-space:pre-line');
+  });
+
+  it('renderExecEmail wraps the parts in the branded shell', () => {
+    const e = renderExecEmail('Custom subject', parts, 'Booking confirmed');
+    expect(e.subject).toBe('Custom subject');
+    expect(e.html).toContain('<!doctype html>');
+    expect(e.html).toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(e.text).toContain('JJ Chauffeuring Services (UK) Ltd');
+    expect(e.text).toContain('To make any changes, please contact our team.');
+    expect(e.parts).toEqual(parts);
+  });
+
+  it('renderExecEmail HTML-escapes the operator-edited intro, labels and values', () => {
+    const e = renderExecEmail(
+      'S',
+      {
+        intro: '<script>alert(1)</script> hello',
+        rows: [{ label: '<b>Flight</b>', value: 'BA<123>' }],
+        closing: '',
+      },
+      'Booking confirmed',
+    );
     expect(e.html).not.toContain('<script>alert(1)</script>');
     expect(e.html).toContain('&lt;script&gt;');
+    expect(e.html).toContain('&lt;b&gt;Flight&lt;/b&gt;');
+    expect(e.html).toContain('BA&lt;123&gt;');
     expect(e.text).toContain('<script>alert(1)</script> hello');
   });
 
@@ -210,7 +252,7 @@ describe('services/email-templates', () => {
       assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
       driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
       changeExecEmail(booking()),
-      renderCustomExecEmail('S', 'body'),
+      renderExecEmail('S', { intro: 'body', rows: [], closing: '' }, 'Booking confirmed'),
     ];
     for (const e of emails) {
       for (const part of [
