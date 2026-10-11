@@ -89,6 +89,21 @@ describe('services/dispatch (integration)', () => {
     appUrl: APP_URL,
   });
 
+  it('returns the formatted driver message (copy = same text WhatsApp pre-fills)', async () => {
+    const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Copy button text must be the exact message the WhatsApp button pre-fills.
+    expect(r.whatsappUrl).toBe(
+      `https://web.whatsapp.com/send?phone=447911000001&text=${encodeURIComponent(r.message)}`,
+    );
+    // Message carries the branded short link, never the long signed URL.
+    expect(r.message).toContain('New job');
+    expect(r.message).toContain(r.shortUrl);
+    expect(r.message).not.toContain(r.url);
+    expect(r.message).not.toContain('/j/');
+  });
+
   it('generates a dispatch link and a WhatsApp Web URL', async () => {
     const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
     expect(r.ok).toBe(true);
@@ -407,6 +422,9 @@ describe('services/dispatch (integration)', () => {
       for (const o of r.offers) {
         expect(o.url.startsWith(`${APP_URL}/j/`)).toBe(true);
         expect(o.whatsappUrl).toContain(o.driver.whatsappNumber.replace('+', ''));
+        expect(o.whatsappUrl).toContain(encodeURIComponent(o.message));
+        expect(o.message).toContain(o.shortUrl);
+        expect(o.message).not.toContain('/j/');
       }
       // The booking stays unassigned — minting commits no driver.
       const [b] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
