@@ -12,8 +12,12 @@ let cached: { db: Database; close: () => Promise<void>; reset: () => Promise<voi
 
 /**
  * Pool settings tuned for a serverless host that freezes idle instances and
- * a transaction-mode pooler in front of Postgres. See docs/adr/0014-db-fail-fast.md.
- * - `max: 5` — one instance never holds more than a handful of pooler slots.
+ * Supabase's pooler in front of Postgres. See docs/adr/0014-db-fail-fast.md and
+ * docs/adr/0015 (session pooler, 30 clients in total).
+ * - `max: 2` — one instance holds at most two of the pooler's 30 session
+ *   slots. A deploy runs the old and new instances side by side, frozen
+ *   instances keep their sockets until reaped, and there are two regions, so
+ *   a dozen live instances is routine. `max: 5` hit the cap on 2026-10-11.
  * - `connect_timeout` / `max_lifetime` — a socket the pooler has dropped while
  *   the instance was frozen is discarded rather than reused indefinitely.
  * - `keep_alive` — TCP keepalive so a dead peer is noticed sooner.
@@ -21,7 +25,7 @@ let cached: { db: Database; close: () => Promise<void>; reset: () => Promise<voi
  *   statements can't span pooled backend connections.
  */
 export const POOL_OPTIONS = {
-  max: 5,
+  max: 2,
   idle_timeout: 20,
   connect_timeout: 10,
   max_lifetime: 10 * 60,
