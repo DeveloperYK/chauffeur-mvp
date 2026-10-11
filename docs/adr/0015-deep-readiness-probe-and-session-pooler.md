@@ -22,8 +22,8 @@ entire 26 hours, and nothing watched production between sessions.
    binds a client socket to one backend for the socket's lifetime, so pipelined
    extended-protocol messages cannot be split across a transaction boundary
    inside the pooler. Applied as a Vercel env change (`DATABASE_URL`), not code.
-   Migrations already used this URL. Pool `max: 5` per instance keeps us well
-   inside the pooler's backend limit.
+   Migrations already used this URL. Pool `max` per instance is kept small so
+   the pooler's **30-client** cap holds across a deploy (see addendum).
 2. **`/api/readyz` is the monitored endpoint.** `checkBoardPath` runs the same
    five reads the board runs, in parallel, through the same pool, under a 5 s
    budget, and returns 503 with a reason on failure. A timeout also resets the
@@ -44,3 +44,24 @@ entire 26 hours, and nothing watched production between sessions.
   memory say so.
 - If session-mode connection counts ever bite, reduce `POOL_OPTIONS.max` before
   considering `:6543` again.
+
+## Addendum (2026-10-11) — the connection cap bit
+
+A routine promote deploy at 21:30 UTC took the board and the clock tick down
+for six minutes with `(EMAXCONNSESSION) max clients reached in session mode -
+max clients are limited to pool_size: 30`. Session mode admits 30 client
+connections in total. Each Vercel function instance held `max: 5`; a deploy
+runs the previous deployment's instances alongside the new ones, frozen
+instances keep their sockets until Vercel reaps them (~5 min), and the app runs
+in two regions — so six-plus live instances exhausted the cap. It cleared on
+its own once the old instances were reaped.
+
+Changes:
+
+- `POOL_OPTIONS.max` is now **2** (a unit test pins it), giving ~15 instances
+  of headroom instead of 6.
+- Self-heal (ADR 0016) now redeploys **only on a timeout**. The `error` the
+  full pooler returned triggered a redeploy whose build died on the same error
+  in its migration step, burning the hour's cooldown for nothing.
+- If the cap bites again: raise *Pool Size* for the session pooler in the
+  Supabase dashboard before anything else. Redeploying never frees slots.
