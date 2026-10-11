@@ -4276,3 +4276,87 @@ button.driver-row {
     min-width: 720px;
   }
 }
+
+/* ── Exec email editor (send-exec-email-modal) ───────────────────────────────
+   The email's editable parts laid out in the order they are sent: headline,
+   intro, details table, closing. Structured so an edit cannot break the
+   branded layout. */
+.email-editor {
+  margin-top: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  background: var(--surface);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+.email-editor__heading {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.email-editor__text {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
+  resize: vertical;
+}
+.email-editor__text:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-ring);
+}
+.email-editor__rows {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: 6px 0;
+  display: grid;
+  gap: 4px;
+}
+.email-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto auto auto;
+  gap: 6px;
+  align-items: center;
+}
+.email-row input {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  padding: 6px 9px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+}
+.email-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-ring);
+}
+.email-row__label {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.email-row__value {
+  font-weight: 600;
+}
+.email-row .icon-btn[disabled] {
+  opacity: 0.3;
+  cursor: default;
+}
+.email-editor__rows-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+.email-editor__rows-foot .err {
+  font-size: 11.5px;
+  color: var(--lz-red-fg);
+}

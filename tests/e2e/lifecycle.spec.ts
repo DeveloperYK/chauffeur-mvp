@@ -201,10 +201,16 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .getByRole('button', { name: 'Preview & send' })
     .click();
   const emailModal = page.locator('.modal.is-open', { hasText: 'Send booking confirmation email' });
-  // The draft shows exactly what will be sent — subject + body pre-filled,
-  // recipient editable (blank here: the seeded booking has no exec email).
-  await expect(emailModal.locator('input[type="text"]')).toHaveValue(/BKNG-/);
-  await expect(emailModal.locator('textarea')).toHaveValue(/Reference:/);
+  // The draft shows exactly what will be sent — subject + the email's parts
+  // (intro, details rows, closing) pre-filled; recipient editable (blank here:
+  // the seeded booking has no exec email).
+  await expect(emailModal.locator('input[type="text"]').first()).toHaveValue(/BKNG-/);
+  await expect(emailModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
+  // The operator adds a detail. It is a structured row, so the branded table
+  // keeps its shape on send (the whole point of the structured editor).
+  await emailModal.getByRole('button', { name: 'Add detail' }).click();
+  await emailModal.getByLabel('Label').last().fill('Flight');
+  await emailModal.getByLabel('Value').last().fill('BA123');
   await emailModal.locator('input[type="email"]').fill('delivered@resend.dev');
   await emailModal.getByRole('button', { name: 'Send email' }).click();
   await expect(page.locator('.toast')).toContainText(/email sent to delivered@resend.dev/i);
@@ -219,7 +225,12 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .getByRole('button', { name: 'Preview & send' })
     .click();
   const detailsModal = page.locator('.modal.is-open', { hasText: 'Send driver details email' });
-  await expect(detailsModal.locator('textarea')).toHaveValue(/Driver:/);
+  await expect(detailsModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
+  expect(
+    await detailsModal
+      .getByLabel('Label')
+      .evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value)),
+  ).toContain('Driver');
   await detailsModal.locator('input[type="email"]').fill('delivered@resend.dev');
   await detailsModal.getByRole('button', { name: 'Send email' }).click();
   await expect(page.locator('.toast')).toContainText(/email sent/i);
@@ -234,6 +245,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .getByRole('button', { name: /Exec messages/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
+  // The added detail went out as a row of the details table.
+  await expect(page.locator('.panel.is-open')).toContainText(/Flight\s+BA123/);
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: /Exec messages/ })
@@ -673,7 +686,7 @@ test('mid-flight change: driver confirms via the link, operator sends the update
   const updateModal = page.locator('.modal.is-open', { hasText: 'Send booking update email' });
   // Pre-addressed to the exec email captured on the edit, draft holds the new plan.
   await expect(updateModal.locator('input[type="email"]')).toHaveValue('exec-change@example.com');
-  await expect(updateModal.locator('textarea')).toHaveValue(/Reference:/);
+  await expect(updateModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
   await updateModal.locator('input[type="email"]').fill('delivered@resend.dev');
   await updateModal.getByRole('button', { name: 'Send email' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking update email sent/i);
