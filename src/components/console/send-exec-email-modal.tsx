@@ -15,9 +15,16 @@ export const EXEC_EMAIL_TITLE: Record<ExecEmailKind, string> = {
   changed: 'Booking update',
 };
 
+/** A details-table row in the editor; `id` is a client-only React key. */
+interface EditableRow {
+  id: number;
+  label: string;
+  value: string;
+}
+
 interface SendExecEmailModalProps {
   bookingId: string;
-  /** Which of the two emails to draft; null keeps the modal closed. */
+  /** Which email to draft; null keeps the modal closed. */
   kind: ExecEmailKind | null;
   onClose: () => void;
   /** Called after a successful send so the panel can refresh its data. */
@@ -25,15 +32,19 @@ interface SendExecEmailModalProps {
 }
 
 /**
- * Preview-and-send for the exec emails. The operator sees exactly what will go
- * out — recipient, subject, body — and can change any of it before pressing
- * send. The branded header, signature and confidentiality notice are applied
- * automatically around the body.
+ * Preview-and-send for the exec emails. The operator edits the email as the
+ * parts it is built from — intro, the details table (rows can be changed,
+ * added, removed, reordered) and closing — and the server renders those parts
+ * through the same branded layout as the pre-filled draft. Because nothing is
+ * parsed back out of free text, an edit can never break the formatting.
  */
 export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExecEmailModalProps) {
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [heading, setHeading] = useState('');
+  const [intro, setIntro] = useState('');
+  const [rows, setRows] = useState<EditableRow[]>([]);
+  const [closing, setClosing] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -49,7 +60,10 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
         if (res.ok && res.draft) {
           setTo(res.draft.to);
           setSubject(res.draft.subject);
-          setBody(res.draft.body);
+          setHeading(res.draft.heading);
+          setIntro(res.draft.intro);
+          setRows(res.draft.rows.map((r, i) => ({ id: i, ...r })));
+          setClosing(res.draft.closing);
         } else {
           setError(res.error ?? 'Could not build the email.');
         }
@@ -57,11 +71,41 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
       .finally(() => setLoading(false));
   }, [bookingId, kind]);
 
+  const updateRow = (id: number, patch: Partial<Pick<EditableRow, 'label' | 'value'>>) =>
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const removeRow = (id: number) => setRows((prev) => prev.filter((r) => r.id !== id));
+  const moveRow = (id: number, dir: -1 | 1) =>
+    setRows((prev) => {
+      const i = prev.findIndex((r) => r.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j] as EditableRow, next[i] as EditableRow];
+      return next;
+    });
+  const addRow = () =>
+    setRows((prev) => [
+      ...prev,
+      { id: (prev.reduce((m, r) => Math.max(m, r.id), -1) ?? -1) + 1, label: '', value: '' },
+    ]);
+
+  const incompleteRow = rows.some((r) => !r.label.trim() || !r.value.trim());
+  const empty = !intro.trim() && rows.length === 0 && !closing.trim();
+  const canSend = !loading && !isPending && !!to && !!subject.trim() && !empty && !incompleteRow;
+
   const send = () => {
     if (!kind) return;
     setError(null);
     startTransition(async () => {
-      const res = await sendExecEmailAction({ bookingId, kind, to, subject, body });
+      const res = await sendExecEmailAction({
+        bookingId,
+        kind,
+        to,
+        subject,
+        intro,
+        rows: rows.map(({ label, value }) => ({ label, value })),
+        closing,
+      });
       if (!res.ok) {
         setError(res.error ?? 'Could not send the email.');
         return;
@@ -74,7 +118,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
-      <div className="modal__card" style={{ width: 620 }}>
+      <div className="modal__card" style={{ width: 640 }}>
         <header className="modal__head">
           <div className="row">
             <div>
@@ -82,8 +126,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
                 {kind ? `Send ${EXEC_EMAIL_TITLE[kind].toLowerCase()} email` : ''}
               </div>
               <div className="modal__sub">
-                Check it over and edit anything before it goes. The JJ header, signature and
-                confidentiality notice are added automatically.
+                The JJ header, signature and confidentiality notice are added automatically.
               </div>
             </div>
             <span style={{ flex: 1 }} />
@@ -119,17 +162,87 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
                   <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} />
                 </div>
               </div>
-              <div className="field">
-                {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
-                <label>Email</label>
-                <div className="ctrl">
-                  <textarea
-                    value={body}
-                    rows={14}
-                    style={{ fontFamily: 'inherit', lineHeight: 1.5 }}
-                    onChange={(e) => setBody(e.target.value)}
-                  />
+
+              <div className="email-editor" data-testid="email-editor">
+                <div className="email-editor__heading">{heading}</div>
+                <textarea
+                  aria-label="Intro"
+                  className="email-editor__text"
+                  rows={2}
+                  value={intro}
+                  onChange={(e) => setIntro(e.target.value)}
+                />
+                <div className="email-editor__rows">
+                  {rows.map((r, i) => (
+                    <div key={r.id} className="email-row" data-testid="email-row">
+                      <input
+                        type="text"
+                        aria-label="Label"
+                        className="email-row__label"
+                        value={r.label}
+                        maxLength={40}
+                        onChange={(e) => updateRow(r.id, { label: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        aria-label="Value"
+                        className="email-row__value"
+                        value={r.value}
+                        maxLength={300}
+                        onChange={(e) => updateRow(r.id, { value: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Move up"
+                        title="Move up"
+                        disabled={i === 0}
+                        onClick={() => moveRow(r.id, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Move down"
+                        title="Move down"
+                        disabled={i === rows.length - 1}
+                        onClick={() => moveRow(r.id, 1)}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Remove"
+                        title="Remove"
+                        onClick={() => removeRow(r.id)}
+                      >
+                        <Icon.Close />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="email-editor__rows-foot">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={addRow}
+                      disabled={rows.length >= 30}
+                    >
+                      <Icon.Plus /> Add detail
+                    </button>
+                    {incompleteRow ? (
+                      <span className="err">Every detail needs a label and a value.</span>
+                    ) : null}
+                  </div>
                 </div>
+                <textarea
+                  aria-label="Closing"
+                  className="email-editor__text"
+                  rows={2}
+                  value={closing}
+                  onChange={(e) => setClosing(e.target.value)}
+                />
               </div>
             </>
           )}
@@ -139,12 +252,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={loading || isPending || !to || !subject || !body.trim()}
-            onClick={send}
-          >
+          <button type="button" className="btn btn--primary" disabled={!canSend} onClick={send}>
             {isPending ? 'Sending…' : 'Send email'}
           </button>
         </footer>

@@ -594,7 +594,9 @@ export async function sendExecEmailAction(input: {
   kind: ManualEmailKind;
   to: string;
   subject: string;
-  body: string;
+  intro: string;
+  rows: { label: string; value: string }[];
+  closing: string;
 }): Promise<ActionResult> {
   const op = await requireOperator();
 

@@ -23,6 +23,7 @@ import { carDescription } from '@/lib/labels';
 import { logger } from '@/lib/logger';
 import type { Database } from '@/server/db';
 import {
+  type Booking,
   type ExecNotification,
   type NewExecNotification,
   type NotificationKind,
@@ -37,11 +38,12 @@ import { and, asc, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
 import {
+  type EmailParts,
   type RenderedEmail,
   assignedEmail,
   changeExecEmail,
   driverDetailsEmail,
-  renderCustomExecEmail,
+  renderExecEmail,
 } from './email-templates';
 import { assignedSms, changeExecSms, enRouteSms } from './sms-templates';
 
@@ -400,8 +402,8 @@ export async function listExecNotifications(
 // The confirmation and driver-details emails are no longer sent automatically
 // on assign / in-progress: the operator drafts, edits and sends them from the
 // booking's Exec emails section. `execEmailDraft` pre-fills the form,
-// `sendManualExecEmail` sends the edited version (re-branded via
-// renderCustomExecEmail) and records it like any other exec notification.
+// `sendManualExecEmail` renders the edited parts through the same branded
+// layout (renderExecEmail) and records it like any other exec notification.
 
 export type ManualEmailKind = 'assigned' | 'en_route' | 'changed';
 
@@ -412,10 +414,11 @@ const EXEC_EMAIL_HEADING: Record<ManualEmailKind, string> = {
   changed: 'Booking update confirmed',
 };
 
-export interface ExecEmailDraft {
+export interface ExecEmailDraft extends EmailParts {
   to: string;
   subject: string;
-  body: string;
+  /** Fixed headline for this email kind, shown (not edited) in the form. */
+  heading: string;
 }
 
 export type ExecEmailDraftResult =
@@ -437,7 +440,7 @@ export async function execEmailDraft(
     return {
       ok: true,
       hasDriver: booking.assignedDriverId != null || booking.isBackfill,
-      draft: { to: booking.execEmail ?? '', subject: rendered.subject, body: rendered.draft },
+      draft: toDraft(booking, rendered, kind),
     };
   }
 
@@ -448,9 +451,34 @@ export async function execEmailDraft(
   return {
     ok: true,
     hasDriver: ctx !== null,
-    draft: { to: booking.execEmail ?? '', subject: rendered.subject, body: rendered.draft },
+    draft: toDraft(booking, rendered, kind),
   };
 }
+
+function toDraft(booking: Booking, rendered: RenderedEmail, kind: ManualEmailKind): ExecEmailDraft {
+  return {
+    to: booking.execEmail ?? '',
+    subject: rendered.subject,
+    heading: EXEC_EMAIL_HEADING[kind],
+    ...rendered.parts,
+  };
+}
+
+/** Bounds for the operator-edited parts. Generous for prose, tight for labels. */
+export const EXEC_EMAIL_LIMITS = {
+  introMax: 2000,
+  closingMax: 2000,
+  labelMax: 40,
+  valueMax: 300,
+  rowsMax: 30,
+} as const;
+
+const detailRowSchema = z
+  .object({
+    label: z.string().trim().min(1, 'Every detail needs a label').max(EXEC_EMAIL_LIMITS.labelMax),
+    value: z.string().trim().min(1, 'Every detail needs a value').max(EXEC_EMAIL_LIMITS.valueMax),
+  })
+  .strict();
 
 const manualEmailSchema = z
   .object({
@@ -458,9 +486,15 @@ const manualEmailSchema = z
     kind: z.enum(['assigned', 'en_route', 'changed']),
     to: z.string().trim().email('Enter a valid email address').max(200),
     subject: z.string().trim().min(1, 'Subject is required').max(200),
-    body: z.string().trim().min(1, 'The email body is empty').max(8000),
+    intro: z.string().trim().max(EXEC_EMAIL_LIMITS.introMax),
+    rows: z.array(detailRowSchema).max(EXEC_EMAIL_LIMITS.rowsMax),
+    closing: z.string().trim().max(EXEC_EMAIL_LIMITS.closingMax),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.intro || v.rows.length > 0 || v.closing, {
+    message: 'The email is empty',
+    path: ['intro'],
+  });
 
 export type ManualExecEmailResult =
   | { ok: true; notification: ExecNotification }
@@ -469,8 +503,8 @@ export type ManualExecEmailResult =
 
 /**
  * Send an operator-edited exec email and record the attempt. Always email —
- * the manual flow has no SMS arm. The edited draft is wrapped in the branded
- * shell so header/signature/notice never depend on the operator's text.
+ * the manual flow has no SMS arm. The edited parts are rendered in the branded
+ * shell so header/table/signature/notice never depend on the operator's text.
  */
 export async function sendManualExecEmail(
   deps: { db: Database; email?: EmailPort | undefined },
@@ -479,7 +513,7 @@ export async function sendManualExecEmail(
 ): Promise<ManualExecEmailResult> {
   const parsed = manualEmailSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: 'validation', issues: parsed.error.issues };
-  const { bookingId, kind, to, subject, body } = parsed.data;
+  const { bookingId, kind, to, subject, intro, rows, closing } = parsed.data;
 
   const [booking] = await deps.db
     .select()
@@ -492,7 +526,7 @@ export async function sendManualExecEmail(
     return { ok: false, reason: 'no_driver' };
   }
 
-  const rendered = renderCustomExecEmail(subject, body, EXEC_EMAIL_HEADING[kind]);
+  const rendered = renderExecEmail(subject, { intro, rows, closing }, EXEC_EMAIL_HEADING[kind]);
   const base = { bookingId: booking.id, channel: 'email' as const, kind };
   const values: NewExecNotification = deps.email
     ? {

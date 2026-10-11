@@ -88,8 +88,12 @@ describe('services/exec-notifications manual emails (integration)', () => {
     if (!result.ok) return;
     expect(result.draft.to).toBe('exec@example.com');
     expect(result.draft.subject.toLowerCase()).toContain('confirmed');
-    expect(result.draft.body).not.toContain('Driver:');
-    expect(result.draft.body).toContain('Pickup:');
+    const labels = result.draft.rows.map((r) => r.label);
+    expect(labels).not.toContain('Driver');
+    expect(labels).toContain('Pickup');
+    expect(result.draft.heading).toBe('Booking confirmed');
+    expect(result.draft.intro).toContain('confirmed');
+    expect(result.draft.closing).toContain('contact our team');
   });
 
   it('drafts the confirmation with driver details once a driver is assigned', async () => {
@@ -97,7 +101,7 @@ describe('services/exec-notifications manual emails (integration)', () => {
     const result = await execEmailDraft(db, booking.id, 'assigned');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.draft.body).toContain(driver.name);
+    expect(result.draft.rows).toContainEqual({ label: 'Driver', value: driver.name });
   });
 
   it('drafts the driver-details email for an assigned booking', async () => {
@@ -106,7 +110,8 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.draft.subject.toLowerCase()).toContain('driver details');
-    expect(result.draft.body).toContain(driver.name);
+    expect(result.draft.rows).toContainEqual({ label: 'Driver', value: driver.name });
+    expect(result.draft.heading).toBe('Your driver details');
   });
 
   it('refuses to draft the driver-details email with no driver on the job', async () => {
@@ -127,6 +132,92 @@ describe('services/exec-notifications manual emails (integration)', () => {
 
   // ── Sending ────────────────────────────────────────────────────
 
+  const EMPTY_PARTS = { intro: '', rows: [], closing: '' };
+
+  it('renders an added detail row as a table row in the HTML and a line in the stored text', async () => {
+    const booking = await seedAssigned();
+    const draft = await execEmailDraft(db, booking.id, 'assigned');
+    expect(draft.ok).toBe(true);
+    if (!draft.ok) return;
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'pa@client.com',
+        subject: draft.draft.subject,
+        intro: draft.draft.intro,
+        rows: [...draft.draft.rows, { label: 'Flight', value: 'BA123' }],
+        closing: draft.draft.closing,
+      },
+      operatorId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const html = emailer.sent[0]?.html ?? '';
+    expect(html.match(/<tr>/g)?.length).toBe(draft.draft.rows.length + 1);
+    expect(html).toContain('>Flight</td>');
+    expect(html).toContain('>Driver</td>');
+    expect(result.notification.body).toMatch(/Flight\s+BA123/);
+    expect(result.notification.body).toContain(driver.name);
+  });
+
+  it('rejects a detail row with an empty label or value, or an over-long label', async () => {
+    const booking = await seed();
+    for (const rows of [
+      [{ label: '', value: 'BA123' }],
+      [{ label: 'Flight', value: '  ' }],
+      [{ label: 'x'.repeat(41), value: 'BA123' }],
+    ]) {
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        {
+          bookingId: booking.id,
+          kind: 'assigned',
+          to: 'a@b.com',
+          subject: 'S',
+          ...EMPTY_PARTS,
+          rows,
+        },
+        operatorId,
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
+    }
+    expect(emailer.sent.length).toBe(0);
+  });
+
+  it('rejects more than 30 detail rows', async () => {
+    const booking = await seed();
+    const rows = Array.from({ length: 31 }, (_, i) => ({ label: `L${i}`, value: `v${i}` }));
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'a@b.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        rows,
+      },
+      operatorId,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects the legacy free-text body field (strict schema)', async () => {
+    const booking = await seed();
+    const result = await sendManualExecEmail(
+      { db, email: emailer },
+      { bookingId: booking.id, kind: 'assigned', to: 'a@b.com', subject: 'S', body: 'Hello' },
+      operatorId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation');
+  });
+
   it('sends the operator-edited email and records the attempt', async () => {
     const booking = await seed();
     const result = await sendManualExecEmail(
@@ -136,7 +227,9 @@ describe('services/exec-notifications manual emails (integration)', () => {
         kind: 'assigned',
         to: 'pa@client.com',
         subject: 'Your booking is confirmed',
-        body: 'Hello,\n\nAll confirmed for tomorrow.',
+        intro: 'Hello,\n\nAll confirmed for tomorrow.',
+        rows: [],
+        closing: '',
       },
       operatorId,
     );
@@ -170,7 +263,9 @@ describe('services/exec-notifications manual emails (integration)', () => {
         kind: 'assigned',
         to: 'exec@example.com',
         subject: 'S',
-        body: 'B',
+        intro: 'B',
+        rows: [],
+        closing: '',
       },
       operatorId,
     );
@@ -184,7 +279,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
     const booking = await seed();
     const result = await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: booking.id, kind: 'assigned', to: 'not-an-email', subject: 'S', body: 'B' },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'not-an-email',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     expect(result.ok).toBe(false);
@@ -193,11 +295,11 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(emailer.sent.length).toBe(0);
   });
 
-  it('rejects a blank subject or body', async () => {
+  it('rejects a blank subject, or an email with no intro, rows or closing', async () => {
     const booking = await seed();
     for (const args of [
-      { subject: '', body: 'B' },
-      { subject: 'S', body: '  ' },
+      { subject: '', ...EMPTY_PARTS, intro: 'B' },
+      { subject: 'S', ...EMPTY_PARTS, intro: '  ' },
     ]) {
       const result = await sendManualExecEmail(
         { db, email: emailer },
@@ -212,7 +314,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
     const booking = await seed();
     const result = await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: booking.id, kind: 'en_route', to: 'a@b.com', subject: 'S', body: 'B' },
+      {
+        bookingId: booking.id,
+        kind: 'en_route',
+        to: 'a@b.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     expect(result.ok).toBe(false);
@@ -224,7 +333,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
     const booking = await seed({ state: 'cancelled' });
     const result = await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: booking.id, kind: 'assigned', to: 'a@b.com', subject: 'S', body: 'B' },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'a@b.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     expect(result.ok).toBe(false);
@@ -239,12 +355,26 @@ describe('services/exec-notifications manual emails (integration)', () => {
     const b = await seedAssigned();
     await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      {
+        bookingId: b.id,
+        kind: 'assigned',
+        to: 'x@y.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'en_route', to: 'x@y.com', subject: 'S', body: 'B' },
+      {
+        bookingId: b.id,
+        kind: 'en_route',
+        to: 'x@y.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     const map = await execEmailSendMap(db, [a.id, b.id]);
@@ -258,7 +388,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
     emailer.simulateFailure('down');
     await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      {
+        bookingId: b.id,
+        kind: 'assigned',
+        to: 'x@y.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     const map = await execEmailSendMap(db, [b.id]);
@@ -271,7 +408,7 @@ describe('services/exec-notifications manual emails (integration)', () => {
     for (const kind of ['assigned', 'en_route'] as const) {
       const r = await sendManualExecEmail(
         { db, email: emailer },
-        { bookingId, kind, to: 'x@y.com', subject: 'S', body: 'B' },
+        { bookingId, kind, to: 'x@y.com', subject: 'S', ...EMPTY_PARTS, intro: 'B' },
         operatorId,
       );
       if (!r.ok) throw new Error('send failed');
@@ -299,7 +436,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
     emailer.simulateFailure('down');
     await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'assigned', to: 'x@y.com', subject: 'S', body: 'B' },
+      {
+        bookingId: b.id,
+        kind: 'assigned',
+        to: 'x@y.com',
+        subject: 'S',
+        ...EMPTY_PARTS,
+        intro: 'B',
+      },
       operatorId,
     );
     const rows = await listEmailAttentionBookings(db);
@@ -337,14 +481,15 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.draft.subject.toLowerCase()).toContain('update');
-    expect(result.draft.body).toContain('Reference:');
+    expect(result.draft.rows.map((r) => r.label)).toContain('Reference');
+    expect(result.draft.heading).toBe('Booking update confirmed');
   });
 
   it('sends the booking-update email and records a `changed` attempt', async () => {
     const b = await seedConfirmedChange();
     const result = await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', ...EMPTY_PARTS, intro: 'B' },
       operatorId,
     );
     expect(result.ok).toBe(true);
@@ -360,7 +505,7 @@ describe('services/exec-notifications manual emails (integration)', () => {
 
     const sent = await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', ...EMPTY_PARTS, intro: 'B' },
       operatorId,
     );
     expect(sent.ok).toBe(true);
@@ -379,7 +524,7 @@ describe('services/exec-notifications manual emails (integration)', () => {
     await sendBoth(b.id);
     await sendManualExecEmail(
       { db, email: emailer },
-      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', body: 'B' },
+      { bookingId: b.id, kind: 'changed', to: 'x@y.com', subject: 'S', ...EMPTY_PARTS, intro: 'B' },
       operatorId,
     );
     let rows = await listEmailAttentionBookings(db);
