@@ -32,6 +32,8 @@ export type GenerateChangeLinkResult =
       shortUrl: string;
       /** WhatsApp Web link that pre-fills the change message to the driver. */
       whatsappUrl: string;
+      /** The formatted driver message (what WhatsApp pre-fills; what Copy copies). */
+      message: string;
       driver: Driver;
     }
   | { ok: false; reason: 'booking_not_found' | 'no_pending_change' | 'no_app_driver' };
@@ -82,7 +84,8 @@ export async function generateChangeConfirmLink(
   const appBase = deps.appUrl.replace(/\/+$/, '');
   const url = `${appBase}/j/${token}`;
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
-  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, changeSms(booking, shortUrl));
+  const message = changeSms(booking, shortUrl);
+  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, message);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -94,7 +97,7 @@ export async function generateChangeConfirmLink(
     after: { driverId: driver.id, jti },
   });
 
-  return { ok: true, url, shortUrl, whatsappUrl, driver };
+  return { ok: true, url, shortUrl, whatsappUrl, message, driver };
 }
 
 // ── Preview a change-confirm link (driver-facing /j page) ────────────────────

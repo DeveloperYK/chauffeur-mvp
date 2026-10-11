@@ -109,6 +109,9 @@ describe('services/change-confirmation (integration)', () => {
       expect(res.url).toContain(`${APP_URL}/j/`);
       expect(res.shortUrl).toContain(`${APP_URL}/s/`);
       expect(res.whatsappUrl).toContain('web.whatsapp.com');
+      expect(res.whatsappUrl).toContain(encodeURIComponent(res.message));
+      expect(res.message).toContain(res.shortUrl);
+      expect(res.message).not.toContain('/j/');
       expect(res.driver.id).toBe(driverId);
 
       const audits = await db

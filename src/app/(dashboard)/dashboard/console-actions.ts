@@ -60,6 +60,8 @@ export interface ActionResult {
 export interface DispatchActionResult extends ActionResult {
   url?: string;
   whatsappUrl?: string;
+  /** Formatted driver message — the Copy button copies this, not the raw URL. */
+  message?: string;
   driverName?: string;
 }
 
@@ -69,6 +71,8 @@ export interface DispatchOfferResult {
   driverName: string;
   url: string;
   whatsappUrl: string;
+  /** Formatted driver message — the Copy button copies this, not the raw URL. */
+  message: string;
 }
 
 export interface DispatchManyActionResult extends ActionResult {
@@ -116,7 +120,7 @@ export async function generateCompletionLinkAction(
   });
   if (!result.ok) return { ok: false, error: `Cannot generate link: ${result.reason}.` };
   revalidatePath('/dashboard');
-  return { ok: true, url: result.url, whatsappUrl: result.whatsappUrl };
+  return { ok: true, url: result.url, whatsappUrl: result.whatsappUrl, message: result.message };
 }
 
 export async function completeFormOnBehalfAction(
@@ -201,6 +205,7 @@ export async function dispatchManyAction(
       driverName: o.driver.name,
       url: o.url,
       whatsappUrl: o.whatsappUrl,
+      message: o.message,
     })),
     skippedCount: result.skipped.length,
   };
@@ -298,6 +303,7 @@ export async function generateChangeConfirmLinkAction(
     ok: true,
     url: result.url,
     whatsappUrl: result.whatsappUrl,
+    message: result.message,
     driverName: result.driver.name,
   };
 }

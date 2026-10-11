@@ -308,11 +308,15 @@ export function DetailPanel({
     setError(null);
     startTransition(async () => {
       const result = await generateCompletionLinkAction(booking.id);
-      if (!result.ok || !result.url || !result.whatsappUrl) {
+      if (!result.ok || !result.url || !result.whatsappUrl || !result.message) {
         setError(result.error ?? 'Could not generate the completion link.');
         return;
       }
-      setCompletionLink({ url: result.url, whatsappUrl: result.whatsappUrl });
+      setCompletionLink({
+        url: result.url,
+        whatsappUrl: result.whatsappUrl,
+        message: result.message,
+      });
     });
   };
   const confirmChangeByPhone = () =>
@@ -324,11 +328,11 @@ export function DetailPanel({
     setError(null);
     startTransition(async () => {
       const result = await generateChangeConfirmLinkAction(booking.id);
-      if (!result.ok || !result.url || !result.whatsappUrl) {
+      if (!result.ok || !result.url || !result.whatsappUrl || !result.message) {
         setError(result.error ?? 'Could not generate the change link.');
         return;
       }
-      setChangeLink({ url: result.url, whatsappUrl: result.whatsappUrl });
+      setChangeLink({ url: result.url, whatsappUrl: result.whatsappUrl, message: result.message });
     });
   };
 

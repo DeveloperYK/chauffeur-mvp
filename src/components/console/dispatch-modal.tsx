@@ -164,9 +164,11 @@ export function DispatchModal({
     });
   };
 
-  const copyLink = async (offer: DispatchOfferResult) => {
+  // Copy the same formatted message the WhatsApp button pre-fills (short link
+  // included) — never the bare long signed URL.
+  const copyMessage = async (offer: DispatchOfferResult) => {
     try {
-      await navigator.clipboard.writeText(offer.url);
+      await navigator.clipboard.writeText(offer.message);
       setCopiedId(offer.driverId);
       setTimeout(() => setCopiedId((id) => (id === offer.driverId ? null : id)), 1500);
     } catch {
@@ -394,8 +396,8 @@ export function DispatchModal({
                       <button
                         type="button"
                         className="btn btn--icon"
-                        title={copiedId === o.driverId ? 'Copied' : 'Copy link'}
-                        onClick={() => copyLink(o)}
+                        title={copiedId === o.driverId ? 'Copied' : 'Copy message'}
+                        onClick={() => copyMessage(o)}
                       >
                         <Icon.Copy style={{ width: 13, height: 13 }} />
                       </button>

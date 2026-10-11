@@ -97,6 +97,17 @@ describe('services/completion (integration)', () => {
     expect(r.whatsappUrl.startsWith('https://web.whatsapp.com/send?phone=447911000001')).toBe(true);
   });
 
+  it('generateCompletionLink returns the formatted message WhatsApp pre-fills, with the short link', async () => {
+    const r = await generateCompletionLink(bookingId, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.whatsappUrl).toBe(
+      `https://web.whatsapp.com/send?phone=447911000001&text=${encodeURIComponent(r.message)}`,
+    );
+    expect(r.message).toContain(r.shortUrl);
+    expect(r.message).not.toContain('/j/');
+  });
+
   it('generateCompletionLink refuses when not awaiting_driver_form', async () => {
     await db.update(bookings).set({ state: 'assigned' }).where(eq(bookings.id, bookingId));
     const r = await generateCompletionLink(bookingId, operatorId, deps());

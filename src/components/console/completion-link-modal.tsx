@@ -9,6 +9,8 @@ import type { ConsoleBooking } from './types';
 export interface CompletionLink {
   url: string;
   whatsappUrl: string;
+  /** Formatted driver message — what Copy copies and WhatsApp pre-fills. */
+  message: string;
 }
 
 interface CompletionLinkModalProps {
@@ -24,7 +26,8 @@ interface CompletionLinkModalProps {
 /**
  * Shows a freshly minted driver completion-form link in a modal so the long
  * signed URL never has to squeeze into the detail panel. The operator copies
- * the link or fires it straight to the driver on WhatsApp.
+ * the formatted message (short link included) or fires it straight to the
+ * driver on WhatsApp — both carry the same text.
  */
 export function CompletionLinkModal({
   booking,
@@ -39,7 +42,7 @@ export function CompletionLinkModal({
   const copy = async () => {
     if (!link) return;
     try {
-      await navigator.clipboard.writeText(link.url);
+      await navigator.clipboard.writeText(link.message);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -80,7 +83,7 @@ export function CompletionLinkModal({
             <button
               type="button"
               className="btn btn--icon"
-              title={copied ? 'Copied' : 'Copy link'}
+              title={copied ? 'Copied' : 'Copy message'}
               onClick={copy}
             >
               <Icon.Copy style={{ width: 13, height: 13 }} />
