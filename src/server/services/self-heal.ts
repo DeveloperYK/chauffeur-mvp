@@ -33,11 +33,21 @@ export type SelfHealReport =
   | { action: 'skipped'; reason: 'disabled' }
   | { action: 'skipped'; reason: 'healthy'; ms: number }
   | { action: 'skipped'; reason: 'recovered'; first: BoardPathResult }
+  /** The probe failed, but not with a timeout: a redeploy cannot help (and when
+   * the pooler is full it hurts — more instances, and the build's migration
+   * step dies on the same error). Logged for the watchdog; no audit, no cooldown. */
+  | { action: 'skipped'; reason: 'not_stall'; probe: BoardPathResult }
   | { action: 'skipped'; reason: 'cooldown'; lastAttemptAt: Date }
   | { action: 'redeployed'; hookStatus: number; probe: BoardPathResult }
   | { action: 'hook_failed'; hookStatus: number | null; message: string; probe: BoardPathResult };
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** A failing probe that is not a stall: surface it loudly, but never redeploy. */
+function notStall(probe: BoardPathResult): SelfHealReport {
+  logger.error({ probe }, 'board path failing without a stall — self-heal will not redeploy');
+  return { action: 'skipped', reason: 'not_stall', probe };
+}
 
 async function lastAttemptSince(db: Database, since: Date): Promise<Date | null> {
   const rows = await db
@@ -97,6 +107,7 @@ export async function selfHealRedeploy(deps: SelfHealDeps): Promise<SelfHealRepo
 
   const first = await probe();
   if (first.ok) return { action: 'skipped', reason: 'healthy', ms: first.ms };
+  if (first.reason !== 'timeout') return notStall(first);
 
   await sleep(deps.confirmDelayMs ?? SELF_HEAL_CONFIRM_DELAY_MS);
   const second = await probe();
@@ -104,6 +115,7 @@ export async function selfHealRedeploy(deps: SelfHealDeps): Promise<SelfHealRepo
     logger.warn({ first }, 'board path blipped but recovered — no self-heal');
     return { action: 'skipped', reason: 'recovered', first };
   }
+  if (second.reason !== 'timeout') return notStall(second);
 
   logger.error({ first, second }, 'board path stall confirmed — triggering production redeploy');
   try {

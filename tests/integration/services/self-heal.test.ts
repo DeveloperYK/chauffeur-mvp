@@ -129,11 +129,29 @@ describe('services/self-heal (integration)', () => {
     expect(audit?.after).toMatchObject({ reason: 'timeout', hookStatus: 201 });
   });
 
-  it('also treats a persistent query error as a stall (a redeploy re-runs migrations)', async () => {
-    const probe = probeSequence(broken, broken);
+  it('never redeploys on a query/connection error — only a timeout is a stall', async () => {
+    // 2026-10-11: a full session pooler (EMAXCONNSESSION) returned `error`, the
+    // redeploy added instances, its build died on the same error, and the hour's
+    // cooldown was spent for nothing. A redeploy only helps a wedged pool.
+    const probe = probeSequence(broken);
     const r = await selfHealRedeploy(deps({ probe }));
+    expect(r).toMatchObject({ action: 'skipped', reason: 'not_stall', probe: broken });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await lastAudit()).toBeNull();
+  });
+
+  it('does not confirm a stall when the second probe fails with an error instead of a timeout', async () => {
+    const probe = probeSequence(stalled, broken);
+    const r = await selfHealRedeploy(deps({ probe }));
+    expect(r).toMatchObject({ action: 'skipped', reason: 'not_stall', probe: broken });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await lastAudit()).toBeNull();
+  });
+
+  it('leaves the cooldown untouched after a not_stall skip, so a later real stall can still redeploy', async () => {
+    await selfHealRedeploy(deps({ probe: probeSequence(broken) }));
+    const r = await selfHealRedeploy(deps({ probe: probeSequence(stalled, stalled) }));
     expect(r).toMatchObject({ action: 'redeployed' });
-    expect((await lastAudit())?.after).toMatchObject({ reason: 'error' });
   });
 
   it('refuses a second redeploy inside the cooldown window', async () => {

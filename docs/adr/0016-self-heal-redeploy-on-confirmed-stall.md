@@ -58,3 +58,16 @@ window.
   itself — the cooldown holds and the monitors/watchdog keep alerting the
   owner, which is the intended hand-off to a human.
 - Rollback: unset `VERCEL_DEPLOY_HOOK_URL`.
+
+## Amendment (2026-10-11) — timeouts only
+
+The original decision treated both `timeout` and `error` probe failures as a
+stall. On 2026-10-11 the session pooler hit its 30-client cap (ADR 0015
+addendum), the probe returned `error`, and the resulting redeploy made things
+worse: more instances competing for slots, and the build itself failed in the
+migration step on the same error. Self-heal now fires only when **both probes
+time out** (`reason: 'timeout'`), which is the wedged-pool signature it was
+built for. Any other failure is logged at `error` as
+`board path failing without a stall — self-heal will not redeploy`, writes no
+audit row and does not start the cooldown, so a genuine stall minutes later
+can still be healed.
