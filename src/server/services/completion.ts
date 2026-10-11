@@ -38,6 +38,8 @@ export type GenerateCompletionLinkResult =
       url: string;
       shortUrl: string;
       whatsappUrl: string;
+      /** The formatted driver message (what WhatsApp pre-fills; what Copy copies). */
+      message: string;
       booking: Booking;
       /** Null for a backfill job (no internal driver row). */
       driver: Driver | null;
@@ -96,8 +98,8 @@ export async function generateCompletionLink(
   // Branded short link for the message (the long signed URL is the destination).
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
-  const text = completionRequestSms(booking, shortUrl);
-  const whatsappUrl = whatsappWebLink(whatsappNumber, text);
+  const message = completionRequestSms(booking, shortUrl);
+  const whatsappUrl = whatsappWebLink(whatsappNumber, message);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -111,7 +113,7 @@ export async function generateCompletionLink(
 
   // Link is not auto-texted — the operator sends it explicitly once Twilio is
   // configured; for now they copy/open it directly.
-  return { ok: true, url, shortUrl, whatsappUrl, booking, driver };
+  return { ok: true, url, shortUrl, whatsappUrl, message, booking, driver };
 }
 
 /** "HH:MM" 24h wall-clock time (Europe/London), e.g. "23:05". */

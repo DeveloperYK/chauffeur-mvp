@@ -36,6 +36,8 @@ export type GenerateLinkResult =
       shortUrl: string;
       /** WhatsApp Web link that pre-fills a message to the driver with the job link. */
       whatsappUrl: string;
+      /** The formatted driver message (what WhatsApp pre-fills; what Copy copies). */
+      message: string;
       driver: Driver;
       booking: Booking;
     }
@@ -52,6 +54,8 @@ export interface DispatchLinkOffer {
   shortUrl: string;
   /** WhatsApp Web link that pre-fills a message to the driver with the job link. */
   whatsappUrl: string;
+  /** The formatted driver message (what WhatsApp pre-fills; what Copy copies). */
+  message: string;
 }
 
 /**
@@ -81,8 +85,8 @@ async function mintDispatchLinkFor(
   // Branded short link for messages (the long signed URL is the destination).
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
-  const text = dispatchSms(booking, shortUrl);
-  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, text);
+  const message = dispatchSms(booking, shortUrl);
+  const whatsappUrl = whatsappWebLink(driver.whatsappNumber, message);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
@@ -102,7 +106,7 @@ async function mintDispatchLinkFor(
     clock.now(),
   );
 
-  return { driver, url, shortUrl, whatsappUrl };
+  return { driver, url, shortUrl, whatsappUrl, message };
 }
 
 export async function generateDispatchLink(
@@ -137,6 +141,7 @@ export async function generateDispatchLink(
     url: offer.url,
     shortUrl: offer.shortUrl,
     whatsappUrl: offer.whatsappUrl,
+    message: offer.message,
     driver,
     booking,
   };
