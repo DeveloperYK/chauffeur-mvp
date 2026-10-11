@@ -8,10 +8,15 @@ and re-key into a fresh system.
 - **What is mirrored:** one row per booking, keyed by **Job #** (column A). Every
   state change (create, dispatch, completion, cancel, edit, backfill) updates the
   same row in place — no duplicate rows.
-- **Layout:** the 27 columns A–AA of the **"Main Data"** table in `JJ .xlsx`
-  (`src/server/ports/spreadsheet-mirror.ts` is the single source of truth for the
-  column order). Billing-output columns (Driver Cost, Net Due, VAT, Total,
-  Sub-contractor Cost) are intentionally left blank for the operators to fill.
+- **Layout:** 21 columns A–U (`src/server/ports/spreadsheet-mirror.ts` is the
+  single source of truth for the column order): the 19 input columns of the JJ
+  "Main Data" workbook, A–Q exactly as the client's header row, then Drop Off
+  Time (R) and Mileage (S), then two of the workbook's derived fees written as
+  values — **Waiting (£)** (T: operator override, else £1/min × waiting minutes)
+  and **Total (£)** (U: contract price + car park + waiting; blank until a price
+  is agreed). Net Due / VAT are not written: the client's formula and rate are
+  unconfirmed. The adapter completes a header row that stops short of the
+  current layout on its first write, so adding a column needs no manual edit.
 - **Failure mode:** mirroring is fire-and-forget. If Google is unreachable the
   booking still succeeds and the failure is logged; it is never user-visible.
 
@@ -83,7 +88,10 @@ Vercel (Production, and Preview if you want it there too):
 ## Notes
 
 - The header row and one-row-per-Job# upsert are handled automatically by
-  `GoogleSheetsSpreadsheetMirror`; no manual header setup is required.
+  `GoogleSheetsSpreadsheetMirror`; no manual header setup is required. When the
+  layout gains columns, the existing header row is rewritten to the full
+  current header on the first upsert after deploy (values only — the row keeps
+  its formatting).
 - To rotate the key: create a new JSON key, update the env var, redeploy, then
   delete the old key in the Cloud Console.
 - The column layout lives in `SHEET_HEADERS` / `rowFromBooking`. If the JJ workbook
