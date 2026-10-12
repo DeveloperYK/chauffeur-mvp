@@ -9,7 +9,6 @@ import { bookingRef } from '@/lib/booking-ref';
 import { carTypeMismatchNote, requestedVehicleClasses } from '@/lib/car-type-match';
 import { type BusyWindow, firstClashingWindow } from '@/lib/driver-busy';
 import { VEHICLE_CLASSES, VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
-import { whatsappMobileLink } from '@/lib/whatsapp';
 import type { VehicleClass } from '@/server/db/schema';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
@@ -17,6 +16,7 @@ import { fmtTimeWithDay, passengerName } from './format';
 import { Icon } from './icons';
 import { Lozenge } from './lozenge';
 import type { AssignmentWindow, ConsoleBooking, ConsoleDriver } from './types';
+import { WhatsappLink } from './whatsapp-link';
 
 interface DispatchModalProps {
   booking: ConsoleBooking | null;
@@ -25,11 +25,6 @@ interface DispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSent: (summary: string) => void;
-  /**
-   * Mobile shell: hand the offer to the WhatsApp app (`wa.me`) rather than
-   * WhatsApp Web, which does not run on a phone browser.
-   */
-  mobile?: boolean;
 }
 
 type ClassFilter = 'all' | VehicleClass;
@@ -51,7 +46,6 @@ export function DispatchModal({
   isOpen,
   onClose,
   onSent,
-  mobile = false,
 }: DispatchModalProps) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<ClassFilter>('all');
@@ -92,11 +86,6 @@ export function DispatchModal({
         end,
       );
   }, [booking, assignments]);
-
-  const mobileWhatsappFor = (o: DispatchOfferResult): string => {
-    const number = drivers.find((d) => d.id === o.driverId)?.whatsappNumber;
-    return number ? whatsappMobileLink(number, o.message) : o.whatsappUrl;
-  };
 
   const visible = useMemo(() => {
     return drivers
@@ -207,7 +196,7 @@ export function DispatchModal({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
       {/* biome-ignore lint/a11y/useSemanticElements: styled dialog surface; native <dialog> conflicts with the design CSS */}
-      <div className="modal__card" style={{ width: 680 }} role="dialog" aria-modal="true">
+      <div className="modal__card modal__card--lg" role="dialog" aria-modal="true">
         <header className="modal__head">
           <div className="row">
             <div>
@@ -238,7 +227,7 @@ export function DispatchModal({
 
           {!offers ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div className="dispatch-filters">
                 <div className="viewswitch">
                   <button
                     type="button"
@@ -413,15 +402,13 @@ export function DispatchModal({
                       >
                         <Icon.Copy style={{ width: 13, height: 13 }} />
                       </button>
-                      <a
+                      <WhatsappLink
                         className="btn btn--primary"
-                        href={mobile ? mobileWhatsappFor(o) : o.whatsappUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={o.whatsappUrl}
                         onClick={() => markOpened(o.driverId)}
                       >
                         <Icon.Whatsapp /> WhatsApp
-                      </a>
+                      </WhatsappLink>
                     </div>
                   </div>
                 ))}

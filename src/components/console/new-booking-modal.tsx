@@ -379,7 +379,7 @@ export function NewBookingModal({
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
-      <form className="modal__card" style={{ width: 720 }} onSubmit={submit} ref={formRef}>
+      <form className="modal__card modal__card--xl" onSubmit={submit} ref={formRef}>
         <header className="modal__head">
           <div className="row">
             <div className="modal__title">Create booking</div>

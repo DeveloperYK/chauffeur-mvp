@@ -118,7 +118,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
-      <div className="modal__card" style={{ width: 640 }}>
+      <div className="modal__card">
         <header className="modal__head">
           <div className="row">
             <div>

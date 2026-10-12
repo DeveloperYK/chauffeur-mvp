@@ -1147,6 +1147,9 @@ a:hover {
   margin-top: 1px;
 }
 .list .route {
+  /* The panel's trip card also uses `.route` as a 16px+1fr grid; the list cell
+     is plain text, so it must not inherit that grid. */
+  display: block;
   font-size: 12px;
   color: var(--ink-3);
   overflow: hidden;
@@ -1737,6 +1740,17 @@ a:hover {
   transform: translateY(0) scale(1);
   opacity: 1;
 }
+/* Card widths per modal. Classes rather than inline styles so the phone layout
+   below can turn every card into a full-screen sheet. */
+.modal__card--sm {
+  width: 480px;
+}
+.modal__card--lg {
+  width: 680px;
+}
+.modal__card--xl {
+  width: 720px;
+}
 
 .modal__head {
   padding: 16px 22px 12px;
@@ -1996,6 +2010,13 @@ a:hover {
    Dispatch result card
    ───────────────────────────────────────────────────────────── */
 
+/* Class filter + driver search above the dispatch list. */
+.dispatch-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .driver-list {
   max-height: 380px;
   overflow-y: auto;
@@ -4088,211 +4109,6 @@ button.driver-row {
   text-align: right;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Mobile — minimal "don't break" pass (≤ 768px)
-
-   The console is a desktop-first operator tool. This block doesn't
-   redesign it; it just keeps it *usable* on a phone instead of the
-   fixed 232px rail crushing the working area off-screen:
-   - the left rail becomes a horizontal, scrollable nav strip;
-   - the main column gets the full screen width;
-   - the wide list table scrolls sideways instead of being clipped;
-   - the top bar shrinks (brand + compact search) so it fits.
-   The detail panel and modals already cap to the viewport
-   (max-width: 96vw / max-height: 92vh), so they need only minor tweaks.
-   ───────────────────────────────────────────────────────────── */
-/* Only offered on phone-sized screens (the shell is pointless on a desk). */
-.rail__item--mobile-only {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .rail__item--mobile-only {
-    display: flex;
-  }
-  /* Shell: stack top bar → rail → main in one column. */
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--d-topbar-h) auto 1fr;
-    height: 100dvh;
-  }
-  .topbar {
-    grid-column: 1 / 2;
-    grid-row: 1;
-    gap: 6px;
-  }
-  /* Shrink the brand so the search + Create fit on the row. */
-  .topbar__brand {
-    width: auto;
-    padding: 0 12px;
-    border-right: none;
-  }
-  .topbar__crumbs {
-    display: none;
-  }
-  /* Compact search: icon-only trigger (hide the long placeholder). */
-  .search--trigger {
-    width: auto;
-    max-width: none;
-    padding: 6px 8px;
-  }
-  .search__placeholder {
-    display: none;
-  }
-
-  /* Rail → a horizontal, scrollable nav strip under the top bar. */
-  .rail {
-    grid-row: 2;
-    grid-column: 1;
-    flex-direction: row;
-    align-items: center;
-    height: auto;
-    overflow-x: auto;
-    overflow-y: hidden;
-    gap: 4px;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--rail-hairline);
-  }
-  .rail__group {
-    flex-direction: row;
-    align-items: center;
-    gap: 2px;
-    padding: 0;
-  }
-  .rail__group + .rail__group {
-    margin: 0 0 0 6px;
-    padding: 0 0 0 6px;
-    border-top: none;
-    border-left: 1px solid var(--rail-hairline);
-  }
-  .rail__section {
-    display: none;
-  }
-  .rail__item {
-    width: auto;
-    flex: 0 0 auto;
-  }
-  .rail__footer {
-    margin: 0 0 0 6px;
-    padding: 0;
-    border-top: none;
-  }
-
-  /* Main column gets the full width. */
-  .main {
-    grid-row: 3;
-    grid-column: 1;
-    min-width: 0;
-  }
-
-  /* Wide list table: scroll sideways rather than clip under overflow:hidden. */
-  .list {
-    overflow-x: auto;
-  }
-  .list__row {
-    min-width: 700px;
-  }
-
-  /* Detail panel as a near-full-screen sheet. */
-  .panel {
-    width: 100vw;
-    max-width: 100vw;
-  }
-
-  /* Modal forms: stack each field's label above its control (the desktop
-     140px label column is too wide for a phone), collapse paired fields to one
-     column, and let inputs shrink to the card so nothing clips off the right. */
-  .modal__body {
-    overflow-x: hidden;
-  }
-  .modal .field {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  .modal .field > label {
-    padding-top: 0;
-  }
-  .modal .field > .ctrl {
-    min-width: 0;
-  }
-  .modal .field-grid {
-    grid-template-columns: 1fr;
-  }
-  .modal .input,
-  .modal input,
-  .modal select,
-  .modal textarea {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-  /* Footer actions wrap instead of overflowing when there are three buttons. */
-  .modal__foot {
-    flex-wrap: wrap;
-  }
-
-  /* Tighter page gutters so full-page content (calendar, tables) has room. */
-  .content {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-  .page-head {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  .filterbar {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-  /* Page headers wrap (title + subtitle + counts) instead of overflowing. */
-  .page-head__row {
-    flex-wrap: wrap;
-  }
-  .page-head__sub {
-    white-space: normal;
-  }
-
-  /* Calendar: keep all 7 day columns on screen. Grid items default to
-     min-width:auto, so the booking pills were forcing the week wider than the
-     viewport; minmax(0,1fr) + min-width:0 lets the columns shrink to fit. */
-  .cal__grid,
-  .cal__wk {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 2px;
-  }
-  .cal__cell {
-    min-width: 0;
-    overflow: hidden;
-    padding: 4px;
-  }
-  .cal--expanded .cal__cell {
-    min-height: 58px;
-    padding: 4px;
-  }
-  /* Compact the day markers: a coloured dot + count, no wrapping word, and drop
-     the "No bookings" filler — there's no room for it in a phone-width cell. */
-  .dc-pill {
-    font-size: 9.5px;
-    padding: 1px 3px;
-    gap: 2px;
-    max-width: 100%;
-  }
-  .dc-pill > span:last-child {
-    display: none;
-  }
-  .dc-empty {
-    display: none;
-  }
-
-  /* Wide data tables (drivers roster, etc.) scroll sideways rather than clip. */
-  .driver-table {
-    overflow-x: auto;
-  }
-  .dt-row {
-    min-width: 720px;
-  }
-}
-
 /* ── Exec email editor (send-exec-email-modal) ───────────────────────────────
    The email's editable parts laid out in the order they are sent: headline,
    intro, details table, closing. Structured so an edit cannot break the
@@ -4375,4 +4191,435 @@ button.driver-row {
 .email-editor__rows-foot .err {
   font-size: 11.5px;
   color: var(--lz-red-fg);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Phone layout (≤ 768px)
+
+   The same console, laid out for a phone held upright. Nothing is a
+   separate app: an operator who is out and gets "add a booking" uses
+   the board, panel and modals they already know. The rules:
+   - no sideways scrolling, ever: the rail becomes a nav strip, the
+     board's columns stack one under another (empty ones hide), the
+     list's table rows reflow into stacked rows;
+   - the detail panel and every modal become full-screen sheets with
+     one full-width primary button at the bottom, above the home bar;
+   - tap targets are ≥ 44px and inputs are 16px so iOS does not zoom.
+   The breakpoint is mirrored in components/console/use-is-phone.ts.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* ── Shell: top bar → nav strip → main, one column ─────────── */
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--d-topbar-h) auto 1fr;
+    height: 100dvh;
+  }
+  .topbar {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 6px;
+    padding-right: 10px;
+  }
+  .topbar__brand {
+    width: auto;
+    padding: 0 10px;
+    border-right: none;
+  }
+  .topbar__name small,
+  .topbar__crumbs {
+    display: none;
+  }
+  .search--trigger {
+    width: auto;
+    max-width: none;
+    min-height: 36px;
+    padding: 6px 9px;
+  }
+  .search__placeholder,
+  .search--trigger kbd {
+    display: none;
+  }
+  .btn-pri-create {
+    min-height: 36px;
+  }
+
+  /* ── Rail → one horizontal strip of chips, scrolls sideways ── */
+  .rail {
+    grid-row: 2;
+    grid-column: 1;
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rail-hairline);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+  .rail__group {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+  }
+  .rail__group + .rail__group {
+    margin: 0 0 0 6px;
+    padding: 0 0 0 8px;
+    border-top: none;
+    border-left: 1px solid var(--rail-hairline);
+  }
+  .rail__section,
+  .rail__footer {
+    display: none;
+  }
+  .rail__item {
+    width: auto;
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  /* ── Main column: full width, tighter gutters ───────────────── */
+  .main {
+    grid-row: 3;
+    grid-column: 1;
+    min-width: 0;
+  }
+  .page-head {
+    padding: 10px 16px 0;
+    gap: 4px;
+  }
+  .page-head__row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .page-head__sub {
+    white-space: normal;
+  }
+  /* The date picker already shows the day; the long form is noise here. */
+  .page-head__sub--date {
+    display: none;
+  }
+  .page-head__row .dotsep-pre::before {
+    display: none;
+  }
+  .page-head__strip {
+    gap: 6px 14px;
+    padding: 6px 0 2px;
+    font-size: 12px;
+  }
+  .filterbar {
+    padding: 6px 16px;
+    gap: 6px;
+  }
+  .content {
+    padding: 4px 12px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  /* ── Board: columns stack, empty ones hide ──────────────────── */
+  .board {
+    flex-direction: column;
+    gap: 10px;
+    overflow-x: visible;
+    padding: 4px 0 12px;
+  }
+  .column {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: none;
+  }
+  .column__body {
+    overflow: visible;
+  }
+  /* An empty column is noise on a phone — except Unassigned, which carries
+     the + button and is where a new booking lands. */
+  .column:has(.column__empty):not(:first-child) {
+    display: none;
+  }
+  .column__add {
+    width: 32px;
+    height: 32px;
+  }
+  .card {
+    padding: 12px;
+  }
+
+  /* ── List: the table rows reflow into stacked rows ──────────── */
+  .list__row.head {
+    display: none;
+  }
+  .list__row {
+    grid-template-columns: 14px 1fr auto;
+    grid-template-areas:
+      "flag time price"
+      "flag pax pax"
+      "flag route route"
+      "flag driver status";
+    gap: 4px 10px;
+    padding: 12px 12px 12px 10px;
+    min-height: 0;
+    align-items: start;
+  }
+  .list__row > :nth-child(1) {
+    grid-area: flag;
+    padding-top: 2px;
+  }
+  .list__row > :nth-child(2) {
+    grid-area: time;
+  }
+  .list__row > :nth-child(3) {
+    grid-area: pax;
+  }
+  .list__row > :nth-child(4) {
+    grid-area: route;
+    white-space: normal;
+  }
+  .list__row > :nth-child(5) {
+    grid-area: driver;
+    align-self: center;
+  }
+  .list__row > :nth-child(6) {
+    grid-area: status;
+    justify-self: end;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  /* Assignee avatar: the panel shows it; there is no room on the row. */
+  .list__row > :nth-child(7) {
+    display: none;
+  }
+  .list__row > :nth-child(8) {
+    grid-area: price;
+    align-self: start;
+  }
+
+  /* ── Detail panel: a full-screen sheet ──────────────────────── */
+  .panel {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: none;
+  }
+  .panel__head {
+    padding: 8px 10px 8px 14px;
+    min-height: 48px;
+  }
+  .panel__head .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .dp-actions {
+    padding: 0 16px 16px;
+  }
+  .dp-actions .btn {
+    min-height: 40px;
+  }
+  .dp-actions .btn--lg {
+    flex: 1 0 100%;
+    justify-content: center;
+    min-height: 48px;
+    font-size: 14px;
+  }
+  .panel__footer {
+    flex-wrap: wrap;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  /* ── Modals: full-screen sheets, primary action full width ──── */
+  .modal {
+    place-items: stretch;
+  }
+  .modal__card,
+  .modal__card--sm,
+  .modal__card--lg,
+  .modal__card--xl {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+    transform: translateY(16px);
+  }
+  .modal.is-open .modal__card {
+    transform: none;
+  }
+  .modal__head {
+    padding: 14px 16px 10px;
+  }
+  .modal__body {
+    padding: 12px 16px 4px;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Label above control: the 140px label column is too wide for a phone. */
+  .modal .field {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .modal .field > label {
+    padding-top: 0;
+  }
+  .modal .field > .ctrl {
+    min-width: 0;
+  }
+  .modal .field-grid {
+    grid-template-columns: 1fr;
+  }
+  .modal .input,
+  .modal input,
+  .modal select,
+  .modal textarea,
+  .modal .field input,
+  .modal .field select,
+  .modal .field textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    font-size: 16px; /* stops iOS zooming into the field */
+  }
+  /* The body takes the space between head and foot so the footer (and its
+     full-width primary button) sits at the bottom of every sheet, even a
+     short one like Cancel. */
+  .modal__card > .modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .modal__foot {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .modal__foot .left {
+    flex: 1 0 100%;
+  }
+  .modal__foot .btn {
+    min-height: 44px;
+  }
+  .modal__foot .btn--primary {
+    order: 10;
+    flex: 1 0 100%;
+    justify-content: center;
+    min-height: 50px;
+    font-size: 15px;
+  }
+
+  /* Dispatch sheet: the driver list takes the whole sheet, chips scroll. */
+  .modal__body:has(.driver-list) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .modal__body:has(.driver-list) > *:not(.driver-list) {
+    flex: 0 0 auto;
+  }
+  .modal__body:has(.driver-list) > .driver-list {
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 0;
+  }
+  .dispatch-filters {
+    flex-wrap: wrap;
+  }
+  .dispatch-filters > div:last-child {
+    flex: 1 0 100%;
+  }
+  .viewswitch {
+    max-width: 100%;
+    overflow-x: auto;
+    height: auto;
+    min-height: 36px;
+    scrollbar-width: none;
+  }
+  .viewswitch::-webkit-scrollbar {
+    display: none;
+  }
+  .viewswitch a,
+  .viewswitch button {
+    white-space: nowrap;
+    height: 30px;
+  }
+  .driver-row {
+    padding: 12px 10px;
+  }
+
+  /* Exec email editor rows: label on its own line, then value + buttons. */
+  .email-row {
+    grid-template-columns: 1fr auto auto auto;
+  }
+  .email-row > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Search palette: full screen ────────────────────────────── */
+  .cmdk__card {
+    margin: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .cmdk input {
+    font-size: 16px;
+  }
+
+  /* ── Toasts: full width above the home bar ──────────────────── */
+  .toast-stack {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: calc(100% - 24px);
+  }
+  .toast {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── Desk-only pages: keep them readable, never clipped ──────── */
+  .page-head__sub {
+    white-space: normal;
+  }
+  /* Calendar: keep all 7 day columns on screen. Grid items default to
+     min-width:auto, so the booking pills were forcing the week wider than the
+     viewport; minmax(0,1fr) + min-width:0 lets the columns shrink to fit. */
+  .cal__grid,
+  .cal__wk {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .cal__cell {
+    min-width: 0;
+    overflow: hidden;
+    padding: 4px;
+  }
+  .cal--expanded .cal__cell {
+    min-height: 58px;
+    padding: 4px;
+  }
+  .dc-pill {
+    font-size: 9.5px;
+    padding: 1px 3px;
+    gap: 2px;
+    max-width: 100%;
+  }
+  .dc-pill > span:last-child {
+    display: none;
+  }
+  .dc-empty {
+    display: none;
+  }
+  /* Wide data tables (drivers roster, etc.) scroll sideways rather than clip. */
+  .driver-table {
+    overflow-x: auto;
+  }
+  .dt-row {
+    min-width: 720px;
+  }
 }

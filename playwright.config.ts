@@ -20,10 +20,10 @@ const base: PlaywrightTestConfig = {
       use: { ...devices['Desktop Chrome'] },
     },
     {
-      // Phone UA + viewport + touch: exercises the middleware redirect into /m
-      // and the mobile shell itself. Only mobile.spec.ts runs here (see
-      // package.json). Chromium, not the preset's WebKit, so CI needs no extra
-      // browser download.
+      // Phone UA + viewport + touch: exercises the console's phone layout
+      // (stacked board, full-screen sheets, wa.me hand-off). Only
+      // mobile.spec.ts runs here (see package.json). Chromium, not the
+      // preset's WebKit, so CI needs no extra browser download.
       name: 'mobile',
       testMatch: /mobile\.spec\.ts/,
       use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' },

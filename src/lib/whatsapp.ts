@@ -24,3 +24,24 @@ export function whatsappMobileLink(number: string, text: string): string {
   const phone = number.replace(/\D/g, '');
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Turn a link built by `whatsappWebLink` into its `wa.me` form for an operator
+ * on a phone, where WhatsApp Web does not run and `wa.me` hands straight to
+ * the app. Links are minted on the server without knowing the device, so the
+ * client rewrites them at render time (see components/console/whatsapp-link).
+ * Anything that is not a WhatsApp Web send link is returned untouched.
+ */
+export function whatsappLinkForPhone(href: string): string {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return href;
+  }
+  if (url.protocol !== 'https:' || url.hostname !== 'web.whatsapp.com') return href;
+  if (url.pathname !== '/send' || url.username || url.password) return href;
+  const phone = (url.searchParams.get('phone') ?? '').replace(/\D/g, '');
+  if (!phone) return href;
+  return whatsappMobileLink(phone, url.searchParams.get('text') ?? '');
+}
