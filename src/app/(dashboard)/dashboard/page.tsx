@@ -275,7 +275,9 @@ export default async function DashboardHome({
                   ← Back to today
                 </Link>
               )}
-              <span className="page-head__sub dotsep-pre">{formatLondonDayLong(selectedDay)}</span>
+              <span className="page-head__sub page-head__sub--date dotsep-pre">
+                {formatLondonDayLong(selectedDay)}
+              </span>
               <span className="page-head__sub dotsep-pre">
                 {filtered.length} {filtered.length === 1 ? 'booking' : 'bookings'}
               </span>

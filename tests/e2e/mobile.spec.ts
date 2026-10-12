@@ -1,12 +1,14 @@
 import { type Page, expect, test } from '@playwright/test';
 
 /**
- * The mobile shell (/m) on a phone — iPhone 13 project (UA + viewport), so the
- * middleware's phone → shell redirect is exercised for real.
+ * The operator console on a phone — iPhone 13 project (UA + 390px viewport +
+ * touch). There is no separate mobile app: the same console lays itself out for
+ * the small screen, so this spec drives the real board, panel and modals.
  *
- * Covers the user's must-haves from the phone: see the day and what needs
- * attention, create a booking, dispatch (confirmed by phone), edit, cancel
- * with undo, approve a completed job, and switch to / from the full console.
+ * Covers what an operator out of the office must be able to do from a phone:
+ * see the day without sideways scrolling, create a booking, dispatch (confirmed
+ * by phone) and message the driver in the WhatsApp app, edit, cancel with undo,
+ * and approve a completed job.
  *
  * Runs against a RUNNING dev server (auth bypassed outside production):
  *
@@ -22,9 +24,7 @@ const JJ = 'Sophia Lefevre'; // edit
 test.describe.configure({ mode: 'serial' });
 
 async function gotoSimulator(page: Page) {
-  // Desk-only page: a phone is NOT redirected away from it (by design).
   await page.goto('/dashboard/simulator', { waitUntil: 'networkidle' });
-  await expect(page).toHaveURL(/\/dashboard\/simulator/);
   await expect(page.getByRole('heading', { name: 'Simulator' })).toBeVisible();
 }
 
@@ -46,46 +46,111 @@ async function bookingIdOf(page: Page, passenger: string): Promise<string> {
   return id;
 }
 
-async function openMobileBooking(page: Page, passenger: string) {
+/** Deep link straight to the booking: the board opens on its day with the panel up. */
+async function openBookingPanel(page: Page, passenger: string) {
   const id = await bookingIdOf(page, passenger);
-  await page.goto(`/m/b/${id}`, { waitUntil: 'networkidle' });
-  await expect(page.locator('.m-hero')).toContainText(passenger);
+  await page.goto(`/dashboard/bookings/${id}`, { waitUntil: 'networkidle' });
+  await expect(page).toHaveURL(/\/dashboard\?/);
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page)).toContainText(passenger);
 }
 
-const hero = (page: Page) => page.locator('.m-hero');
-const actions = (page: Page) => page.locator('.m-actions');
+const panel = (page: Page) => page.locator('.panel.is-open');
+const lozenges = (page: Page) => page.locator('.panel.is-open .dp-hero__lozenges');
 const sheet = (page: Page) => page.locator('.modal.is-open');
 
-test('a phone is routed to the shell, sees the day and what needs attention', async ({ page }) => {
+/** Nothing on the page may be wider than the phone: no sideways scrolling. */
+async function expectNoHorizontalOverflow(page: Page) {
+  const widths = await page.evaluate(() => {
+    const main = document.querySelector('.main');
+    const content = document.querySelector('.content');
+    return {
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      main: main ? main.scrollWidth : 0,
+      content: content ? content.scrollWidth : 0,
+    };
+  });
+  expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+  expect(widths.main).toBeLessThanOrEqual(widths.viewport);
+  expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+}
+
+/** The modal takes the whole screen on a phone (a sheet, not a floating card). */
+async function expectFullScreenSheet(page: Page) {
+  const box = await sheet(page).locator('.modal__card').boundingBox();
+  const viewport = page.viewportSize();
+  expect(box, 'modal card should be laid out').toBeTruthy();
+  expect(viewport).toBeTruthy();
+  if (!box || !viewport) return;
+  expect(Math.round(box.x)).toBe(0);
+  expect(Math.round(box.width)).toBe(viewport.width);
+  expect(Math.round(box.height)).toBeGreaterThanOrEqual(viewport.height - 1);
+}
+
+test('the board fits a phone: no redirect, columns stack, empty ones hide', async ({ page }) => {
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
 
-  // The board URL on a phone lands on the shell.
+  // A phone gets the console itself, on the same URL.
   await page.goto('/dashboard', { waitUntil: 'networkidle' });
-  await expect(page).toHaveURL(/\/m$/);
-  await expect(page.getByRole('link', { name: 'New booking' })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.locator('.topbar')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 
-  // The cross-day attention list carries the three seeded unassigned bookings.
-  await page.getByRole('link', { name: /Needs attention/ }).click();
-  await expect(page).toHaveURL(/\/m\?view=attention/);
-  for (const name of [LEGO, MERC, JJ]) {
-    await expect(page.locator('.m-card', { hasText: name })).toContainText('Needs a driver');
-  }
-
-  // Deep links from the board map onto the shell's booking screen.
+  // The seeded day: the board's columns stack one under another, full width.
   const id = await bookingIdOf(page, LEGO);
   await page.goto(`/dashboard/bookings/${id}`, { waitUntil: 'networkidle' });
-  await expect(page).toHaveURL(new RegExp(`/m/b/${id}$`));
-  await expect(hero(page)).toContainText(LEGO);
-  await expect(hero(page)).toContainText('Needs a driver');
+  const url = new URL(page.url());
+  url.searchParams.set('layout', 'board');
+  url.searchParams.delete('booking');
+  await page.goto(url.toString(), { waitUntil: 'networkidle' });
+  await expectNoHorizontalOverflow(page);
+
+  const unassigned = page.locator('.column[aria-label="Unassigned"]');
+  await expect(unassigned).toBeVisible();
+  expect(await unassigned.locator('.card').count()).toBeGreaterThan(0);
+  // Full width, one under another: every visible column shares the left edge
+  // and spans the screen, so there is nothing to scroll sideways to.
+  const boxes = await page
+    .locator('.column:visible')
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()));
+  const viewport = page.viewportSize()?.width ?? 0;
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const box of boxes) {
+    expect(Math.round(box.x)).toBe(Math.round(boxes[0]?.x ?? -1));
+    expect(box.width).toBeGreaterThan(viewport * 0.85);
+  }
+  // Columns with nothing in them are noise on a phone.
+  await expect(page.locator('.column[aria-label="In progress"]')).toBeHidden();
+  await expect(page.locator('.column[aria-label="Awaiting review"]')).toBeHidden();
+
+  // The list layout reflows into stacked rows rather than a 700px-wide table.
+  url.searchParams.set('layout', 'list');
+  await page.goto(url.toString(), { waitUntil: 'networkidle' });
+  await expectNoHorizontalOverflow(page);
+  await expect(page.locator('.list__row.head')).toBeHidden();
+  await expect(page.locator('.list__row', { hasText: LEGO }).first()).toBeVisible();
+
+  // The side rail is a nav strip the operator can scroll; the urgent views keep their counts.
+  await expect(
+    page.locator('.rail').getByRole('link', { name: /Unassigned tickets/ }),
+  ).toContainText('3');
 });
 
 test('create a booking from the phone', async ({ page }) => {
-  await page.goto('/m/new', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
+  await page.locator('.topbar .btn-pri-create').click();
   const modal = sheet(page);
   await expect(modal.locator('.modal__title')).toHaveText('Create booking');
+  await expectFullScreenSheet(page);
+  // 16px keeps iOS Safari from zooming into the field on focus.
+  const fontSize = await modal
+    .locator('input[aria-label="Pickup address"]')
+    .evaluate((el) => getComputedStyle(el).fontSize);
+  expect(fontSize).toBe('16px');
 
   await modal.locator('input[aria-label="Pickup address"]').fill('1 Test Street, London SW1A 1AA');
   await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London W1K 2AL');
@@ -97,37 +162,39 @@ test('create a booking from the phone', async ({ page }) => {
     .fill('phone@example.com');
   await modal.locator('.field', { hasText: 'Contract price' }).locator('input').fill('120');
   await modal.getByRole('button', { name: 'Create booking' }).click();
-
-  // Lands on the booking's day with a toast; the new booking needs a driver.
-  await expect(page).toHaveURL(/\/m\?date=\d{4}-\d{2}-\d{2}&created=1/);
   await expect(page.locator('.toast')).toContainText('Booking created');
-  const card = page.locator('.m-card', { hasText: 'Phone Booker' });
-  await expect(card).toContainText('Needs a driver');
-  await card.click();
-  await expect(hero(page)).toContainText('Phone Booker');
-  await expect(hero(page)).toContainText('UNASSIGNED');
+
+  await openBookingPanel(page, 'Phone Booker');
+  await expect(lozenges(page)).toContainText('UNASSIGNED');
 });
 
-test('dispatch: assign a driver confirmed by phone, then message them', async ({ page }) => {
-  await openMobileBooking(page, LEGO);
-  await actions(page).getByRole('button', { name: 'Find a driver' }).click();
+test('dispatch: assign a driver confirmed by phone, then message them in the app', async ({
+  page,
+}) => {
+  await openBookingPanel(page, LEGO);
+  await panel(page).getByRole('button', { name: 'Find a driver' }).click();
   const modal = sheet(page);
   await expect(modal).toContainText('Find drivers');
+  await expectFullScreenSheet(page);
   await modal.locator('.driver-row:not(.is-busy)').first().click();
   await modal.getByRole('button', { name: 'Confirmed by phone' }).click();
   await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
 
-  await expect(hero(page)).toContainText('ASSIGNED');
-  // The primary action now hands straight to the WhatsApp app.
-  const wa = actions(page).getByRole('link', { name: /Message driver on WhatsApp/ });
+  await expect(lozenges(page)).toContainText('ASSIGNED');
+  // On a phone the WhatsApp hand-off goes to the app (wa.me), not WhatsApp Web.
+  const wa = panel(page).getByRole('link', { name: /Message driver on WhatsApp/ });
   await expect(wa).toHaveAttribute('href', /^https:\/\/wa\.me\/\d+\?text=/);
-  await expect(actions(page).getByRole('link', { name: 'Call driver' })).toHaveAttribute(
-    'href',
-    /^tel:\+?\d+/,
-  );
-  await expect(page.locator('.m-facts', { hasText: 'Driver' })).not.toContainText(
-    'Not yet assigned',
-  );
+});
+
+test('offer a job to drivers: the offer links open the WhatsApp app', async ({ page }) => {
+  await openBookingPanel(page, MERC);
+  await panel(page).getByRole('button', { name: 'Find a driver' }).click();
+  const modal = sheet(page);
+  await modal.locator('.driver-row:not(.is-busy)').first().click();
+  await modal.getByRole('button', { name: /Offer to 1 driver/ }).click();
+  const offer = modal.getByRole('link', { name: /WhatsApp/ }).first();
+  await expect(offer).toHaveAttribute('href', /^https:\/\/wa\.me\/\d+\?text=/);
+  await modal.getByRole('button', { name: 'Done' }).click();
 });
 
 test('approve a completed job from the phone', async ({ page }) => {
@@ -135,23 +202,22 @@ test('approve a completed job from the phone', async ({ page }) => {
   await row(page, LEGO).locator('select[name="state"]').selectOption('awaiting_operator_review');
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Set' }).click());
 
-  await openMobileBooking(page, LEGO);
-  await expect(hero(page)).toContainText('Review completion');
-  // One-shot actions arm on the first tap and run on the second.
-  await actions(page).getByRole('button', { name: 'Approve & complete' }).click();
-  await actions(page).getByRole('button', { name: 'Tap again to approve' }).click();
-  await expect(page.locator('.toast')).toContainText('Trip approved');
-  await expect(hero(page)).toContainText('DONE');
-  // Done jobs can still be corrected, nothing else.
-  await expect(actions(page).getByRole('button')).toHaveCount(1);
-  await expect(actions(page).getByRole('button', { name: 'Edit booking' })).toBeVisible();
+  await openBookingPanel(page, LEGO);
+  await expect(lozenges(page)).toContainText('AWAITING REVIEW');
+  await panel(page).getByRole('button', { name: 'Approve & complete' }).click();
+  await expect(page.locator('.toast')).toContainText(/approved/i);
+  // Approval closes the panel; the booking is now done.
+  await expect(panel(page)).toHaveCount(0);
+  await openBookingPanel(page, LEGO);
+  await expect(lozenges(page)).toContainText('DONE');
 });
 
 test('edit a booking from the phone', async ({ page }) => {
-  await openMobileBooking(page, JJ);
-  await actions(page).getByRole('button', { name: 'Edit booking' }).click();
+  await openBookingPanel(page, JJ);
+  await panel(page).getByRole('button', { name: 'Edit', exact: true }).click();
   const modal = sheet(page);
   await expect(modal.locator('.modal__title')).toContainText('Edit');
+  await expectFullScreenSheet(page);
   await modal
     .locator('.field', { hasText: 'Passenger' })
     .locator('input')
@@ -159,37 +225,22 @@ test('edit a booking from the phone', async ({ page }) => {
     .fill('Lefevre-Edited');
   await modal.getByRole('button', { name: /Save/ }).click();
   await expect(page.locator('.toast')).toContainText('Booking updated');
-  await expect(hero(page)).toContainText('Sophia Lefevre-Edited');
+  await expect(panel(page)).toContainText('Sophia Lefevre-Edited');
 });
 
 test('cancel with undo from the phone', async ({ page }) => {
-  await openMobileBooking(page, MERC);
-  await actions(page).getByRole('button', { name: 'Cancel booking' }).click();
+  await openBookingPanel(page, MERC);
+  await panel(page).getByRole('button', { name: 'Cancel', exact: true }).click();
   const modal = sheet(page);
   await expect(modal).toContainText('Cancel this booking?');
   await modal.getByRole('button', { name: 'Cancel booking' }).click();
   const toast = page.locator('.toast', { hasText: 'Booking cancelled' });
   await expect(toast).toBeVisible();
-  await expect(hero(page)).toContainText('CANCELLED');
-  await expect(actions(page)).toHaveCount(0);
+  // Cancelling closes the panel; the Undo lives in the toast.
+  await expect(panel(page)).toHaveCount(0);
 
   await toast.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.toast', { hasText: 'Cancellation undone' })).toBeVisible();
-  await expect(hero(page)).toContainText('UNASSIGNED');
-  await expect(actions(page).getByRole('button', { name: 'Find a driver' })).toBeVisible();
-});
-
-test('switching to the full console sticks, and back again', async ({ page }) => {
-  await page.goto('/m', { waitUntil: 'networkidle' });
-  await page.getByRole('link', { name: 'Full console' }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('.topbar')).toBeVisible();
-  // The preference is remembered: the board no longer bounces to the shell.
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
-  await expect(page).toHaveURL(/\/dashboard$/);
-  // …until the operator asks for the shell again.
-  await page.getByRole('link', { name: 'Mobile view' }).click();
-  await expect(page).toHaveURL(/\/m$/);
-  await page.goto('/dashboard', { waitUntil: 'networkidle' });
-  await expect(page).toHaveURL(/\/m$/);
+  await openBookingPanel(page, MERC);
+  await expect(lozenges(page)).toContainText('UNASSIGNED');
 });

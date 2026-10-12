@@ -135,79 +135,29 @@ describe('CSP middleware', () => {
   });
 });
 
-describe('console routing (phone → mobile shell)', () => {
+describe('phones get the console itself (no separate mobile shell)', () => {
   const IPHONE =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
-  const MAC =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
-  function request(
-    path: string,
-    opts: { ua?: string; method?: string; cookie?: string } = {},
-  ): NextRequest {
-    const headers = new Headers({ 'user-agent': opts.ua ?? IPHONE });
-    if (opts.cookie) headers.set('cookie', opts.cookie);
+  function request(path: string, opts: { method?: string } = {}): NextRequest {
     return new NextRequest(`https://example.com${path}`, {
       method: opts.method ?? 'GET',
-      headers,
+      headers: new Headers({ 'user-agent': IPHONE, 'sec-ch-ua-mobile': '?1' }),
     });
   }
 
-  it('redirects a phone opening the board to the mobile shell', () => {
-    const res = middleware(request('/dashboard?date=2026-10-13'));
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('https://example.com/m?date=2026-10-13');
-  });
-
-  it('serves the board to a desktop browser', () => {
-    const res = middleware(request('/dashboard', { ua: MAC }));
-    expect(res.status).toBe(200);
-    expect(res.headers.get('location')).toBeNull();
-    expect(res.headers.get('content-security-policy')).toBeTruthy();
-  });
-
-  it('serves the board to a phone that chose the full console', () => {
-    const res = middleware(request('/dashboard', { cookie: 'console_mode=desktop' }));
-    expect(res.status).toBe(200);
-    expect(res.headers.get('location')).toBeNull();
-  });
-
-  it('never redirects server-action POSTs', () => {
-    const res = middleware(request('/dashboard', { method: 'POST' }));
-    expect(res.status).toBe(200);
-  });
-
-  it('?console=desktop persists the choice (1 year, httpOnly, lax) and lands on the board', () => {
-    const res = middleware(request('/m?console=desktop'));
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('https://example.com/dashboard');
-    const cookie = res.cookies.get('console_mode');
-    expect(cookie?.value).toBe('desktop');
-    expect(cookie?.httpOnly).toBe(true);
-    expect(cookie?.sameSite).toBe('lax');
-    expect(cookie?.path).toBe('/');
-    expect(cookie?.maxAge).toBe(365 * 24 * 60 * 60);
-  });
-
-  it('?console=mobile clears the choice and lands on the shell', () => {
-    const res = middleware(
-      request('/dashboard?console=mobile', { cookie: 'console_mode=desktop' }),
-    );
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('https://example.com/m');
-    expect(res.cookies.get('console_mode')?.value).toBe('');
-  });
-
-  it('cannot be turned into an open redirect via the switch param', () => {
-    for (const path of ['//evil.com/?console=desktop', '/\\evil.com?console=desktop']) {
-      const res = middleware(request(path, { ua: MAC }));
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toBe('https://example.com/dashboard');
+  it('serves the board to a phone — the layout adapts in CSS, nothing redirects', () => {
+    for (const path of ['/dashboard', '/dashboard?date=2026-10-13', '/dashboard/bookings/abc']) {
+      const res = middleware(request(path));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('location')).toBeNull();
+      expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
     }
   });
 
-  it('keeps the CSP header on redirects', () => {
-    const res = middleware(request('/dashboard'));
-    expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
+  it('does not set a console-mode cookie', () => {
+    const res = middleware(request('/dashboard?console=desktop'));
+    expect(res.status).toBe(200);
+    expect(res.cookies.get('console_mode')).toBeUndefined();
   });
 });

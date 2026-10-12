@@ -239,7 +239,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
-      <form className="modal__card" style={{ width: 680 }} onSubmit={submit}>
+      <form className="modal__card modal__card--lg" onSubmit={submit}>
         <header className="modal__head">
           <div className="row">
             <div>

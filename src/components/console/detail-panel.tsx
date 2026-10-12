@@ -34,6 +34,7 @@ import { Icon } from './icons';
 import { Lozenge, StateLozenge, Tag } from './lozenge';
 import { type ExecEmailKind, SendExecEmailModal } from './send-exec-email-modal';
 import type { ConsoleBooking, ConsoleDriver, ConsoleOperator } from './types';
+import { WhatsappLink } from './whatsapp-link';
 
 interface DetailPanelProps {
   booking: ConsoleBooking | null;
@@ -434,17 +435,15 @@ export function DetailPanel({
         return (
           <div className="dp-actions">
             {contact ? (
-              <a
+              <WhatsappLink
                 className="btn btn--primary btn--lg"
                 href={whatsappWebLink(
                   contact.phone,
                   `Hi ${contact.name.split(' ')[0]}, about the ${passengerName(booking)} job…`,
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
               >
                 <Icon.Whatsapp /> Message driver on WhatsApp
-              </a>
+              </WhatsappLink>
             ) : null}
             <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
               <Icon.Reset /> Driver pulled out — unassign
@@ -471,14 +470,12 @@ export function DetailPanel({
               </a>
             ) : null}
             {contact ? (
-              <a
+              <WhatsappLink
                 className="btn"
                 href={whatsappWebLink(contact.phone, `Hi ${contact.name.split(' ')[0]}…`)}
-                target="_blank"
-                rel="noopener noreferrer"
               >
                 <Icon.Whatsapp /> Message driver
-              </a>
+              </WhatsappLink>
             ) : null}
             {booking.execMobile ? (
               <a
@@ -507,17 +504,15 @@ export function DetailPanel({
               <Icon.Send /> {isPending ? 'Generating…' : 'Generate completion link'}
             </button>
             {contact ? (
-              <a
+              <WhatsappLink
                 className="btn"
                 href={whatsappWebLink(
                   contact.phone,
                   `Hi ${contact.name.split(' ')[0]}, please complete the form for ${passengerName(booking)}.`,
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
               >
                 <Icon.Whatsapp /> WhatsApp driver
-              </a>
+              </WhatsappLink>
             ) : null}
             <button type="button" className="btn" onClick={onCompleteOnBehalf}>
               <Icon.Check /> Enter completion details

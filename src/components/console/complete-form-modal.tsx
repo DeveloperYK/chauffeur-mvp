@@ -89,7 +89,7 @@ export function CompleteFormModal({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
       <div className="modal__scrim" onClick={onClose} />
       {/* biome-ignore lint/a11y/useSemanticElements: styled dialog surface; native <dialog> conflicts with the design CSS */}
-      <div className="modal__card" style={{ width: 480 }} role="dialog" aria-modal="true">
+      <div className="modal__card modal__card--sm" role="dialog" aria-modal="true">
         <header className="modal__head">
           <div className="row">
             <div>

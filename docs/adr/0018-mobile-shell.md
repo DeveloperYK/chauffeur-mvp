@@ -1,6 +1,6 @@
 # ADR 0018 — Mobile shell at `/m`, routed by middleware
 
-**Status:** accepted · 2026-10-11
+**Status:** superseded by [0019](./0019-phone-layout-for-the-console.md) · 2026-10-12 (accepted 2026-10-11)
 
 ## Context
 
