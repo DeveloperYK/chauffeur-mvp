@@ -10,7 +10,7 @@ import {
 import { RateLimiter } from '@/server/auth/rate-limit';
 import { createSession, validateSession } from '@/server/auth/sessions';
 import { auditEvents, operators, passwordResetTokens } from '@/server/db/schema';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
 
 const EMAIL = 'ozie@example.com';
@@ -54,18 +54,22 @@ describe('auth/password-reset (integration)', () => {
   // under test pays for hashing.
   let oldHash: string;
 
+  // One in-memory Postgres per file: spinning one up per test (~1–2 s on CI)
+  // dominated this file's runtime. Each test starts from empty tables instead:
+  // deleting operators cascades to sessions and reset tokens.
   beforeAll(async () => {
-    oldHash = await hashPassword(OLD);
-  });
-
-  beforeEach(async () => {
     const t = await createTestDb();
     db = t.db;
     close = t.close;
-    emailer = new FakeEmailAdapter();
+    oldHash = await hashPassword(OLD);
   });
-  afterEach(async () => {
+  afterAll(async () => {
     await close();
+  });
+  beforeEach(async () => {
+    await db.delete(auditEvents);
+    await db.delete(operators);
+    emailer = new FakeEmailAdapter();
   });
 
   async function seedOperator(opts: { active?: boolean; mustChangePassword?: boolean } = {}) {
