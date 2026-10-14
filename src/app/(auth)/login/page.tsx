@@ -9,12 +9,16 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   const session = await currentSession();
   if (session) redirect('/dashboard');
   const params = await searchParams;
   const errorCode = params.error;
+  const notice =
+    params.reset === '1'
+      ? 'Your password has been reset. Sign in with your new password.'
+      : undefined;
   const year = new Date().getFullYear();
 
   return (
@@ -32,7 +36,7 @@ export default async function LoginPage({
             <h1 className="text-xl font-semibold tracking-tight text-ink">Welcome back</h1>
             <p className="mt-1 text-sm text-ink-muted">Sign in to the operator console.</p>
             <div className="mt-6">
-              <LoginForm errorCode={errorCode} />
+              <LoginForm errorCode={errorCode} notice={notice} />
             </div>
           </div>
 
