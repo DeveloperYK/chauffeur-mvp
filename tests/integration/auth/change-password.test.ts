@@ -1,8 +1,9 @@
 import { changePassword } from '@/server/auth/change-password';
 import { createOperator, getOperatorByEmail, login } from '@/server/auth/login';
+import { hashPassword } from '@/server/auth/password';
 import { RateLimiter } from '@/server/auth/rate-limit';
-import { auditEvents } from '@/server/db/schema';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { auditEvents, operators } from '@/server/db/schema';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
 
 const TEMP = 'temp-password-123';
@@ -11,14 +12,22 @@ const NEW = 'my-real-passw0rd';
 describe('auth/changePassword (integration)', () => {
   let db: TestDb;
   let close: () => Promise<void>;
+  // One in-memory Postgres per file and one Argon2id hash for the seed
+  // account — both are slow on a CI runner and the suite has a 60 s budget.
+  let tempHash: string;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const t = await createTestDb();
     db = t.db;
     close = t.close;
+    tempHash = await hashPassword(TEMP);
   });
-  afterEach(async () => {
+  afterAll(async () => {
     await close();
+  });
+  beforeEach(async () => {
+    await db.delete(auditEvents);
+    await db.delete(operators);
   });
 
   function limiter() {
@@ -31,17 +40,26 @@ describe('auth/changePassword (integration)', () => {
   }
 
   async function seedTempAccount() {
-    const { id } = await createOperator(db, {
+    const [op] = await db
+      .insert(operators)
+      .values({
+        email: 'dev@example.com',
+        passwordHash: tempHash,
+        name: 'Dev',
+        mustChangePassword: true,
+      })
+      .returning({ id: operators.id });
+    if (!op) throw new Error('seed failed');
+    return op.id;
+  }
+
+  it('createOperator seeds the must-change-password flag', async () => {
+    await createOperator(db, {
       email: 'dev@example.com',
       password: TEMP,
       name: 'Dev',
       mustChangePassword: true,
     });
-    return id;
-  }
-
-  it('createOperator seeds the must-change-password flag', async () => {
-    await seedTempAccount();
     const op = await getOperatorByEmail(db, 'dev@example.com');
     expect(op?.mustChangePassword).toBe(true);
   });

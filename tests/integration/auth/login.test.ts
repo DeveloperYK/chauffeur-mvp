@@ -1,4 +1,5 @@
 import { createOperator, login, logout } from '@/server/auth/login';
+import { hashPassword } from '@/server/auth/password';
 import { RateLimiter } from '@/server/auth/rate-limit';
 import {
   SESSION_LIFETIME_MS,
@@ -6,24 +7,43 @@ import {
   invalidateAllSessionsForOperator,
   validateSession,
 } from '@/server/auth/sessions';
-import { auditEvents, sessions } from '@/server/db/schema';
+import { auditEvents, operators, sessions } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
 
 describe('auth/login + sessions (integration)', () => {
   let db: TestDb;
   let close: () => Promise<void>;
+  // One in-memory Postgres per file and one Argon2id hash for the seed
+  // account: both are slow on a CI runner (~1–2 s and ~0.5 s each) and the
+  // suite has a 60 s budget. Each test starts from empty tables; deleting
+  // operators cascades to sessions.
+  let aliceHash: string;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const t = await createTestDb();
     db = t.db;
     close = t.close;
+    aliceHash = await hashPassword('correct-horse-battery');
   });
-
-  afterEach(async () => {
+  afterAll(async () => {
     await close();
   });
+  beforeEach(async () => {
+    await db.delete(auditEvents);
+    await db.delete(operators);
+  });
+
+  /** Alice with the precomputed hash; `createOperator` itself is covered by the first test. */
+  async function seedAlice(): Promise<{ id: string }> {
+    const [op] = await db
+      .insert(operators)
+      .values({ email: 'alice@example.com', passwordHash: aliceHash, name: 'Alice' })
+      .returning({ id: operators.id });
+    if (!op) throw new Error('seed failed');
+    return op;
+  }
 
   function freshLimiter() {
     return new RateLimiter({
@@ -52,11 +72,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('login is case-insensitive on email', async () => {
-    await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    await seedAlice();
     const result = await login(
       { email: 'ALICE@Example.com', password: 'correct-horse-battery' },
       { db, rateLimiter: freshLimiter() },
@@ -65,11 +81,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('rejects wrong password without leaking which field was wrong', async () => {
-    await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    await seedAlice();
     const r1 = await login(
       { email: 'alice@example.com', password: 'wrong-password-here' },
       { db, rateLimiter: freshLimiter() },
@@ -87,11 +99,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('returns rate_limited after exceeding bucket', async () => {
-    await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    await seedAlice();
     const limiter = new RateLimiter({
       capacity: 2,
       refillIntervalMs: 60_000,
@@ -117,12 +125,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('inactive operator cannot log in', async () => {
-    const created = await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
-    const { operators } = await import('@/server/db/schema');
+    const created = await seedAlice();
     await db.update(operators).set({ active: false }).where(eq(operators.id, created.id));
     const result = await login(
       { email: 'alice@example.com', password: 'correct-horse-battery' },
@@ -136,11 +139,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('validateSession returns operator for active token, then logout invalidates it', async () => {
-    const created = await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    const created = await seedAlice();
     const { token } = await createSession(db, created.id);
     const v = await validateSession(db, token);
     expect(v?.operator.email).toBe('alice@example.com');
@@ -149,11 +148,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('expired session is removed on validate', async () => {
-    const created = await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    const created = await seedAlice();
     // Create a session manually with past expiry by inserting directly
     const longAgo = new Date(Date.now() - SESSION_LIFETIME_MS - 1_000);
     const { token } = await createSession(db, created.id, longAgo);
@@ -164,11 +159,7 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   it('invalidateAllSessionsForOperator clears all', async () => {
-    const created = await createOperator(db, {
-      email: 'alice@example.com',
-      password: 'correct-horse-battery',
-      name: 'Alice',
-    });
+    const created = await seedAlice();
     await createSession(db, created.id);
     await createSession(db, created.id);
     await invalidateAllSessionsForOperator(db, created.id);
@@ -177,14 +168,6 @@ describe('auth/login + sessions (integration)', () => {
   });
 
   describe('login audit trail', () => {
-    async function seedAlice() {
-      return createOperator(db, {
-        email: 'alice@example.com',
-        password: 'correct-horse-battery',
-        name: 'Alice',
-      });
-    }
-
     it('records a login audit event for the operator on success', async () => {
       const { id } = await seedAlice();
       const result = await login(

@@ -3,6 +3,7 @@
 import { Alert } from '@/components/ui/alert';
 import { Field } from '@/components/ui/field';
 import { cn } from '@/lib/cn';
+import Link from 'next/link';
 import { type SVGProps, useId, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { loginAction } from './actions';
@@ -17,7 +18,13 @@ const errorMessages: Record<string, string> = {
 const inputClass =
   'form-input h-11 w-full rounded-lg text-[15px] transition-shadow placeholder:text-ink-disabled';
 
-export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
+export function LoginForm({
+  errorCode,
+  notice,
+}: {
+  errorCode: string | undefined;
+  notice: string | undefined;
+}) {
   const message = errorCode ? (errorMessages[errorCode] ?? 'Sign in failed.') : null;
   const [showPassword, setShowPassword] = useState(false);
   const emailId = useId();
@@ -26,6 +33,7 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
   return (
     <form action={loginAction} className="flex flex-col gap-4">
       {message ? <Alert tone="danger">{message}</Alert> : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
 
       <Field label="Email" htmlFor={emailId} required>
         <input
@@ -67,6 +75,15 @@ export function LoginForm({ errorCode }: { errorCode: string | undefined }) {
           </button>
         </div>
       </Field>
+
+      <p className="-mt-1 text-right text-sm">
+        <Link
+          href="/forgot-password"
+          className="font-medium text-ink-muted underline-offset-4 hover:text-ink hover:underline"
+        >
+          Forgot your password?
+        </Link>
+      </p>
 
       <SubmitButton />
     </form>
