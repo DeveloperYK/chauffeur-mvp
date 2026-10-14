@@ -48,6 +48,7 @@ const baseBooking: Booking = {
   waitingChargePence: null,
   dropoffAt: new Date('2026-06-01T10:05:00.000Z'),
   completionSubmittedAt: new Date('2026-06-01T10:10:00.000Z'),
+  completionLinkSentAt: null,
   approvedAt: new Date('2026-06-01T10:15:00.000Z'),
   approvedByOperatorId: 'op-1',
   cancelledAt: null,

@@ -1,4 +1,6 @@
 'use client';
+
+import { ACTION_VIEWS, ACTION_VIEW_GROUPS, type ActionViewCounts } from '@/lib/action-views';
 import {
   BOARD_QUERY_STORAGE_KEY,
   boardHrefFrom,
@@ -11,20 +13,11 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Icon } from './icons';
 
-export interface SavedView {
-  id: string;
-  name: string;
-  vdot: string;
-  urgent?: boolean;
-}
-
 export function Rail({
-  savedViews,
   counts,
   showSimulator,
 }: {
-  savedViews: SavedView[];
-  counts: Record<string, number>;
+  counts: ActionViewCounts;
   showSimulator: boolean;
 }) {
   const pathname = usePathname();
@@ -98,23 +91,30 @@ export function Rail({
         ) : null}
       </div>
 
-      <div className="rail__group">
-        <div className="rail__section">Saved views</div>
-        {savedViews.map((v) => (
-          <Link
-            key={v.id}
-            className={`rail__item ${onBoard && activeSavedView === v.id ? 'is-active' : ''}`}
-            href={`/dashboard?savedView=${v.id}`}
-            prefetch={false}
-          >
-            <span className="vdot" style={{ background: v.vdot }} />
-            <span>{v.name}</span>
-            <span className={`count ${v.urgent && (counts[v.id] ?? 0) > 0 ? 'urgent' : ''}`}>
-              {counts[v.id] ?? 0}
-            </span>
-          </Link>
-        ))}
-      </div>
+      {/* Action views: one group per kind of attention, each item an imperative
+          naming the operator's next step, with the number of bookings waiting
+          for it. Red only when something is actually overdue (ADR 0021). */}
+      {ACTION_VIEW_GROUPS.map((group) => (
+        <div className="rail__group" key={group.id}>
+          <div className="rail__section">{group.label}</div>
+          {ACTION_VIEWS.filter((v) => v.group === group.id).map((v) => {
+            const c = counts[v.id];
+            return (
+              <Link
+                key={v.id}
+                className={`rail__item ${onBoard && activeSavedView === v.id ? 'is-active' : ''}`}
+                href={`/dashboard?savedView=${v.id}`}
+                prefetch={false}
+                title={v.subtitle}
+              >
+                <span className="vdot" style={{ background: v.vdot }} />
+                <span>{v.name}</span>
+                <span className={`count ${c.urgent > 0 ? 'urgent' : ''}`}>{c.total}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
 
       <div className="rail__footer">
         <button type="button" className="rail__item">
