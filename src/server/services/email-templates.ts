@@ -82,7 +82,13 @@ export interface RenderedEmail {
 
 interface Layout extends EmailParts {
   heading: string;
+  /** Footer tag line; defaults to the booking-notification label. */
+  footerLabel?: string;
+  /** Optional call-to-action link, rendered as a button (HTML) / bare URL (text). */
+  cta?: { url: string; label: string };
 }
+
+const DEFAULT_FOOTER_LABEL = 'Booking notification';
 
 function escapeHtml(s: string): string {
   return s
@@ -110,7 +116,7 @@ function destination(b: Booking): string {
   return b.dropoffAddress ?? 'As directed';
 }
 
-function renderText({ heading, intro, rows, closing }: Layout): string {
+function renderText({ heading, intro, rows, closing, footerLabel, cta }: Layout): string {
   const width = Math.max(0, ...rows.map((r) => r.label.length));
   const lines = rows.map((r) => `  ${r.label.padEnd(width)}   ${r.value}`);
   return [
@@ -120,6 +126,7 @@ function renderText({ heading, intro, rows, closing }: Layout): string {
     '',
     ...(intro ? [intro, ''] : []),
     ...(lines.length ? [...lines, ''] : []),
+    ...(cta ? [`${cta.label}: ${cta.url}`, ''] : []),
     ...(closing ? [closing, ''] : []),
     '--',
     COMPANY.legalName,
@@ -129,11 +136,11 @@ function renderText({ heading, intro, rows, closing }: Layout): string {
     '',
     CONFIDENTIALITY_NOTICE,
     '',
-    `${SMS_BRAND_NAME} · Booking notification`,
+    `${SMS_BRAND_NAME} · ${footerLabel ?? DEFAULT_FOOTER_LABEL}`,
   ].join('\n');
 }
 
-function renderHtml({ heading, intro, rows, closing }: Layout): string {
+function renderHtml({ heading, intro, rows, closing, footerLabel, cta }: Layout): string {
   const rowsHtml = rows
     .map(
       (r) =>
@@ -153,6 +160,9 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
     rows.length
       ? `<table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f1;border-bottom:1px solid #f0f0f1;">${rowsHtml}</table>`
       : '',
+    cta
+      ? `<p style="margin:22px 0 0;"><a href="${escapeHtml(cta.url)}" style="display:inline-block;padding:12px 20px;background:#111827;color:#ffffff;font-size:14px;font-weight:600;border-radius:8px;text-decoration:none;">${escapeHtml(cta.label)}</a></p><p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#6b7280;word-break:break-all;">Or copy this link into your browser:<br>${escapeHtml(cta.url)}</p>`
+      : '',
     closing
       ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.5;color:#4b5563;white-space:pre-line;">${escapeHtml(closing)}</p>`
       : '',
@@ -161,7 +171,7 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
     `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
     `<p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:#6b7280;"><a href="mailto:${COMPANY.email}" style="color:#6b7280;">${COMPANY.email}</a><br><a href="https://${COMPANY.website}" style="color:#6b7280;">${COMPANY.website}</a><br>T: ${escapeHtml(COMPANY.phone)}</p>`,
     `<p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;">${escapeHtml(CONFIDENTIALITY_NOTICE)}</p>`,
-    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · Booking notification</p>`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;">${brand} · ${escapeHtml(footerLabel ?? DEFAULT_FOOTER_LABEL)}</p>`,
     '</div>',
     '</div></body></html>',
   ].join('');
@@ -169,8 +179,16 @@ function renderHtml({ heading, intro, rows, closing }: Layout): string {
 
 /** Render a layout as the full email: subject + HTML + text + editable parts. */
 function render(subject: string, layout: Layout): RenderedEmail {
-  const { heading: _heading, ...parts } = layout;
+  const { heading: _heading, footerLabel: _footer, cta: _cta, ...parts } = layout;
   return { subject, html: renderHtml(layout), text: renderText(layout), parts };
+}
+
+/**
+ * Branded render for non-booking emails (password reset etc.). Same chrome as
+ * the exec emails; the caller may add a `cta` button. All strings are escaped.
+ */
+export function renderBrandedEmail(subject: string, layout: Layout): RenderedEmail {
+  return render(subject, layout);
 }
 
 /**

@@ -155,6 +155,28 @@ export const sessions = pgTable(
   (t) => [index('sessions_user_id_idx').on(t.userId)],
 );
 
+/**
+ * One-shot, 30-minute "forgot your password" tokens. Only the SHA-256 of the
+ * emailed token is stored; see src/server/auth/password-reset.ts.
+ */
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    operatorId: uuid('operator_id')
+      .notNull()
+      .references(() => operators.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('password_reset_tokens_token_hash_idx').on(t.tokenHash),
+    index('password_reset_tokens_operator_id_idx').on(t.operatorId),
+  ],
+);
+
 export const drivers = pgTable(
   'drivers',
   {
