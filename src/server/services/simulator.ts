@@ -249,6 +249,8 @@ export async function setBookingState(
   if (!existing) return;
 
   const patch: Record<string, unknown> = { state, updatedAt: now };
+  // A forced state is a fresh stage: no completion link has been sent for it.
+  patch.completionLinkSentAt = null;
 
   // Pick an active driver if we're advancing past unassigned and none is set.
   if (state !== 'unassigned' && !existing.assignedDriverId) {

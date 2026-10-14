@@ -101,6 +101,14 @@ export async function generateCompletionLink(
   const message = completionRequestSms(booking, shortUrl);
   const whatsappUrl = whatsappWebLink(whatsappNumber, message);
 
+  // Stamp the send so the rail moves this booking from "Send completion form"
+  // to "Driver form outstanding". Last send wins (re-sends refresh the clock
+  // the 24h chase badge runs on).
+  await deps.db
+    .update(bookings)
+    .set({ completionLinkSentAt: clock.now(), updatedAt: clock.now() })
+    .where(eq(bookings.id, booking.id));
+
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
     actorId: operatorId,
@@ -288,6 +296,9 @@ async function reviewBooking(
     patch.approvedAt = now;
     patch.approvedByOperatorId = operatorId;
   }
+  // A rejected form goes back to the driver: clear the send stamp so the
+  // booking reappears under "Send completion form".
+  if (event === 'operator_reject') patch.completionLinkSentAt = null;
 
   const [updated] = await deps.db
     .update(bookings)

@@ -108,6 +108,23 @@ describe('services/completion (integration)', () => {
     expect(r.message).not.toContain('/j/');
   });
 
+  it('generateCompletionLink stamps completionLinkSentAt so the booking moves from "send form" to "form outstanding"', async () => {
+    const before = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    expect(before[0]?.completionLinkSentAt).toBeNull();
+    const r = await generateCompletionLink(bookingId, operatorId, deps());
+    expect(r.ok).toBe(true);
+    const after = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    expect(after[0]?.completionLinkSentAt?.toISOString()).toBe('2026-06-01T11:30:00.000Z');
+  });
+
+  it('generateCompletionLink a second time refreshes the sent timestamp (last send wins)', async () => {
+    await generateCompletionLink(bookingId, operatorId, deps());
+    const later = fixedClock('2026-06-02T09:00:00.000Z');
+    await generateCompletionLink(bookingId, operatorId, { ...deps(), clock: later });
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    expect(row?.completionLinkSentAt?.toISOString()).toBe('2026-06-02T09:00:00.000Z');
+  });
+
   it('generateCompletionLink refuses when not awaiting_driver_form', async () => {
     await db.update(bookings).set({ state: 'assigned' }).where(eq(bookings.id, bookingId));
     const r = await generateCompletionLink(bookingId, operatorId, deps());
@@ -257,6 +274,19 @@ describe('services/completion (integration)', () => {
     const r = await rejectBooking(bookingId, operatorId, deps());
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.booking.state).toBe('awaiting_driver_form');
+  });
+
+  it('rejectBooking clears completionLinkSentAt so the operator is prompted to send the form again', async () => {
+    await db
+      .update(bookings)
+      .set({
+        state: 'awaiting_operator_review',
+        completionLinkSentAt: new Date('2026-06-01T12:00:00.000Z'),
+      })
+      .where(eq(bookings.id, bookingId));
+    const r = await rejectBooking(bookingId, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.booking.completionLinkSentAt).toBeNull();
   });
 
   it('approveBooking refuses from non-awaiting_operator_review state', async () => {

@@ -598,7 +598,7 @@ function DriverNotToldTag({ booking }: { booking: ConsoleBooking }) {
         whiteSpace: 'nowrap',
       }}
     >
-      ⚠ driver not told
+      ⚠ change not confirmed
     </span>
   );
 }

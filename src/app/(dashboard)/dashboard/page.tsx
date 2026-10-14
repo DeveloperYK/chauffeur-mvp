@@ -4,6 +4,7 @@ import { ConsoleBoard } from '@/components/console/console-board';
 import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
 import type { ConsoleBooking, ConsoleDriver, ConsoleOperator } from '@/components/console/types';
+import { actionViewById, isActionViewId } from '@/lib/action-views';
 import {
   formatLondonDayLong,
   formatLondonMonth,
@@ -13,22 +14,20 @@ import {
 } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
-import { type Database, getDb, resetDb } from '@/server/db';
+import { getDb, resetDb } from '@/server/db';
 import type { Booking } from '@/server/db/schema';
 import { DB_TIMEOUT_MS, withDbTimeout } from '@/server/db/timeout';
 import { sampleGeneratorEnabled } from '@/server/feature-flags';
+import { listActionView } from '@/server/services/action-views';
 import {
   type DayCounts,
   driverDispatchData,
-  listBookingsByState,
   listBookingsForDay,
-  listDriverNotToldBookings,
-  listUnpricedBookings,
   monthlyDayCounts,
 } from '@/server/services/bookings-query';
 import { toConsoleBooking, toConsoleDriver } from '@/server/services/console-view';
 import { listAllDrivers } from '@/server/services/drivers';
-import { execEmailSendMap, listEmailAttentionBookings } from '@/server/services/exec-notifications';
+import { execEmailSendMap } from '@/server/services/exec-notifications';
 import { openOffersForBookings } from '@/server/services/offers';
 import { listOperators } from '@/server/services/operators';
 import Link from 'next/link';
@@ -39,24 +38,6 @@ export const dynamic = 'force-dynamic';
 // client-side DB guard (DB_TIMEOUT_MS) fires well before this; this is the
 // backstop so a hung instance never holds a request for Vercel's 300 s default.
 export const maxDuration = 60;
-
-const SAVED_VIEW_LABEL: Record<string, string> = {
-  unassigned: 'Unassigned tickets',
-  needs_review: 'Awaiting review',
-  no_price: 'No price',
-  driver_not_told: 'Driver not told',
-  emails_due: 'Emails due',
-};
-// Each saved view spans every day: two triage by state, "No price" by the
-// missing contract price (any live state, since an unpriced booking blocks
-// the monthly invoice until an operator fills it in).
-const SAVED_VIEW_QUERY: Record<string, (db: Database) => Promise<Booking[]>> = {
-  unassigned: (db) => listBookingsByState(db, 'unassigned'),
-  needs_review: (db) => listBookingsByState(db, 'awaiting_operator_review'),
-  no_price: (db) => listUnpricedBookings(db),
-  driver_not_told: (db) => listDriverNotToldBookings(db),
-  emails_due: (db) => listEmailAttentionBookings(db),
-};
 
 const UNASSIGNED = 'unassigned';
 
@@ -91,8 +72,8 @@ export default async function DashboardHome({
       ? params.calMonth
       : formatLondonMonth(new Date(`${selectedDay}T12:00:00Z`));
   const q = (params.q ?? '').trim();
-  const savedView =
-    params.savedView && SAVED_VIEW_QUERY[params.savedView] ? params.savedView : null;
+  // Unknown ids (old bookmarks for retired views) fall back to the day board.
+  const savedView = isActionViewId(params.savedView) ? params.savedView : null;
   // List is the default layout; board is opt-in via ?layout=board.
   const layout = params.layout === 'board' ? 'board' : 'list';
   // Done bookings show by default; the operator can hide them via ?showDone=0.
@@ -111,9 +92,7 @@ export default async function DashboardHome({
     DB_TIMEOUT_MS.page,
     () =>
       Promise.all([
-        savedView
-          ? (SAVED_VIEW_QUERY[savedView] as (db: Database) => Promise<Booking[]>)(db)
-          : listBookingsForDay(db, selectedDay),
+        savedView ? listActionView(db, savedView) : listBookingsForDay(db, selectedDay),
         monthlyDayCounts(db, visibleMonth),
         listAllDrivers(db),
         listOperators(db),
@@ -241,20 +220,23 @@ export default async function DashboardHome({
       {/* ── Page head ─────────────────────────────────────────── */}
       <div className="page-head">
         {savedView ? (
-          <div className="page-head__row">
-            <h1 className="page-head__title">{SAVED_VIEW_LABEL[savedView]}</h1>
-            <span className="page-head__sub">
-              {filtered.length} {filtered.length === 1 ? 'ticket' : 'tickets'}
-            </span>
-            <Link
-              className="link-btn"
-              href={qs({ savedView: null })}
-              style={{ marginLeft: 6 }}
-              prefetch={false}
-            >
-              ← Back to day view
-            </Link>
-          </div>
+          <>
+            <div className="page-head__row">
+              <h1 className="page-head__title">{actionViewById(savedView).name}</h1>
+              <span className="page-head__sub">
+                {filtered.length} {filtered.length === 1 ? 'ticket' : 'tickets'}
+              </span>
+              <Link
+                className="link-btn"
+                href={qs({ savedView: null })}
+                style={{ marginLeft: 6 }}
+                prefetch={false}
+              >
+                ← Back to day view
+              </Link>
+            </div>
+            <p className="page-head__desc">{actionViewById(savedView).subtitle}</p>
+          </>
         ) : (
           <>
             <div className="page-head__row">

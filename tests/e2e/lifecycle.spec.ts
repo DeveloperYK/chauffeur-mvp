@@ -143,6 +143,12 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(offerRows.first()).toBeVisible();
   const linkUrl = (await offerRows.first().getAttribute('data-link'))?.trim();
   expect(linkUrl, 'expected a dispatch link in the fan-out list').toBeTruthy();
+  // With links out and nobody accepted, the booking is no longer the
+  // operator's move: it leaves "Dispatch" and waits under "Driver to accept".
+  await page.goto('/dashboard?savedView=driver_to_accept', { waitUntil: 'networkidle' });
+  await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' }).first()).toBeVisible();
+  await page.goto('/dashboard?savedView=to_dispatch', { waitUntil: 'networkidle' });
+  await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' })).toHaveCount(0);
   // Drive the driver-side accept by opening one driver's link.
   await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Accept job' }).click();
@@ -252,11 +258,11 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .getByRole('button', { name: /Exec messages/ })
     .click();
 
-  // Both sent → the booking has left the rail's "Emails due" view.
+  // Both sent → the booking has left the rail's "Send exec emails" view.
   await page.keyboard.press('Escape'); // close the panel so the rail is clickable
   await expect(page.locator('.panel.is-open')).toHaveCount(0);
-  await page.locator('.rail__item', { hasText: 'Emails due' }).click();
-  await expect(page).toHaveURL(/savedView=emails_due/);
+  await page.locator('.rail__item', { hasText: 'Send exec emails' }).click();
+  await expect(page).toHaveURL(/savedView=send_emails/);
   await expect(page.locator('.card', { hasText: 'LEGO Group' })).toHaveCount(0);
   await gotoSimulator(page);
 
@@ -314,7 +320,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open .route__addr').nth(1)).toContainText('SE1 9SG');
   await expect(page.locator('.panel.is-open')).not.toContainText('DRIVER NOT CONFIRMED');
-  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
+  await expect(page.getByRole('link', { name: /Tell driver of change/ })).toContainText('0');
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'In progress');
 
@@ -323,6 +329,17 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await clickAndSettle(page, row(page, LEGO).getByRole('button', { name: 'Apply' }).click());
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, LEGO, 'Awaiting driver form');
+
+  // ── Rail: the ended trip now needs its completion form sent ──
+  // No link has gone out yet, so it sits under "Send completion form" (red)
+  // and not under "Driver form outstanding".
+  await page.goto('/dashboard?savedView=send_form', { waitUntil: 'networkidle' });
+  await expect(page.locator('.page-head__title')).toHaveText('Send completion form');
+  await expect(page.locator('.page-head__desc')).toContainText('Trips that have ended');
+  await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /Send completion form/ })).toContainText('1');
+  await expect(page.getByRole('link', { name: /Driver form outstanding/ })).toContainText('0');
+  await gotoSimulator(page);
 
   // ── Force → awaiting_operator_review (completion data filled) ─
   await row(page, LEGO).locator('select[name="state"]').selectOption('awaiting_operator_review');
@@ -456,6 +473,18 @@ test('backfill driver: hand off → clock → driver completion form → approve
   const completionUrl = (await completionLink.textContent())?.trim();
   expect(completionUrl, 'expected a completion link in the popup').toBeTruthy();
 
+  // Sending the link moves the booking from "Send completion form" to the
+  // waiting view "Driver form outstanding" (not red: sent under 24h ago).
+  await page.goto('/dashboard?savedView=form_outstanding', { waitUntil: 'networkidle' });
+  await expect(page.locator('.list__row, .card', { hasText: JJ }).first()).toBeVisible();
+  const outstandingCount = page
+    .getByRole('link', { name: /Driver form outstanding/ })
+    .locator('.count');
+  await expect(outstandingCount).toContainText('1');
+  await expect(outstandingCount).not.toHaveClass(/urgent/);
+  await page.goto('/dashboard?savedView=send_form', { waitUntil: 'networkidle' });
+  await expect(page.locator('.list__row, .card', { hasText: JJ })).toHaveCount(0);
+
   // ── Backfill driver fills out the same completion form via the link ──
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
@@ -576,15 +605,15 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
   // The change flags the booking for driver re-confirmation — visibly on the
-  // board tile and in the rail's "Driver not told" count, not just in the panel.
+  // board tile and in the rail's "Tell driver of change" count, not just in the panel.
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
-    'driver not told',
+    'change not confirmed',
   );
-  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('1');
+  await expect(page.getByRole('link', { name: /Tell driver of change/ })).toContainText('1');
   // The saved view lists it.
-  await page.goto('/dashboard?savedView=driver_not_told', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard?savedView=confirm_change', { waitUntil: 'networkidle' });
   await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' }).first()).toBeVisible();
 
   // ── Operator attests the driver confirmed by phone ──
@@ -601,9 +630,9 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE CONFIRMED BY PHONE');
   // Confirmation clears the tile marker and the rail count.
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).not.toContainText(
-    'driver not told',
+    'change not confirmed',
   );
-  await expect(page.getByRole('link', { name: /Driver not told/ })).toContainText('0');
+  await expect(page.getByRole('link', { name: /Tell driver of change/ })).toContainText('0');
 });
 
 test('mid-flight change: driver confirms via the link, operator sends the update email', async ({
@@ -900,12 +929,12 @@ test('optional pricing: a booking created without a price is flagged until one i
     'sandra@nopriceco.com',
   );
 
-  // ── The rail's "No price" saved view counts and lists it ──
+  // ── The rail's "Add price" view counts and lists it ──
   // Seeded bookings are all priced, so the one unpriced booking is Priceless.
-  const noPriceRailItem = page.locator('.rail__item', { hasText: 'No price' });
+  const noPriceRailItem = page.locator('.rail__item', { hasText: 'Add price' });
   await expect(noPriceRailItem).toContainText('1');
-  await page.goto('/dashboard?savedView=no_price', { waitUntil: 'networkidle' });
-  await expect(page.locator('.page-head__title')).toHaveText('No price');
+  await page.goto('/dashboard?savedView=add_price', { waitUntil: 'networkidle' });
+  await expect(page.locator('.page-head__title')).toHaveText('Add price');
   await expect(page.locator('.page-head__sub')).toContainText('1 ticket');
   await expect(page.getByText('Priceless').first()).toBeVisible();
 
@@ -955,10 +984,10 @@ test('optional pricing: a booking created without a price is flagged until one i
     'no price',
   );
 
-  // ── Priced now: the "No price" saved view is empty again ──
-  await page.goto('/dashboard?savedView=no_price', { waitUntil: 'networkidle' });
+  // ── Priced now: the "Add price" view is empty again ──
+  await page.goto('/dashboard?savedView=add_price', { waitUntil: 'networkidle' });
   await expect(page.locator('.page-head__sub')).toContainText('0 tickets');
-  await expect(page.locator('.rail__item', { hasText: 'No price' })).toContainText('0');
+  await expect(page.locator('.rail__item', { hasText: 'Add price' })).toContainText('0');
 });
 
 test('board remembers the operator’s selected day across a visit to another tab', async ({
@@ -982,8 +1011,8 @@ test('board remembers the operator’s selected day across a visit to another ta
   await expect(page).toHaveURL(new RegExp(`date=${day}`));
 
   // A saved-view visit (also /dashboard, no date) must not clobber the memory.
-  await page.locator('.rail__item', { hasText: 'Unassigned tickets' }).click();
-  await expect(page).toHaveURL(/savedView=unassigned/);
+  await page.locator('.rail__item', { hasText: 'Dispatch' }).click();
+  await expect(page).toHaveURL(/savedView=to_dispatch/);
   await page.locator('.rail').getByRole('link', { name: 'Board' }).click();
   await expect(page).toHaveURL(new RegExp(`date=${day}`));
 });

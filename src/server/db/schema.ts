@@ -330,6 +330,12 @@ export const bookings = pgTable(
     waitingChargePence: integer('waiting_charge_pence'),
     dropoffAt: timestamp('dropoff_at', { withTimezone: true }),
     completionSubmittedAt: timestamp('completion_submitted_at', { withTimezone: true }),
+    // When the operator last generated the driver's completion-form link (the
+    // modal exists only to copy/WhatsApp it, so "generated" ≈ "sent"). Null in
+    // awaiting_driver_form = the form has not been sent yet ("Send completion
+    // form" rail view); set = waiting on the driver ("Driver form outstanding").
+    // Cleared on operator_reject so the operator is prompted to re-send.
+    completionLinkSentAt: timestamp('completion_link_sent_at', { withTimezone: true }),
     // True when the operator entered the completion form on the driver's behalf
     // (driver slow/unreachable, info taken by phone) — this booking skipped the
     // operator-review stage. See docs/shaping/operator-complete-form.
