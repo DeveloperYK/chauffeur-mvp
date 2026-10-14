@@ -1,33 +1,16 @@
-import { Rail, type SavedView } from '@/components/console/rail';
+import { Rail } from '@/components/console/rail';
 import { Topbar } from '@/components/console/topbar';
+import { type ActionViewCounts, ZERO_COUNTS } from '@/lib/action-views';
 import { env } from '@/lib/env';
 import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db';
-import { bookings } from '@/server/db/schema';
 import { simulatorEnabled } from '@/server/feature-flags';
-import { driverNotToldConditions } from '@/server/services/bookings-query';
-import { listEmailAttentionBookings } from '@/server/services/exec-notifications';
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { countActionViews } from '@/server/services/action-views';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import '@/app/console.css';
 
 export const dynamic = 'force-dynamic';
-
-const SAVED_VIEWS: SavedView[] = [
-  { id: 'unassigned', name: 'Unassigned tickets', vdot: '#8590A2' },
-  { id: 'needs_review', name: 'Awaiting review', vdot: '#5243AA', urgent: true },
-  // Bookings still missing a contract price — they block the monthly invoice,
-  // so the rail keeps a running count until an operator prices them.
-  { id: 'no_price', name: 'No price', vdot: '#E56910', urgent: true },
-  // Dispatched bookings edited after the driver was told, still awaiting the
-  // driver's confirmation of the new plan. Must be loud: a driver working off
-  // stale details is an operational failure.
-  { id: 'driver_not_told', name: 'Driver not told', vdot: '#C9372C', urgent: true },
-  // Bookings whose exec emails are behind — due but unsent, or failed. The
-  // operator sends both emails manually, so the rail keeps the queue visible.
-  { id: 'emails_due', name: 'Emails due', vdot: '#B38600', urgent: true },
-];
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await currentSession();
@@ -36,45 +19,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // it can reach any console page.
   if (session.operator.mustChangePassword) redirect('/change-password');
 
-  const counts: Record<string, number> = {
-    unassigned: 0,
-    needs_review: 0,
-    no_price: 0,
-    driver_not_told: 0,
-    emails_due: 0,
-  };
+  // Rail badges: one count per action view (see ADR 0021). A missing DB (build
+  // time) renders zeros rather than failing the whole console.
   const url = env().DATABASE_URL;
-  if (url) {
-    const { db } = getDb(url);
-    const [u, r, p, d, em] = await Promise.all([
-      db.select({ id: bookings.id }).from(bookings).where(eq(bookings.state, 'unassigned')),
-      db
-        .select({ id: bookings.id })
-        .from(bookings)
-        .where(eq(bookings.state, 'awaiting_operator_review')),
-      // Same definition as listUnpricedBookings: no contract price yet, and
-      // not cancelled (cancelled bookings are never invoiced).
-      db
-        .select({ id: bookings.id })
-        .from(bookings)
-        .where(and(isNull(bookings.contractPricePence), ne(bookings.state, 'cancelled'))),
-      db
-        .select({ id: bookings.id })
-        .from(bookings)
-        .where(and(...driverNotToldConditions())),
-      listEmailAttentionBookings(db),
-    ]);
-    counts.unassigned = u.length;
-    counts.needs_review = r.length;
-    counts.no_price = p.length;
-    counts.driver_not_told = d.length;
-    counts.emails_due = em.length;
-  }
+  const counts: ActionViewCounts = url ? await countActionViews(getDb(url).db) : ZERO_COUNTS;
 
   return (
     <div className="app">
       <Topbar me={{ id: session.operator.id, name: session.operator.name }} />
-      <Rail savedViews={SAVED_VIEWS} counts={counts} showSimulator={simulatorEnabled()} />
+      <Rail counts={counts} showSimulator={simulatorEnabled()} />
       <main className="main" style={{ overflowY: 'auto' }}>
         {children}
       </main>
