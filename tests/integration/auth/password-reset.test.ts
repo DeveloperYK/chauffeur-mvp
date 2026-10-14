@@ -1,5 +1,6 @@
 import { FakeEmailAdapter } from '@/server/adapters/email-fake';
-import { createOperator, getOperatorByEmail, login } from '@/server/auth/login';
+import { getOperatorByEmail, login } from '@/server/auth/login';
+import { hashPassword } from '@/server/auth/password';
 import {
   PASSWORD_RESET_TTL_MS,
   adminResetPassword,
@@ -8,8 +9,8 @@ import {
 } from '@/server/auth/password-reset';
 import { RateLimiter } from '@/server/auth/rate-limit';
 import { createSession, validateSession } from '@/server/auth/sessions';
-import { auditEvents, passwordResetTokens } from '@/server/db/schema';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { auditEvents, operators, passwordResetTokens } from '@/server/db/schema';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
 
 const EMAIL = 'ozie@example.com';
@@ -48,6 +49,14 @@ describe('auth/password-reset (integration)', () => {
   let db: TestDb;
   let close: () => Promise<void>;
   let emailer: FakeEmailAdapter;
+  // Argon2id is deliberately slow (~0.5 s on a CI runner). Hash the seed
+  // password once per file and insert the hash directly, so only the code
+  // under test pays for hashing.
+  let oldHash: string;
+
+  beforeAll(async () => {
+    oldHash = await hashPassword(OLD);
+  });
 
   beforeEach(async () => {
     const t = await createTestDb();
@@ -60,18 +69,22 @@ describe('auth/password-reset (integration)', () => {
   });
 
   async function seedOperator(opts: { active?: boolean; mustChangePassword?: boolean } = {}) {
-    const { id } = await createOperator(db, {
-      email: EMAIL,
-      password: OLD,
-      name: 'Ozie',
-      mustChangePassword: opts.mustChangePassword ?? false,
-    });
-    if (opts.active === false) {
-      const { operators } = await import('@/server/db/schema');
-      const { eq } = await import('drizzle-orm');
-      await db.update(operators).set({ active: false }).where(eq(operators.id, id));
-    }
-    return id;
+    const [op] = await db
+      .insert(operators)
+      .values({
+        email: EMAIL,
+        passwordHash: oldHash,
+        name: 'Ozie',
+        active: opts.active ?? true,
+        mustChangePassword: opts.mustChangePassword ?? false,
+      })
+      .returning({ id: operators.id });
+    if (!op) throw new Error('seed failed');
+    return op.id;
+  }
+
+  async function storedHash(): Promise<string | undefined> {
+    return (await getOperatorByEmail(db, EMAIL))?.passwordHash;
   }
 
   function request(email = EMAIL, now = T0, rl = limiter()) {
@@ -212,11 +225,7 @@ describe('auth/password-reset (integration)', () => {
       const later = new Date(T0.getTime() + PASSWORD_RESET_TTL_MS + 1);
       const r = await completePasswordReset(db, { token, newPassword: NEW }, () => later);
       expect(r).toEqual({ ok: false, reason: 'expired_token' });
-      const okOld = await login(
-        { email: EMAIL, password: OLD },
-        { db, rateLimiter: loginLimiter() },
-      );
-      expect(okOld.ok).toBe(true);
+      expect(await storedHash()).toBe(oldHash);
     });
 
     it('rejects a token that was already used', async () => {
