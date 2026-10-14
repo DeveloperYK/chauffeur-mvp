@@ -86,31 +86,45 @@ export async function listActionView(
     .limit(LIST_LIMIT);
 }
 
-async function countSqlView(db: Database, view: SqlView, now: Date) {
-  const urgentExpr = view.urgentWhere
-    ? sql<string>`count(*) filter (where ${view.urgentWhere(now)})`
-    : sql<string>`count(*)`;
-  const [row] = await db
-    .select({ total: sql<string>`count(*)`, urgent: urgentExpr })
-    .from(bookings)
-    .where(view.where(now));
-  return { total: Number(row?.total ?? 0), urgent: Number(row?.urgent ?? 0) };
-}
+/** `count(*) filter (where …)` — null-safe, returns text in pg so we Number() it. */
+const countWhere = (cond: SQL) => sql<string>`count(*) filter (where ${cond})`;
 
-/** Rail badge numbers for every view, computed in parallel. */
+/**
+ * Rail badge numbers for every view in ONE round-trip: a single scan of
+ * `bookings` with a `count(*) filter (where …)` pair per view. The console
+ * pool is tiny (`max: 2`, see db/index.ts) and the board page is already
+ * running its own reads in parallel, so the layout must not fan out N
+ * queries of its own. "Send exec emails" still needs its own read (email
+ * send log), so the layout costs 3 queries in total.
+ */
 export async function countActionViews(
   db: Database,
   now: Date = new Date(),
 ): Promise<ActionViewCounts> {
-  const entries = await Promise.all(
-    ACTION_VIEW_IDS.map(async (id) => {
-      const view = sqlView(id);
-      if (!view) {
-        const n = (await listEmailAttentionBookings(db)).length;
-        return [id, { total: n, urgent: n }] as const;
-      }
-      return [id, await countSqlView(db, view, now)] as const;
-    }),
+  const sqlIds = ACTION_VIEW_IDS.filter(
+    (id): id is Exclude<ActionViewId, 'send_emails'> => id !== 'send_emails',
   );
-  return Object.fromEntries(entries) as ActionViewCounts;
+  const selection: Record<string, SQL<string>> = {};
+  for (const id of sqlIds) {
+    const view = SQL_VIEWS[id];
+    const where = view.where(now);
+    selection[`${id}_total`] = countWhere(where);
+    selection[`${id}_urgent`] = countWhere(
+      view.urgentWhere ? (and(where, view.urgentWhere(now)) as SQL) : where,
+    );
+  }
+  const [[row], emails] = await Promise.all([
+    db.select(selection).from(bookings),
+    listEmailAttentionBookings(db),
+  ]);
+  const counts = Object.fromEntries(
+    sqlIds.map((id) => [
+      id,
+      {
+        total: Number(row?.[`${id}_total`] ?? 0),
+        urgent: Number(row?.[`${id}_urgent`] ?? 0),
+      },
+    ]),
+  ) as ActionViewCounts;
+  return { ...counts, send_emails: { total: emails.length, urgent: emails.length } };
 }
