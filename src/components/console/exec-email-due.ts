@@ -15,6 +15,28 @@ export interface ExecEmailDueInput {
   changeExecRelevant: boolean;
   changeConfirmedAt: string | null;
   changeUpdateEmailSentAt: string | null;
+  /** "Mark as handled" stamps — a waived email counts as settled, like a sent one. */
+  confirmationEmailWaivedAt: string | null;
+  driverDetailsEmailWaivedAt: string | null;
+  changeUpdateEmailWaivedAt: string | null;
+}
+
+/** A change-update email is settled by a send or a waiver made since the confirmation. */
+function updateEmailSettled(b: ExecEmailDueInput): boolean {
+  const confirmedAt = b.changeConfirmedAt;
+  if (confirmedAt == null) return true;
+  return [b.changeUpdateEmailSentAt, b.changeUpdateEmailWaivedAt].some(
+    (at) => at != null && at >= confirmedAt,
+  );
+}
+
+function updateEmailDue(b: ExecEmailDueInput): boolean {
+  return (
+    b.changeConfirmationStatus === 'confirmed' &&
+    b.changeExecRelevant &&
+    b.changeConfirmedAt != null &&
+    !updateEmailSettled(b)
+  );
 }
 
 /** States where a driver is on the job and both operator emails are expected. */
@@ -34,16 +56,11 @@ const EMAIL_EXPECTED_STATES: ReadonlySet<string> = new Set([
 export function execEmailsDue(b: ExecEmailDueInput): boolean {
   if (b.state === 'cancelled') return false;
   const hasDriver = b.assignedDriverId != null || b.isBackfill;
+  const confirmationSettled = Boolean(b.confirmationEmailSentAt || b.confirmationEmailWaivedAt);
+  const detailsSettled = Boolean(b.driverDetailsEmailSentAt || b.driverDetailsEmailWaivedAt);
   const bothDue =
-    EMAIL_EXPECTED_STATES.has(b.state) &&
-    hasDriver &&
-    (!b.confirmationEmailSentAt || !b.driverDetailsEmailSentAt);
-  const updateDue =
-    b.changeConfirmationStatus === 'confirmed' &&
-    b.changeExecRelevant &&
-    b.changeConfirmedAt != null &&
-    (!b.changeUpdateEmailSentAt || b.changeUpdateEmailSentAt < b.changeConfirmedAt);
-  return bothDue || updateDue;
+    EMAIL_EXPECTED_STATES.has(b.state) && hasDriver && !(confirmationSettled && detailsSettled);
+  return bothDue || updateEmailDue(b);
 }
 
 export interface ExecHealthLabel {
@@ -72,6 +89,8 @@ export type ExecEmailRow = {
   kind: 'assigned' | 'en_route' | 'changed';
   title: string;
   sentAt: string | null;
+  /** Set when the operator marked this email as handled (and no send supersedes it). */
+  waivedAt: string | null;
   canSend: boolean;
   disabledHint: string | null;
   flagged: boolean;
@@ -86,40 +105,50 @@ export function execEmailRows(booking: ExecEmailDueInput): ExecEmailRow[] {
   const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
   const flagActive = EMAIL_EXPECTED_STATES.has(booking.state);
   const cancelled = booking.state === 'cancelled';
-  // A confirmed exec-relevant change needs a "Booking update" email until one
-  // is sent after the confirmation.
-  const updateDue =
-    booking.changeConfirmationStatus === 'confirmed' &&
-    booking.changeExecRelevant &&
+  const updateDue = updateEmailDue(booking) && !cancelled;
+  // The update row's waiver only counts if it was made since the confirmation.
+  const updateWaivedAt =
     booking.changeConfirmedAt != null &&
-    (!booking.changeUpdateEmailSentAt ||
-      booking.changeUpdateEmailSentAt < booking.changeConfirmedAt) &&
-    !cancelled;
+    booking.changeUpdateEmailWaivedAt != null &&
+    booking.changeUpdateEmailWaivedAt >= booking.changeConfirmedAt
+      ? booking.changeUpdateEmailWaivedAt
+      : null;
   return [
     {
       kind: 'assigned',
       title: '1 · Booking confirmation',
       sentAt: booking.confirmationEmailSentAt,
+      waivedAt: booking.confirmationEmailWaivedAt,
       canSend: !cancelled,
       disabledHint: null,
-      flagged: flagActive && hasDriver && !booking.confirmationEmailSentAt,
+      flagged:
+        flagActive &&
+        hasDriver &&
+        !booking.confirmationEmailSentAt &&
+        !booking.confirmationEmailWaivedAt,
     },
     {
       kind: 'en_route',
       title: '2 · Driver details',
       sentAt: booking.driverDetailsEmailSentAt,
+      waivedAt: booking.driverDetailsEmailWaivedAt,
       canSend: !cancelled && hasDriver,
       disabledHint: hasDriver ? null : 'Needs a driver on the job',
-      flagged: flagActive && hasDriver && !booking.driverDetailsEmailSentAt,
+      flagged:
+        flagActive &&
+        hasDriver &&
+        !booking.driverDetailsEmailSentAt &&
+        !booking.driverDetailsEmailWaivedAt,
     },
     // The update row only appears once a mid-flight change makes it relevant
-    // (or one was already sent).
-    ...(updateDue || booking.changeUpdateEmailSentAt
+    // (or one was already sent / handled).
+    ...(updateDue || booking.changeUpdateEmailSentAt || updateWaivedAt
       ? [
           {
             kind: 'changed' as const,
             title: '3 · Booking update',
             sentAt: updateDue ? null : booking.changeUpdateEmailSentAt,
+            waivedAt: updateDue ? null : updateWaivedAt,
             canSend: !cancelled,
             disabledHint: null,
             flagged: updateDue,

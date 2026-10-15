@@ -336,6 +336,16 @@ export const bookings = pgTable(
     // form" rail view); set = waiting on the driver ("Driver form outstanding").
     // Cleared on operator_reject so the operator is prompted to re-send.
     completionLinkSentAt: timestamp('completion_link_sent_at', { withTimezone: true }),
+    // "Mark as handled" for the three operator exec emails: the operator told
+    // the exec another way (phone, own mailbox) or the email is moot, so the
+    // "email due" flag is cleared without recording a send. Nullable = not
+    // waived. The update one is compared against change_confirmed_at, so a
+    // later change re-flags it. See docs/adr/0023-exec-email-waiver.md.
+    confirmationEmailWaivedAt: timestamp('confirmation_email_waived_at', { withTimezone: true }),
+    driverDetailsEmailWaivedAt: timestamp('driver_details_email_waived_at', {
+      withTimezone: true,
+    }),
+    changeUpdateEmailWaivedAt: timestamp('change_update_email_waived_at', { withTimezone: true }),
     // True when the operator entered the completion form on the driver's behalf
     // (driver slow/unreachable, info taken by phone) — this booking skipped the
     // operator-review stage. See docs/shaping/operator-complete-form.

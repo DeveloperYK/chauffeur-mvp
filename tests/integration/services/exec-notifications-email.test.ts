@@ -106,9 +106,9 @@ describe('services/exec-notifications email channel (integration)', () => {
     expect(await status(booking.id)).toBe('pending');
   });
 
-  it('carries the driver PCO number and contact number from the roster into the email', async () => {
+  it('carries the driver PCO number and contact number from the roster into the driver-details email', async () => {
     const booking = await seedAssigned('exec@example.com');
-    const ctx = await buildExecContextForBooking(db, booking, 'assigned');
+    const ctx = await buildExecContextForBooking(db, booking, 'en_route');
     expect(ctx).not.toBeNull();
     if (!ctx) return;
     expect(ctx.pcoNumber).toBe(driver.pcoNumber);
@@ -126,7 +126,7 @@ describe('services/exec-notifications email channel (integration)', () => {
     // must not leak into the exec-facing email in any form.
     expect(driver.carPcoNumber).toBeTruthy();
     const booking = await seedAssigned('exec@example.com');
-    const ctx = await buildExecContextForBooking(db, booking, 'assigned');
+    const ctx = await buildExecContextForBooking(db, booking, 'en_route');
     expect(ctx).not.toBeNull();
     if (!ctx) return;
 

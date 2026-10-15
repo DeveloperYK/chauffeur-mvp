@@ -192,30 +192,20 @@ export function renderBrandedEmail(subject: string, layout: Layout): RenderedEma
 }
 
 /**
- * Exec — booking confirmation, sent by the operator from the console. Works
- * with or without a driver: before one is assigned the email simply carries no
- * driver or vehicle rows.
+ * Exec — booking confirmation. Deliberately carries no driver or vehicle
+ * rows, whether or not a driver is on the job yet: the driver goes out in the
+ * separate driver-details email, so the two never read as the same message.
  */
-export function assignedEmail(
-  booking: Booking,
-  driver: NamedDriver | null,
-  car: string,
-  plate?: string | null,
-): RenderedEmail {
+export function assignedEmail(booking: Booking): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
     heading: 'Booking confirmed',
-    intro: driver
-      ? 'Your chauffeur is booked and confirmed. The details are below.'
-      : 'Your booking is confirmed. The details are below.',
+    intro: 'Your booking is confirmed. The details are below.',
     rows: [
       { label: 'Reference', value: ref },
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Date & time', value: when },
-      ...(driver ? driverRows(driver) : []),
-      ...(driver && car.trim() ? [{ label: 'Vehicle', value: car.trim() }] : []),
-      ...(driver && plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup', value: booking.pickupAddress },
       { label: 'Destination', value: destination(booking) },
     ],

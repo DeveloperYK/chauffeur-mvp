@@ -4396,3 +4396,11 @@ button.driver-row {
 .ic--exec .timeline {
   padding: 0;
 }
+
+/* Secondary link action beside a primary one (e.g. "Mark as handled") */
+.link-btn--muted {
+  color: var(--ink-3);
+}
+.link-btn--muted:hover {
+  color: var(--ink);
+}
