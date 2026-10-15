@@ -69,8 +69,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Runs alongside verify, not after it: lifecycle is the longest job, so
-    # serialising it behind verify added ~2 min to every PR.
-    if: github.event_name == 'pull_request'
+    # serialising it behind verify added ~2 min to every PR. Also runs on
+    # every push to main: that is the only run against the *combined* tree
+    # of several merged PRs, and `pnpm promote` waits for it (ADR 0022).
 
     services:
       postgres:
@@ -136,8 +137,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Runs alongside verify, not after it: lifecycle is the longest job, so
-    # serialising it behind verify added ~2 min to every PR.
-    if: github.event_name == 'pull_request'
+    # serialising it behind verify added ~2 min to every PR. Also runs on
+    # every push to main: that is the only run against the *combined* tree
+    # of several merged PRs, and `pnpm promote` waits for it (ADR 0022).
 
     services:
       postgres:
