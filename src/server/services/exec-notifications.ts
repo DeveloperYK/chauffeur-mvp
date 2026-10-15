@@ -100,7 +100,7 @@ function renderSmsBody(ctx: ExecMessageContext): string {
 function renderEmail(ctx: ExecMessageContext): RenderedEmail {
   const driver = { name: ctx.driverName, pcoNumber: ctx.pcoNumber, phone: ctx.driverPhone };
   if (ctx.kind === 'assigned') {
-    return assignedEmail(ctx.booking, driver, ctx.car ?? '', ctx.plate);
+    return assignedEmail(ctx.booking);
   }
   if (ctx.kind === 'changed') {
     return changeExecEmail(ctx.booking);
@@ -447,7 +447,7 @@ export async function execEmailDraft(
   const ctx = await buildExecContextForBooking(db, booking, kind);
   if (kind === 'en_route' && !ctx) return { ok: false, reason: 'no_driver' };
 
-  const rendered = ctx ? renderEmail(ctx) : assignedEmail(booking, null, '');
+  const rendered = ctx ? renderEmail(ctx) : assignedEmail(booking);
   return {
     ok: true,
     hasDriver: ctx !== null,
@@ -627,15 +627,23 @@ export function changeUpdateEmailDue(
     changeConfirmationStatus: string;
     changeExecRelevant: boolean;
     changeConfirmedAt: Date | null;
+    /** Operator marked the update as handled another way (see exec-email-waiver). */
+    changeUpdateEmailWaivedAt?: Date | null;
   },
   changeUpdateSentAt: Date | null,
 ): boolean {
-  return (
-    booking.changeConfirmationStatus === 'confirmed' &&
-    booking.changeExecRelevant &&
-    booking.changeConfirmedAt != null &&
-    (changeUpdateSentAt == null || changeUpdateSentAt < booking.changeConfirmedAt)
+  if (
+    booking.changeConfirmationStatus !== 'confirmed' ||
+    !booking.changeExecRelevant ||
+    booking.changeConfirmedAt == null
+  ) {
+    return false;
+  }
+  const confirmedAt = booking.changeConfirmedAt;
+  const settled = [changeUpdateSentAt, booking.changeUpdateEmailWaivedAt ?? null].some(
+    (at) => at != null && at >= confirmedAt,
   );
+  return !settled;
 }
 
 /** States where the two operator emails are expected to have gone out. */
@@ -650,8 +658,10 @@ const EMAIL_EXPECTED_STATES = [
  * Bookings whose exec emails need operator attention — the "Emails due" rail
  * view. Two ways in:
  *  - a driver (or backfill) is on the job but the confirmation and/or
- *    driver-details email hasn't been successfully sent yet;
- *  - the last exec message failed/bounced (any non-cancelled state).
+ *    driver-details email hasn't been successfully sent yet — unless the
+ *    operator marked it as handled (`*_email_waived_at`, see exec-email-waiver);
+ *  - the last exec message failed/bounced (any non-cancelled state). A waiver
+ *    never hides a failure: that still needs a resend.
  * Cancelled bookings never appear: nothing should be emailed for them.
  */
 export async function listEmailAttentionBookings(
@@ -687,8 +697,9 @@ export async function listEmailAttentionBookings(
     const s = sends.get(b.id) ?? null;
     if (changeUpdateEmailDue(b, s?.changeUpdateSentAt ?? null)) return true;
     const hasDriver = b.assignedDriverId != null || b.isBackfill;
-    return (
-      activeStates.has(b.state) && hasDriver && (!s?.confirmationSentAt || !s?.driverDetailsSentAt)
-    );
+    const confirmationSettled =
+      s?.confirmationSentAt != null || b.confirmationEmailWaivedAt != null;
+    const detailsSettled = s?.driverDetailsSentAt != null || b.driverDetailsEmailWaivedAt != null;
+    return activeStates.has(b.state) && hasDriver && !(confirmationSettled && detailsSettled);
   });
 }

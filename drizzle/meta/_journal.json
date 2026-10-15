@@ -253,6 +253,13 @@
       "when": 1792072800000,
       "tag": "0035_completion_link_sent_at",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792159200000,
+      "tag": "0036_exec_email_waivers",
+      "breakpoints": true
     }
   ]
 }

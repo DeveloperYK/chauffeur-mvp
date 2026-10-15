@@ -33,6 +33,7 @@ import {
   releaseDriver,
 } from '@/server/services/dispatch';
 import { editBooking } from '@/server/services/edit-booking';
+import { waiveExecEmail } from '@/server/services/exec-email-waiver';
 import {
   type ExecEmailDraft,
   type ManualEmailKind,
@@ -663,6 +664,27 @@ export async function retryMirrorAction(bookingId: string): Promise<ActionResult
       error: 'The backup sheet write failed again — check the Sheets connection and retry.',
     };
   }
+  return { ok: true };
+}
+
+/**
+ * "Mark as handled" / undo for one of the operator's exec emails: clears (or
+ * restores) the email-due flag without recording a send.
+ */
+export async function waiveExecEmailAction(
+  bookingId: string,
+  kind: ManualEmailKind,
+  waived: boolean,
+): Promise<ActionResult> {
+  const op = await requireOperator();
+  const result = await waiveExecEmail(db(), { bookingId, kind, waived }, op.id);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.reason === 'validation' ? 'Invalid request.' : 'Booking not found.',
+    };
+  }
+  revalidatePath('/dashboard');
   return { ok: true };
 }
 
