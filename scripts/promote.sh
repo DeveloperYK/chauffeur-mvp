@@ -74,8 +74,15 @@ fi
 body=$(printf 'Promotes main (%s) to production.\n\n%s\n\nCI for these commits ran on their PRs and on the push to main; promote PRs reuse that check (ADR 0022).' \
   "${main_sha:0:7}" "$(git log --format='- %s' "origin/production..origin/main")")
 
-pr_url=$(gh pr create --repo "$repo" --base production --head main --title "$title" --body "$body")
-say "opened ${pr_url}"
+# Another session (or an earlier aborted run) may already have the PR open;
+# GitHub allows one open PR per head/base pair, so reuse it.
+pr_url=$(gh pr list --repo "$repo" --base production --head main --state open --json url --jq 'first | .url // empty')
+if [ -n "$pr_url" ]; then
+  say "reusing open promote PR ${pr_url}"
+else
+  pr_url=$(gh pr create --repo "$repo" --base production --head main --title "$title" --body "$body")
+  say "opened ${pr_url}"
+fi
 gh pr merge "$pr_url" --repo "$repo" --merge >/dev/null
 say "merged"
 merge_sha=$(git fetch -q origin production && git rev-parse origin/production)
