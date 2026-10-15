@@ -78,35 +78,75 @@ function ExecStatusLozenge({
   return <Lozenge tone={cfg.tone}>{cfg.label}</Lozenge>;
 }
 
+/** Status pill + timestamp for one send row: sent beats handled beats due. */
+function EmailRowStatus({ row }: { row: ExecEmailRow }) {
+  if (row.sentAt) {
+    return (
+      <>
+        <Lozenge tone="green">SENT</Lozenge>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {fmtTimeWithDay(row.sentAt)}
+        </span>
+      </>
+    );
+  }
+  if (row.waivedAt) {
+    return (
+      <>
+        <Lozenge tone="gray">HANDLED</Lozenge>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {fmtTimeWithDay(row.waivedAt)}
+        </span>
+      </>
+    );
+  }
+  if (row.flagged) return <Lozenge tone="orange">NOT SENT</Lozenge>;
+  return (
+    <span className="muted" style={{ fontSize: 12 }}>
+      Not sent
+    </span>
+  );
+}
+
 function EmailRowView({
   row,
   isPending,
   onPreview,
+  onWaive,
 }: {
   row: ExecEmailRow;
   isPending: boolean;
   onPreview: (kind: ExecEmailRow['kind']) => void;
+  onWaive: (kind: ExecEmailRow['kind'], waived: boolean) => void;
 }) {
   return (
     <div className="ir">
       <div className="ir__k">{row.title}</div>
       <div className="ir__v">
         <div className="ir__row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {row.sentAt ? (
-            <Lozenge tone="green">SENT</Lozenge>
-          ) : row.flagged ? (
-            <Lozenge tone="orange">NOT SENT</Lozenge>
-          ) : (
-            <span className="muted" style={{ fontSize: 12 }}>
-              Not sent
-            </span>
-          )}
-          {row.sentAt ? (
-            <span className="muted" style={{ fontSize: 12 }}>
-              {fmtTimeWithDay(row.sentAt)}
-            </span>
-          ) : null}
+          <EmailRowStatus row={row} />
           <span style={{ flex: 1 }} />
+          {row.flagged ? (
+            <button
+              type="button"
+              className="link-btn link-btn--muted"
+              disabled={isPending}
+              title="Clear this reminder — the exec was told another way, or the email is no longer needed"
+              onClick={() => onWaive(row.kind, true)}
+            >
+              Mark as handled
+            </button>
+          ) : null}
+          {row.waivedAt && !row.sentAt ? (
+            <button
+              type="button"
+              className="link-btn link-btn--muted"
+              disabled={isPending}
+              onClick={() => onWaive(row.kind, false)}
+            >
+              Undo
+            </button>
+          ) : null}
           {row.canSend ? (
             <button
               type="button"
@@ -199,11 +239,14 @@ export function ExecEmailsSection({
   booking,
   isPending,
   onPreview,
+  onWaive,
   history,
 }: {
   booking: ConsoleBooking;
   isPending: boolean;
   onPreview: (kind: ExecEmailRow['kind']) => void;
+  /** "Mark as handled" (true) or undo (false) for one email's reminder. */
+  onWaive: (kind: ExecEmailRow['kind'], waived: boolean) => void;
   history: {
     open: boolean;
     loading: boolean;
@@ -220,7 +263,13 @@ export function ExecEmailsSection({
       </header>
       <div className="ic__body">
         {rows.map((r) => (
-          <EmailRowView key={r.kind} row={r} isPending={isPending} onPreview={onPreview} />
+          <EmailRowView
+            key={r.kind}
+            row={r}
+            isPending={isPending}
+            onPreview={onPreview}
+            onWaive={onWaive}
+          />
         ))}
       </div>
       <button

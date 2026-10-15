@@ -202,10 +202,20 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText('email due');
   const emailsCard = page.locator('.panel.is-open .ic', { hasText: 'Exec emails' });
   await expect(emailsCard).toContainText('confirmation email hasn’t been sent');
-  await emailsCard
-    .locator('.ir', { hasText: 'Booking confirmation' })
-    .getByRole('button', { name: 'Preview & send' })
-    .click();
+  // "Mark as handled" clears one reminder without a send (the operator phoned
+  // the exec); the other email is still owed so the tile tag stays. Undo
+  // restores it, then the operator sends for real.
+  const confirmationRow = emailsCard.locator('.ir', { hasText: 'Booking confirmation' });
+  await confirmationRow.getByRole('button', { name: 'Mark as handled' }).click();
+  await expect(page.locator('.toast', { hasText: /reminder cleared/i })).toBeVisible();
+  await expect(confirmationRow).toContainText('HANDLED');
+  await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText('email due');
+  await confirmationRow.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.toast', { hasText: /reminder restored/i })).toBeVisible();
+  await expect(confirmationRow).toContainText('NOT SENT');
+  // Let both toasts expire so the send toast below is the only one on screen.
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await confirmationRow.getByRole('button', { name: 'Preview & send' }).click();
   const emailModal = page.locator('.modal.is-open', { hasText: 'Send booking confirmation email' });
   // The draft shows exactly what will be sent — subject + the email's parts
   // (intro, details rows, closing) pre-filled; recipient editable (blank here:

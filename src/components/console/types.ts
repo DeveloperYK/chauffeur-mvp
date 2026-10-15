@@ -39,6 +39,12 @@ export interface ConsoleBooking {
   driverDetailsEmailSentAt: string | null;
   /** When the operator last successfully sent the booking-update email, or null. */
   changeUpdateEmailSentAt: string | null;
+  /** Operator marked the confirmation email as handled another way, or null. */
+  confirmationEmailWaivedAt: string | null;
+  /** Operator marked the driver-details email as handled another way, or null. */
+  driverDetailsEmailWaivedAt: string | null;
+  /** Operator marked the booking-update email as handled; compared to changeConfirmedAt. */
+  changeUpdateEmailWaivedAt: string | null;
   /** True when the last confirmed mid-flight change touched exec-facing fields. */
   changeExecRelevant: boolean;
   bookedByPhone: string | null;

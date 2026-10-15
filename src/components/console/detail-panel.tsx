@@ -17,6 +17,7 @@ import {
   setContractPriceAction,
   setWaitingChargeAction,
   updateBackfillPayAction,
+  waiveExecEmailAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { carTypeMismatchNote } from '@/lib/car-type-match';
@@ -1123,6 +1124,12 @@ export function DetailPanel({
             booking={booking}
             isPending={isPending}
             onPreview={setEmailModalKind}
+            onWaive={(kind, waived) =>
+              run(
+                () => waiveExecEmailAction(booking.id, kind, waived),
+                waived ? 'Marked as handled — reminder cleared.' : 'Reminder restored.',
+              )
+            }
             history={{
               open: showExec,
               loading: execLoading,

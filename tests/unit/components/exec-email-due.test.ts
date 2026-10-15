@@ -16,6 +16,9 @@ const base = {
   changeExecRelevant: false,
   changeConfirmedAt: null as string | null,
   changeUpdateEmailSentAt: null as string | null,
+  confirmationEmailWaivedAt: null as string | null,
+  driverDetailsEmailWaivedAt: null as string | null,
+  changeUpdateEmailWaivedAt: null as string | null,
 };
 
 describe('execEmailsDue', () => {
@@ -141,5 +144,40 @@ describe('execHealthLabel', () => {
 
   it('a due email outranks a pending delivery — the operator still has to act', () => {
     expect(execHealthLabel('pending', true)).toEqual({ tone: 'orange', label: 'EXEC EMAIL DUE' });
+  });
+});
+
+describe('execEmailsDue — waived emails', () => {
+  it('is not due once both emails are waived', () => {
+    expect(
+      execEmailsDue({
+        ...base,
+        confirmationEmailWaivedAt: '2026-09-07T10:00:00Z',
+        driverDetailsEmailWaivedAt: '2026-09-07T10:00:00Z',
+      }),
+    ).toBe(false);
+  });
+
+  it('is still due when only one of the two is waived', () => {
+    expect(execEmailsDue({ ...base, confirmationEmailWaivedAt: '2026-09-07T10:00:00Z' })).toBe(
+      true,
+    );
+  });
+
+  it('a waived update email is not due unless a later change was confirmed', () => {
+    const changed = {
+      ...base,
+      confirmationEmailSentAt: '2026-09-07T10:00:00Z',
+      driverDetailsEmailSentAt: '2026-09-07T10:00:00Z',
+      changeConfirmationStatus: 'confirmed',
+      changeExecRelevant: true,
+      changeConfirmedAt: '2026-09-08T10:00:00Z',
+    };
+    expect(execEmailsDue({ ...changed, changeUpdateEmailWaivedAt: '2026-09-08T11:00:00Z' })).toBe(
+      false,
+    );
+    expect(execEmailsDue({ ...changed, changeUpdateEmailWaivedAt: '2026-09-08T09:00:00Z' })).toBe(
+      true,
+    );
   });
 });

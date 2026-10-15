@@ -96,12 +96,15 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(result.draft.closing).toContain('contact our team');
   });
 
-  it('drafts the confirmation with driver details once a driver is assigned', async () => {
+  it('drafts the same driver-free confirmation once a driver is assigned (driver goes in email 2)', async () => {
     const booking = await seedAssigned();
-    const result = await execEmailDraft(db, booking.id, 'assigned');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.draft.rows).toContainEqual({ label: 'Driver', value: driver.name });
+    const confirmation = await execEmailDraft(db, booking.id, 'assigned');
+    const details = await execEmailDraft(db, booking.id, 'en_route');
+    expect(confirmation.ok && details.ok).toBe(true);
+    if (!confirmation.ok || !details.ok) return;
+    expect(confirmation.draft.rows.map((r) => r.label)).not.toContain('Driver');
+    expect(details.draft.rows).toContainEqual({ label: 'Driver', value: driver.name });
+    expect(confirmation.draft.rows).not.toEqual(details.draft.rows);
   });
 
   it('drafts the driver-details email for an assigned booking', async () => {
@@ -136,14 +139,14 @@ describe('services/exec-notifications manual emails (integration)', () => {
 
   it('renders an added detail row as a table row in the HTML and a line in the stored text', async () => {
     const booking = await seedAssigned();
-    const draft = await execEmailDraft(db, booking.id, 'assigned');
+    const draft = await execEmailDraft(db, booking.id, 'en_route');
     expect(draft.ok).toBe(true);
     if (!draft.ok) return;
     const result = await sendManualExecEmail(
       { db, email: emailer },
       {
         bookingId: booking.id,
-        kind: 'assigned',
+        kind: 'en_route',
         to: 'pa@client.com',
         subject: draft.draft.subject,
         intro: draft.draft.intro,

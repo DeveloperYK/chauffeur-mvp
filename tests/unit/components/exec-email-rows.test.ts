@@ -18,6 +18,9 @@ const base = {
   changeExecRelevant: false,
   changeConfirmedAt: null as string | null,
   changeUpdateEmailSentAt: null as string | null,
+  confirmationEmailWaivedAt: null as string | null,
+  driverDetailsEmailWaivedAt: null as string | null,
+  changeUpdateEmailWaivedAt: null as string | null,
 };
 
 describe('execEmailRows', () => {
@@ -98,5 +101,42 @@ describe('execEmailRows', () => {
     });
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => !r.canSend && !r.flagged)).toBe(true);
+  });
+});
+
+describe('execEmailRows — waived ("mark as handled")', () => {
+  const waived = { ...base, confirmationEmailWaivedAt: SENT };
+
+  it('shows a waived row as handled, unflagged and still sendable', () => {
+    const [confirmation] = execEmailRows(waived);
+    expect(confirmation).toMatchObject({
+      sentAt: null,
+      waivedAt: SENT,
+      flagged: false,
+      canSend: true,
+    });
+  });
+
+  it('a sent row is reported as sent even if it was also waived', () => {
+    const [confirmation] = execEmailRows({ ...waived, confirmationEmailSentAt: LATER });
+    expect(confirmation).toMatchObject({ sentAt: LATER, flagged: false });
+  });
+
+  it('the update row counts a waiver made after the confirmation, not one before it', () => {
+    const changed = {
+      ...base,
+      changeConfirmationStatus: 'confirmed',
+      changeExecRelevant: true,
+      changeConfirmedAt: SENT,
+    };
+    expect(execEmailRows({ ...changed, changeUpdateEmailWaivedAt: LATER })[2]).toMatchObject({
+      flagged: false,
+      waivedAt: LATER,
+    });
+    const earlier = '2026-10-15T09:00:00Z';
+    expect(execEmailRows({ ...changed, changeUpdateEmailWaivedAt: earlier })[2]).toMatchObject({
+      flagged: true,
+      waivedAt: null,
+    });
   });
 });

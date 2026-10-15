@@ -23,15 +23,13 @@ function booking(overrides: Partial<Booking> = {}): Booking {
 }
 
 describe('services/email-templates', () => {
-  it('assignedEmail renders a branded confirmation with all details', () => {
-    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+  it('assignedEmail renders a branded confirmation with the booking details', () => {
+    const e = assignedEmail(booking());
     expect(e.subject).toContain('BKNG-00042');
     expect(e.subject.toLowerCase()).toContain('confirmed');
     expect(e.html).toContain('<!doctype html>');
     for (const part of [
       'Booking confirmed',
-      'Marcus Bell',
-      'Black Mercedes S-Class',
       'Eric French',
       'Heathrow Terminal 5',
       'Belsize Park',
@@ -41,17 +39,7 @@ describe('services/email-templates', () => {
     }
   });
 
-  it('shows the number plate when the driver has one, in both emails', () => {
-    const confirmed = assignedEmail(
-      booking(),
-      { name: 'Marcus Bell' },
-      'Black Mercedes S-Class',
-      'AB12 CDE',
-    );
-    expect(confirmed.html).toContain('Number plate');
-    expect(confirmed.html).toContain('AB12 CDE');
-    expect(confirmed.text).toContain('AB12 CDE');
-
+  it('shows the number plate in the driver-details email when the driver has one', () => {
     const details = driverDetailsEmail(
       booking(),
       { name: 'Marcus Bell' },
@@ -61,8 +49,8 @@ describe('services/email-templates', () => {
     expect(details.text).toContain('AB12 CDE');
   });
 
-  it('omits the number-plate row when the driver has none', () => {
-    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+  it('omits the number-plate row from the driver-details email when the driver has none', () => {
+    const e = driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
     expect(e.html).not.toContain('Number plate');
     expect(e.text).not.toContain('Number plate');
   });
@@ -75,20 +63,30 @@ describe('services/email-templates', () => {
     expect(e.html).toContain('14:00');
   });
 
-  it('assignedEmail without a driver omits every driver and vehicle row', () => {
-    const e = assignedEmail(booking(), null, 'Black Mercedes S-Class', 'AB12 CDE');
+  // The confirmation is the booking acknowledgement; the driver-details email
+  // is the only one that carries the driver. Before this, assigning a driver
+  // first turned the confirmation into a copy of the driver-details email, so
+  // the exec got the same message twice.
+  it('assignedEmail never carries driver or vehicle rows, so it differs from the driver-details email', () => {
+    const e = assignedEmail(booking());
     expect(e.subject.toLowerCase()).toContain('confirmed');
-    for (const absent of ['Driver', 'Vehicle', 'Number plate', 'AB12 CDE']) {
+    for (const absent of ['Driver', 'Vehicle', 'Number plate']) {
       expect(e.text).not.toContain(absent);
     }
+    expect(e.parts.intro).not.toContain('chauffeur is booked');
     expect(e.text).toContain('Eric French');
     expect(e.text).toContain('Heathrow Terminal 5');
+    const details = driverDetailsEmail(
+      booking(),
+      { name: 'Marcus Bell' },
+      'Black Mercedes S-Class',
+    );
+    expect(details.parts.rows).not.toEqual(e.parts.rows);
   });
 
   it('never says the driver will be in touch (client asked for it removed)', () => {
     for (const e of [
-      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
-      assignedEmail(booking(), null, ''),
+      assignedEmail(booking()),
       driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
     ]) {
       expect(e.text.toLowerCase()).not.toContain('in touch');
@@ -97,9 +95,9 @@ describe('services/email-templates', () => {
   });
 
   it('exposes the editable parts — intro, detail rows, closing — without brand header or footer', () => {
-    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
-    expect(e.parts.intro).toContain('booked and confirmed');
-    expect(e.parts.rows).toContainEqual({ label: 'Driver', value: 'Marcus Bell' });
+    const e = assignedEmail(booking());
+    expect(e.parts.intro).toContain('confirmed');
+    expect(e.parts.rows).toContainEqual({ label: 'Reference', value: 'BKNG-00042' });
     expect(e.parts.rows).toContainEqual({ label: 'Destination', value: 'Heathrow Terminal 5' });
     expect(e.parts.closing).toContain('contact our team');
     const flat = JSON.stringify(e.parts);
@@ -109,7 +107,7 @@ describe('services/email-templates', () => {
 
   it('the default parts render byte-for-byte the same email as the template', () => {
     for (const auto of [
-      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      assignedEmail(booking()),
       driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
       changeExecEmail(booking()),
     ]) {
@@ -200,40 +198,26 @@ describe('services/email-templates', () => {
   it('shows "As directed" for an hourly hire instead of a destination', () => {
     const e = assignedEmail(
       booking({ serviceType: 'hourly', dropoffAddress: null, expectedDurationMinutes: 240 }),
-      { name: 'X' },
-      '',
     );
     expect(e.text).toContain('As directed');
     expect(e.text).toContain('4 hours');
   });
 
   it('HTML-escapes operator-entered values (no injection) but keeps text raw', () => {
-    const e = assignedEmail(
-      booking({ pickupAddress: '<script>alert(1)</script> Road' }),
-      { name: 'X' },
-      '',
-    );
+    const e = assignedEmail(booking({ pickupAddress: '<script>alert(1)</script> Road' }));
     expect(e.html).not.toContain('<script>alert(1)</script>');
     expect(e.html).toContain('&lt;script&gt;');
     expect(e.text).toContain('<script>alert(1)</script>');
   });
 
-  it('omits the Vehicle row when no car is provided', () => {
-    const e = assignedEmail(booking(), { name: 'X' }, '');
+  it('omits the Vehicle row from the driver-details email when no car is provided', () => {
+    const e = driverDetailsEmail(booking(), { name: 'X' }, '');
     expect(e.html).not.toContain('Vehicle');
     expect(e.text).not.toContain('Vehicle');
   });
 
-  it('shows the driver PCO number and contact number when provided, in both emails', () => {
+  it('shows the driver PCO number and contact number when provided', () => {
     const driver = { name: 'Marcus Bell', pcoNumber: '15472', phone: '+447852188558' };
-    const confirmed = assignedEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
-    expect(confirmed.html).toContain('Driver PCO');
-    expect(confirmed.html).toContain('15472');
-    expect(confirmed.html).toContain('Driver contact');
-    expect(confirmed.html).toContain('+447852188558');
-    expect(confirmed.text).toContain('15472');
-    expect(confirmed.text).toContain('+447852188558');
-
     const details = driverDetailsEmail(booking(), driver, 'Black Mercedes S-Class', 'AB12 CDE');
     expect(details.html).toContain('Driver PCO');
     expect(details.html).toContain('15472');
@@ -241,7 +225,7 @@ describe('services/email-templates', () => {
   });
 
   it('omits the PCO and contact rows when the driver has neither (legacy driver)', () => {
-    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    const e = assignedEmail(booking());
     expect(e.html).not.toContain('Driver PCO');
     expect(e.html).not.toContain('Driver contact');
     expect(e.text).not.toContain('Driver PCO');
@@ -249,7 +233,7 @@ describe('services/email-templates', () => {
 
   it('includes the company signature and confidentiality notice in every email footer', () => {
     const emails = [
-      assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
+      assignedEmail(booking()),
       driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class'),
       changeExecEmail(booking()),
       renderExecEmail('S', { intro: 'body', rows: [], closing: '' }, 'Booking confirmed'),
@@ -270,13 +254,13 @@ describe('services/email-templates', () => {
   });
 
   it('links the company email and website in the HTML footer', () => {
-    const e = assignedEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes S-Class');
+    const e = assignedEmail(booking());
     expect(e.html).toContain('mailto:info@jjchauffeuringservices.com');
     expect(e.html).toContain('https://www.jjchauffeuringservices.com');
   });
 
   it('omits only the missing row when a driver has a phone but no PCO on file', () => {
-    const e = assignedEmail(
+    const e = driverDetailsEmail(
       booking(),
       { name: 'Marcus Bell', pcoNumber: null, phone: '+447852188558' },
       'Black Mercedes S-Class',
