@@ -67,3 +67,64 @@ export function execHealthLabel(
   if (status === 'ok') return { tone: 'green', label: 'EXEC NOTIFIED' };
   return null;
 }
+
+export type ExecEmailRow = {
+  kind: 'assigned' | 'en_route' | 'changed';
+  title: string;
+  sentAt: string | null;
+  canSend: boolean;
+  disabledHint: string | null;
+  flagged: boolean;
+};
+
+/**
+ * The send rows the "Exec emails" card shows for a booking, derived purely
+ * from its state. Same input slice as `execEmailsDue`, so the card, the tile
+ * tag and the hero pill can never disagree about what is owed.
+ */
+export function execEmailRows(booking: ExecEmailDueInput): ExecEmailRow[] {
+  const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
+  const flagActive = EMAIL_EXPECTED_STATES.has(booking.state);
+  const cancelled = booking.state === 'cancelled';
+  // A confirmed exec-relevant change needs a "Booking update" email until one
+  // is sent after the confirmation.
+  const updateDue =
+    booking.changeConfirmationStatus === 'confirmed' &&
+    booking.changeExecRelevant &&
+    booking.changeConfirmedAt != null &&
+    (!booking.changeUpdateEmailSentAt ||
+      booking.changeUpdateEmailSentAt < booking.changeConfirmedAt) &&
+    !cancelled;
+  return [
+    {
+      kind: 'assigned',
+      title: '1 · Booking confirmation',
+      sentAt: booking.confirmationEmailSentAt,
+      canSend: !cancelled,
+      disabledHint: null,
+      flagged: flagActive && hasDriver && !booking.confirmationEmailSentAt,
+    },
+    {
+      kind: 'en_route',
+      title: '2 · Driver details',
+      sentAt: booking.driverDetailsEmailSentAt,
+      canSend: !cancelled && hasDriver,
+      disabledHint: hasDriver ? null : 'Needs a driver on the job',
+      flagged: flagActive && hasDriver && !booking.driverDetailsEmailSentAt,
+    },
+    // The update row only appears once a mid-flight change makes it relevant
+    // (or one was already sent).
+    ...(updateDue || booking.changeUpdateEmailSentAt
+      ? [
+          {
+            kind: 'changed' as const,
+            title: '3 · Booking update',
+            sentAt: updateDue ? null : booking.changeUpdateEmailSentAt,
+            canSend: !cancelled,
+            disabledHint: null,
+            flagged: updateDue,
+          },
+        ]
+      : []),
+  ];
+}

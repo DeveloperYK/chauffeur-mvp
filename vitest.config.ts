@@ -11,6 +11,8 @@ export default defineConfig({
       'tests/contracts/**/*.test.ts',
     ],
     exclude: ['tests/e2e/**', 'node_modules', '.next'],
+    // Builds the migrated PGlite template every createTestDb() boots from.
+    globalSetup: ['tests/helpers/pglite-global-setup.ts'],
     testTimeout: 5000,
     hookTimeout: 10000,
     pool: 'threads',

@@ -394,14 +394,15 @@ When Claude works on this repo:
 3. **Check timing** — Suite must complete in < 60 seconds. If it exceeds this, investigate and fix before proceeding.
 4. **Run `pnpm typecheck`** — Ensure no TypeScript errors.
 5. **Run `pnpm lint`** — Ensure no linting errors.
-6. **Run the simulator-driven lifecycle E2E** — `pnpm test:e2e:lifecycle` (see below). This is the only test that exercises the **whole booking lifecycle** through the real UI; the unit/integration suite alone does not.
+6. **Run the simulator-driven lifecycle E2E locally when the change can affect it** — `pnpm test:e2e:lifecycle` (see below). It is the only test that exercises the **whole booking lifecycle** through the real UI. Run it locally before pushing whenever the change touches a booking **state transition**, a **state-aware console action**, the **simulator**, the console **board/rail/detail panel**, or `tests/e2e/lifecycle.spec.ts` itself. For changes that cannot reach those paths (docs, CI, scripts, adapters behind a port, isolated services), the CI `E2E lifecycle` job on the PR is the gate — it runs the identical spec on every PR (ADR 0022).
 
 **The sequence is:**
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e:lifecycle
+pnpm typecheck && pnpm lint && pnpm test            # always
+pnpm test:e2e:lifecycle                              # when the change can affect the lifecycle (rule above)
 ```
 
-If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only after all four pass may you proceed with `git commit` and `git push`.
+If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only after everything passes may you proceed with `git commit` and `git push`. Never merge a PR whose CI lifecycle job is red.
 
 **Never assume tests will pass.** Always run them. Always verify the output. Report the results (pass count, timing) in your response so the human can confirm.
 
@@ -409,7 +410,7 @@ If any step fails, **STOP**. Fix the issue. Re-run from the beginning. Only afte
 
 ### Mandatory end-to-end lifecycle test (`pnpm test:e2e:lifecycle`)
 
-Unit + integration tests do not prove the app works end to end. Before every push you MUST also run the **full booking lifecycle** through the test simulator and the operator console:
+Unit + integration tests do not prove the app works end to end. The **full booking lifecycle** through the test simulator and the operator console runs on every PR in CI, and locally before pushing whenever the change can affect it (rule in the section above):
 
 - **Spec:** `tests/e2e/lifecycle.spec.ts`. It uses the **simulator** (`/dashboard/simulator`: seed, force-state, fast-forward, run clock tick) to drive ONE booking through every stage — `unassigned → assigned → in_progress → awaiting_driver_form → awaiting_operator_review → completed` — asserting the state after each transition, then **approves it from the console detail panel**, then **cancels a second booking** from the panel. Clock ticks fire the real transition logic and the in-memory SMS + Sheets-mirror side effects.
 - **How to run:**
@@ -430,20 +431,14 @@ When the user asks "implement stage N", the loop is:
 7. Open PR with the template (§7).
 8. Wait for human review unless told to merge.
 
-### Post-merge Vercel deployment check
+### Post-merge deployment check and promotion
 
-When merging to main (or when told to merge):
+Merging to `main` deploys **staging** (`chauffeur-staging.vercel.app`) automatically. Production is the `production` branch, promoted from `main` (see ADR 0022).
 
-1. After PR merge, use the Claude Code web Vercel connector to check deployment status.
-2. Wait for deployment to complete (typically 1-2 minutes).
-3. If deployment **fails**:
-   - Read the deployment logs via Vercel connector.
-   - Create a fix branch immediately (`fix/vercel-deploy-<issue>`).
-   - Fix the issue before any other work.
-   - Do not leave main in a broken state.
-4. If deployment **succeeds**:
-   - Confirm the deployment is healthy via `GET /api/healthz` on production URL.
-5. Report deployment status in the completion message.
+1. After the PR merges, wait for the push-to-main CI run and the staging deployment (typically 1–2 minutes). Check `GET /api/readyz` on staging.
+2. If the staging deployment **fails**: read the deployment logs (Vercel connector or `vercel` CLI), create `fix/vercel-deploy-<issue>` immediately, and fix it before any other work. Do not leave main in a broken state.
+3. **Promote with one command when told to deploy:** `pnpm promote` (optionally `pnpm promote "<title>"`). It verifies main's CI check and staging readiness, opens and merges the `main → production` PR, waits for the Vercel production deployment, and checks production `/api/healthz` and `/api/readyz`. Promote PRs do not re-run CI — the required check is read from main's head commit — so they merge immediately.
+4. Report deployment status (staging and, if promoted, production) in the completion message.
 
 ---
 
