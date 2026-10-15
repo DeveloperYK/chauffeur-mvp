@@ -20,7 +20,7 @@ Two further costs sat inside the verify job: the unit + integration suite took 6
 ## Decision
 
 1. **Promote PRs skip CI.** The workflow's `pull_request` trigger ignores PRs whose base is `production`. A promote PR's head is main's head commit, which already carries the `Typecheck · Lint · Test` check from the push-to-main run; branch protection reads required checks off the commit, so the PR is mergeable as soon as that run is green. `scripts/promote.sh` (`pnpm promote`) encodes the whole promotion: verify main's check, verify staging `/api/readyz`, open and merge the PR, wait for Vercel's production deployment via GitHub's deployment statuses, check production `/api/healthz` and `/api/readyz`.
-2. **E2E jobs no longer `need` verify.** They start alongside it, so PR CI takes as long as the lifecycle job alone. Chromium is cached by Playwright version instead of downloaded per job.
+2. **E2E jobs no longer `need` verify.** They start alongside it, so PR CI takes as long as the lifecycle job alone. Chromium is cached by Playwright version instead of downloaded per job. **They also run on every push to `main`** (added 2026-10-15, second PR): that is the only run against the combined tree of several merged PRs, which is where a semantic conflict between two individually green PRs would show. The old promote PR's re-run was the previous owner of that job; `pnpm promote` now waits for verify, smoke and lifecycle on main's head, so production never receives a combined tree the full suite has not passed. In the usual case main's run finishes while staging is being checked, so promotes stay near-instant.
 3. **Verify job drops its Postgres service.**
 4. **Test databases boot from a snapshot.** A vitest `globalSetup` boots one PGlite, applies every migration, and saves its data dir under `node_modules/.cache/pglite-template/`, keyed by the migration SQL and the PGlite version. `createTestDb()` loads that snapshot (~90 ms) instead of running `initdb` (~400 ms), and falls back to the old path when no snapshot exists. Each test still gets its own isolated database.
 5. **Local lifecycle E2E is required only when the change can affect it** (state transitions, state-aware console actions, the simulator, the console surfaces, or the spec itself). CI runs the identical spec on every PR and remains the gate; a PR with a red lifecycle job is never merged. CLAUDE.md §11 states the rule.
@@ -28,7 +28,8 @@ Two further costs sat inside the verify job: the unit + integration suite took 6
 ## Consequences
 
 - Push to production drops from ~19 min to roughly 8 min of waiting, with every check still run at least once on every change.
-- The push-to-main CI run is now load-bearing: it produces the check the promote relies on. It must stay in the workflow.
+- The push-to-main CI run is now load-bearing: it produces the three checks the promote relies on. It must stay in the workflow, and its E2E jobs must not be made PR-only again.
+- `pnpm promote` prints the lead time from the oldest promoted commit to production and, on a failed post-deploy check, the rollback route (promote the previous Ready deployment in Vercel). Rollback stays manual: ADR 0016's self-heal history shows automated redeploys can make a pooler incident worse.
 - `production` only ever receives commits that were on `main`; a hotfix must land on `main` first, then promote. This was already the rule.
 - A new migration invalidates the test snapshot automatically (the cache key includes the SQL). Deleting `node_modules/.cache` forces a rebuild.
 - Chromium cache misses once per Playwright upgrade.
