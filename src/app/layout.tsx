@@ -1,3 +1,4 @@
+import { NumberInputWheelGuard } from '@/components/number-input-wheel-guard';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import type { ReactNode } from 'react';
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="h-full">
+        <NumberInputWheelGuard />
         {children}
         {googlePlacesApiKey ? (
           <Script
