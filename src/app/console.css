@@ -4383,3 +4383,16 @@ button.driver-row {
   font-size: 11.5px;
   color: var(--lz-red-fg);
 }
+
+/* Exec emails card — the message history folds under the send rows */
+.ic__head--sub {
+  border-top: 1px solid var(--hairline-soft);
+  border-bottom: 0;
+}
+.ic__body--history {
+  padding: 12px 14px;
+  border-top: 1px solid var(--hairline-soft);
+}
+.ic--exec .timeline {
+  padding: 0;
+}

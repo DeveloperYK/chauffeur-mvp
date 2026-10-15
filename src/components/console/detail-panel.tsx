@@ -29,6 +29,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { type CompletionLink, CompletionLinkModal } from './completion-link-modal';
 import { execEmailsDue, execHealthLabel } from './exec-email-due';
+import { ExecEmailsSection } from './exec-emails-section';
 import { fmtPrice, fmtTimeWithDay, passengerName, relTime } from './format';
 import { Icon } from './icons';
 import { Lozenge, StateLozenge, Tag } from './lozenge';
@@ -1118,227 +1119,18 @@ export function DetailPanel({
             </section>
           ) : null}
 
-          {/* EXEC EMAILS — the operator sends both emails manually */}
-          <section className="ic">
-            <header className="ic__head">
-              <span>Exec emails</span>
-            </header>
-            <div className="ic__body">
-              {(() => {
-                const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
-                const flagActive = [
-                  'assigned',
-                  'in_progress',
-                  'awaiting_driver_form',
-                  'awaiting_operator_review',
-                ].includes(booking.state);
-                const cancelled = booking.state === 'cancelled';
-                // A confirmed exec-relevant change needs a "Booking update"
-                // email until one is sent after the confirmation.
-                const updateDue =
-                  booking.changeConfirmationStatus === 'confirmed' &&
-                  booking.changeExecRelevant &&
-                  booking.changeConfirmedAt != null &&
-                  (!booking.changeUpdateEmailSentAt ||
-                    booking.changeUpdateEmailSentAt < booking.changeConfirmedAt) &&
-                  !cancelled;
-                const rows: {
-                  kind: ExecEmailKind;
-                  title: string;
-                  sentAt: string | null;
-                  canSend: boolean;
-                  disabledHint: string | null;
-                  flagged: boolean;
-                }[] = [
-                  {
-                    kind: 'assigned',
-                    title: '1 · Booking confirmation',
-                    sentAt: booking.confirmationEmailSentAt,
-                    canSend: !cancelled,
-                    disabledHint: null,
-                    flagged: flagActive && hasDriver && !booking.confirmationEmailSentAt,
-                  },
-                  {
-                    kind: 'en_route',
-                    title: '2 · Driver details',
-                    sentAt: booking.driverDetailsEmailSentAt,
-                    canSend: !cancelled && hasDriver,
-                    disabledHint: hasDriver ? null : 'Needs a driver on the job',
-                    flagged: flagActive && hasDriver && !booking.driverDetailsEmailSentAt,
-                  },
-                  // The update row only appears once a mid-flight change makes
-                  // it relevant (or one was already sent).
-                  ...(updateDue || booking.changeUpdateEmailSentAt
-                    ? [
-                        {
-                          kind: 'changed' as const,
-                          title: '3 · Booking update',
-                          sentAt: updateDue ? null : booking.changeUpdateEmailSentAt,
-                          canSend: !cancelled,
-                          disabledHint: null,
-                          flagged: updateDue,
-                        },
-                      ]
-                    : []),
-                ];
-                return rows.map((r) => (
-                  <div className="ir" key={r.kind}>
-                    <div className="ir__k">{r.title}</div>
-                    <div className="ir__v">
-                      <div
-                        className="ir__row"
-                        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                      >
-                        {r.sentAt ? (
-                          <Lozenge tone="green">SENT</Lozenge>
-                        ) : r.flagged ? (
-                          <Lozenge tone="orange">NOT SENT</Lozenge>
-                        ) : (
-                          <span className="muted" style={{ fontSize: 12 }}>
-                            Not sent
-                          </span>
-                        )}
-                        {r.sentAt ? (
-                          <span className="muted" style={{ fontSize: 12 }}>
-                            {fmtTimeWithDay(r.sentAt)}
-                          </span>
-                        ) : null}
-                        <span style={{ flex: 1 }} />
-                        {r.canSend ? (
-                          <button
-                            type="button"
-                            className="link-btn"
-                            disabled={isPending}
-                            onClick={() => setEmailModalKind(r.kind)}
-                          >
-                            {r.sentAt ? 'Send again' : 'Preview & send'}
-                          </button>
-                        ) : r.disabledHint ? (
-                          <span className="muted" style={{ fontSize: 12 }}>
-                            {r.disabledHint}
-                          </span>
-                        ) : null}
-                      </div>
-                      {r.flagged ? (
-                        <div style={{ fontSize: 12, color: 'var(--prio-high)', marginTop: 2 }}>
-                          {r.kind === 'assigned'
-                            ? 'Driver assigned but the confirmation email hasn’t been sent.'
-                            : r.kind === 'en_route'
-                              ? 'The exec hasn’t had the driver details yet.'
-                              : 'The exec hasn’t been told about the confirmed change.'}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
-          </section>
-
-          {/* EXEC MESSAGES */}
-          <section className="ic ic--activity">
-            <button
-              type="button"
-              className="ic__head ic__head--toggle"
-              onClick={toggleExec}
-              aria-expanded={showExec}
-            >
-              <span>Exec messages</span>
-              <span className="ic__head-meta">
-                {execStatusMeta(booking.execNotificationStatus)}
-                <Icon.ChevDown
-                  style={{
-                    width: 12,
-                    height: 12,
-                    marginLeft: 6,
-                    transform: showExec ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 120ms ease',
-                  }}
-                />
-              </span>
-            </button>
-            {showExec ? (
-              <div className="ic__body">
-                {execLoading ? (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    Loading…
-                  </div>
-                ) : execMessages && execMessages.length > 0 ? (
-                  <div className="timeline">
-                    {execMessages.map((m) => {
-                      const isFailure =
-                        m.status === 'failed' ||
-                        m.status === 'bounced' ||
-                        m.status === 'complained';
-                      return (
-                        <div className="timeline__item" key={m.id}>
-                          <span className={`timeline__dot ${isFailure ? '' : 'muted'}`} />
-                          <div className="timeline__body">
-                            <div className="ts">
-                              {fmtTimeWithDay(m.createdAt)} · {relTime(m.createdAt)}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span className="who">{EXEC_KIND_LABEL[m.kind]}</span>
-                              <span className="muted" style={{ fontSize: 11 }}>
-                                {EXEC_CHANNEL_LABEL[m.channel]}
-                              </span>
-                              <ExecStatusLozenge status={m.status} channel={m.channel} />
-                            </div>
-                            {m.to ? (
-                              <div className="muted mono" style={{ fontSize: 11, marginTop: 2 }}>
-                                To: {m.to}
-                              </div>
-                            ) : null}
-                            <div
-                              className="muted"
-                              style={{ fontSize: 12, whiteSpace: 'pre-line', marginTop: 4 }}
-                            >
-                              {m.body}
-                            </div>
-                            {m.errorReason ? (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: 'var(--prio-high)',
-                                  marginTop: 2,
-                                }}
-                              >
-                                Error: {m.errorReason}
-                              </div>
-                            ) : null}
-                            {isFailure ? (
-                              <button
-                                type="button"
-                                disabled={isPending}
-                                onClick={() => resendExec(m.id)}
-                                style={{
-                                  marginTop: 6,
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  color: 'var(--prio-high)',
-                                  background: 'none',
-                                  border: '1px solid currentColor',
-                                  borderRadius: 6,
-                                  padding: '2px 10px',
-                                  cursor: isPending ? 'default' : 'pointer',
-                                }}
-                              >
-                                {isPending ? 'Resending…' : 'Resend'}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    No messages sent to the exec yet.
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </section>
+          <ExecEmailsSection
+            booking={booking}
+            isPending={isPending}
+            onPreview={setEmailModalKind}
+            history={{
+              open: showExec,
+              loading: execLoading,
+              messages: execMessages,
+              onToggle: toggleExec,
+              onResend: resendExec,
+            }}
+          />
 
           {/* HISTORY */}
           <section className="ic ic--activity">
@@ -1430,33 +1222,9 @@ export function DetailPanel({
   );
 }
 
-const EXEC_KIND_LABEL: Record<ExecMessageEntry['kind'], string> = {
-  assigned: 'Booking confirmation',
-  en_route: 'Driver details',
-  changed: 'Booking updated',
-};
-
-const EXEC_CHANNEL_LABEL: Record<ExecMessageEntry['channel'], string> = {
-  sms: 'SMS',
-  email: 'Email',
-};
-
-/** One-line summary shown in the collapsed "Exec messages" section header. */
-function execStatusMeta(status: ConsoleBooking['execNotificationStatus']): string {
-  switch (status) {
-    case 'failed':
-      return '⚠ a message failed';
-    case 'pending':
-      return 'email pending';
-    case 'ok':
-      return 'all delivered';
-    default:
-      return 'none yet';
-  }
-}
-
 /**
- * Clickable health pill in the panel hero; opens the exec-messages drawer.
+ * Clickable health pill in the panel hero; opens the message history
+ * inside the Exec emails card.
  * Says "due" rather than "notified" while any of the operator's emails is
  * still owed, so it agrees with the tile tag and the Exec emails rows.
  */
@@ -1475,39 +1243,10 @@ function ExecHealthLozenge({
     <button
       type="button"
       onClick={onClick}
-      title="View exec messages"
+      title="View exec message history"
       style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
     >
       <Lozenge tone={cfg.tone}>{cfg.label}</Lozenge>
     </button>
   );
-}
-
-/** Per-message status pill in the drawer. */
-function ExecStatusLozenge({
-  status,
-  channel,
-}: {
-  status: ExecMessageEntry['status'];
-  channel: ExecMessageEntry['channel'];
-}) {
-  const cfg = ((): { tone: 'gray' | 'green' | 'orange' | 'red'; label: string } => {
-    switch (status) {
-      case 'sent':
-        return channel === 'email'
-          ? { tone: 'orange', label: 'PENDING' }
-          : { tone: 'green', label: 'SENT' };
-      case 'delivered':
-        return { tone: 'green', label: 'DELIVERED' };
-      case 'failed':
-        return { tone: 'red', label: 'FAILED' };
-      case 'bounced':
-        return { tone: 'red', label: 'BOUNCED' };
-      case 'complained':
-        return { tone: 'red', label: 'SPAM' };
-      case 'superseded':
-        return { tone: 'gray', label: 'SUPERSEDED' };
-    }
-  })();
-  return <Lozenge tone={cfg.tone}>{cfg.label}</Lozenge>;
 }

@@ -248,14 +248,14 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // Both emails are in the message trail, each showing who it went to.
   await page
     .locator('.panel.is-open')
-    .getByRole('button', { name: /Exec messages/ })
+    .getByRole('button', { name: /Message history/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
   // The added detail went out as a row of the details table.
   await expect(page.locator('.panel.is-open')).toContainText(/Flight\s+BA123/);
   await page
     .locator('.panel.is-open')
-    .getByRole('button', { name: /Exec messages/ })
+    .getByRole('button', { name: /Message history/ })
     .click();
 
   // Both sent → the booking has left the rail's "Send exec emails" view.
@@ -284,7 +284,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   );
   await page
     .locator('.panel.is-open')
-    .getByRole('button', { name: /Exec messages/ })
+    .getByRole('button', { name: /Message history/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('FAILED');
   await page.locator('.panel.is-open').getByRole('button', { name: 'Resend' }).first().click();
@@ -724,7 +724,7 @@ test('mid-flight change: driver confirms via the link, operator sends the update
   // The message trail records it with the recipient.
   await page
     .locator('.panel.is-open')
-    .getByRole('button', { name: /Exec messages/ })
+    .getByRole('button', { name: /Message history/ })
     .click();
   await expect(page.locator('.panel.is-open')).toContainText('Booking updated');
   await expect(page.locator('.panel.is-open')).toContainText('To: delivered@resend.dev');
