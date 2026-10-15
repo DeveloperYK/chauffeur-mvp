@@ -23,6 +23,7 @@
     "test:e2e:mobile": "E2E_BASE_URL=${E2E_BASE_URL:-http://localhost:3000} playwright test mobile --project=mobile",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "promote": "scripts/promote.sh",
     "migrate:deploy": "tsx scripts/migrate-on-deploy.ts",
     "db:studio": "drizzle-kit studio",
     "prepare": "husky"

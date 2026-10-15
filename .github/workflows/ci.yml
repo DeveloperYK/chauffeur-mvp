@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    # A promote PR (main -> production) carries main's head commit, which the
+    # push-to-main run has already verified; the required check is read off
+    # that commit. Re-running everything there only delayed deploys (ADR 0022).
+    branches-ignore: [production]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,23 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: chauffeur
-          POSTGRES_PASSWORD: chauffeur_dev
-          POSTGRES_DB: chauffeur_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U chauffeur -d chauffeur_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
+    # No Postgres service: unit + integration tests run on PGlite (in-memory)
+    # and `next build` never opens a DB connection.
     env:
-      DATABASE_URL: postgres://chauffeur:chauffeur_dev@localhost:5432/chauffeur_test
       DRIVER_LINK_SECRET: ci-only-secret-not-used-in-prod-replace-me!!
 
     steps:
@@ -78,7 +68,8 @@ jobs:
     name: E2E smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: verify
+    # Runs alongside verify, not after it: lifecycle is the longest job, so
+    # serialising it behind verify added ~2 min to every PR.
     if: github.event_name == 'pull_request'
 
     services:
@@ -108,7 +99,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
       # /api/readyz runs the board's real queries, so the smoke DB must carry
       # the schema (healthz alone only needs `select 1`).
       - name: Apply migrations
@@ -132,7 +135,8 @@ jobs:
     name: E2E lifecycle
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: verify
+    # Runs alongside verify, not after it: lifecycle is the longest job, so
+    # serialising it behind verify added ~2 min to every PR.
     if: github.event_name == 'pull_request'
 
     services:
@@ -167,7 +171,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
 
       - name: Apply migrations
         run: pnpm db:migrate
