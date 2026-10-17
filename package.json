@@ -24,6 +24,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "promote": "scripts/promote.sh",
+    "ship": "scripts/ship.sh",
     "worktree:new": "scripts/worktree-new.sh",
     "migrate:deploy": "tsx scripts/migrate-on-deploy.ts",
     "db:studio": "drizzle-kit studio",
