@@ -435,7 +435,7 @@ When the user asks "implement stage N", the loop is:
 5. Implement.
 6. Run full suite. Show timing.
 7. Open PR with the template (§7).
-8. Wait for human review unless told to merge.
+8. **Merge and deploy without asking** (standing instruction from the user, 2026-10-18). Once CI is green: `gh pr merge --squash --auto`, then `pnpm promote` to production. The only exceptions are a change where the user explicitly said to wait for their call, or a genuinely irreversible/destructive step the request did not cover. Always report what was merged and the staging/production status.
 
 ### Post-merge deployment check and promotion
 
@@ -443,7 +443,7 @@ Merging to `main` deploys **staging** (`chauffeur-staging.vercel.app`) automatic
 
 1. After the PR merges, wait for the push-to-main CI run and the staging deployment (typically 1–2 minutes). Check `GET /api/readyz` on staging.
 2. If the staging deployment **fails**: read the deployment logs (Vercel connector or `vercel` CLI), create `fix/vercel-deploy-<issue>` immediately, and fix it before any other work. Do not leave main in a broken state.
-3. **Promote with one command when told to deploy:** `pnpm promote` (optionally `pnpm promote "<title>"`). It verifies main's CI check and staging readiness, opens and merges the `main → production` PR, waits for the Vercel production deployment, and checks production `/api/healthz` and `/api/readyz`. Promote PRs do not re-run CI — the required check is read from main's head commit — so they merge immediately.
+3. **Promote with one command — by default after every merge, without asking (see step 8 above):** `pnpm promote` (optionally `pnpm promote "<title>"`). It verifies main's CI check and staging readiness, opens and merges the `main → production` PR, waits for the Vercel production deployment, and checks production `/api/healthz` and `/api/readyz`. Promote PRs do not re-run CI — the required check is read from main's head commit — so they merge immediately.
 4. Report deployment status (staging and, if promoted, production) in the completion message.
 
 ---
