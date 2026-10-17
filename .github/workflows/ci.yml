@@ -46,10 +46,15 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Unit + integration tests (must finish <60s)
+      # Runs with coverage so the thresholds in vitest.config.ts (85% stmts /
+      # 80% branches on src/server) are enforced, not just configured. Adds
+      # ~2s to the suite. The migration-integrity test inside the suite also
+      # rejects a branch whose hand-authored migration collides with one
+      # already on main (ADR 0024).
+      - name: Unit + integration tests with coverage (must finish <60s)
         run: |
           start=$(date +%s)
-          pnpm test
+          pnpm test:coverage
           end=$(date +%s)
           elapsed=$((end - start))
           echo "Test suite took ${elapsed}s"

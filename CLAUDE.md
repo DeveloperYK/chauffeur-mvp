@@ -264,7 +264,7 @@ All tests use typed factory functions in `tests/fixtures/seed-data.ts`:
 
 ### Branching
 
-- `main` is always deployable. Protected: no direct pushes, PR required, all checks green.
+- `main` is always deployable. Protected: no direct pushes, PR required, all three checks green (`Typecheck · Lint · Test`, `E2E smoke`, `E2E lifecycle`), **and the branch must be up to date with `main`** (ADR 0024). If another session merged first, click "Update branch" (or `gh pr update-branch <n>`), let CI re-run on the combined tree, then merge. `gh pr merge --squash --auto` merges as soon as that run is green. Merged branches are deleted automatically.
 - Feature branches: `feat/<stage-NN>-<short-desc>`. Bugfix: `fix/<short-desc>`. Chore: `chore/<short-desc>`.
 - One stage = one PR. Stages are defined in the build plan (`docs/build-plan.md`, created at kickoff).
 
@@ -276,11 +276,16 @@ Multiple Claude sessions run against this repo at once. They share one checkout,
 
 1. **First action of every task — pull the latest `main`, then create a worktree, before touching any file:**
    ```bash
+   pnpm worktree:new <slug> [feat|fix|chore|docs|ci|refactor]   # type defaults to feat
+   cd ../chauffeur-mvp-<slug>
+   ```
+   The script (`scripts/worktree-new.sh`, ADR 0024) does exactly this, and works from inside another worktree:
+   ```bash
    git fetch origin                   # ALWAYS fetch first — branch from the freshest main
    git worktree add ../chauffeur-mvp-<slug> -b <type>/<slug> origin/main
    cd ../chauffeur-mvp-<slug>
    pnpm install                       # fast: hardlinks from the shared pnpm store
-   cp ../chauffeur-mvp/.env ./.env    # share env (gitignored)
+   cp ../chauffeur-mvp/.env ./.env    # share env (gitignored), APP_URL rewritten to a free port (3100+)
    ```
    **Never start work on a stale base.** Always `git fetch origin` (or `git pull` in the primary checkout) before branching/worktree-ing — other sessions merge to `main` constantly, and building on an old base causes avoidable merge conflicts and migration-number collisions. The `origin/main` in the worktree command is only as fresh as your last fetch, so fetch first.
    Work, commit, and push from there. Run `git worktree remove ../chauffeur-mvp-<slug>` once the branch is merged. To run the dev server, use a non-default port if the primary tree's `:3000` is in use: `pnpm exec next dev -p 3100`.
@@ -330,7 +335,7 @@ For each stage in `docs/build-plan.md`:
 5. Push and open PR.
 6. CI runs the full pipeline.
 7. Self-review the diff in GitHub UI.
-8. Merge via squash. Delete branch.
+8. Update the branch if main moved, wait for green, merge via squash (`gh pr merge --squash --auto`). The remote branch is deleted automatically; remove the worktree.
 9. Pull `main` locally. Start next stage.
 
 ---
@@ -343,7 +348,7 @@ Runs on every push and PR:
 2. **Install** — `pnpm install --frozen-lockfile`.
 3. **Typecheck** — `pnpm typecheck`.
 4. **Lint** — `pnpm lint`.
-5. **Test** — `pnpm test --reporter=verbose` (must finish < 60s; CI fails if > 75s as a guardrail).
+5. **Test** — `pnpm test:coverage` (must finish < 60s; CI fails if > 75s as a guardrail; coverage thresholds from `vitest.config.ts` are enforced here, ADR 0024).
 6. **Build** — `pnpm build`.
 7. **E2E** — `pnpm test:e2e` (separate job, runs in parallel).
 8. **Audit** — `pnpm audit --audit-level=high`.
@@ -379,6 +384,7 @@ When Claude works on this repo:
 - **Use TDD without prompting.** If a test isn't being written first, stop and write it.
 - **Ask before adding a dependency.** Adding npm packages is a security event.
 - **Ask before changing a public contract** (DB schema, API route shape, port interface).
+- **Migrations are checked by a test.** `tests/unit/db/migration-integrity.test.ts` runs against the real `drizzle/` folder on every `pnpm test`. If it goes red after updating your branch from `main`, another session took your migration number: renumber your SQL file and journal entry to the next free number and give `when` a value later than the newest entry on main (ADR 0024).
 - **Run the full suite before claiming completion.** Output the timing in the response so the human can verify it's < 60s.
 - **Update `docs/adr/` for non-obvious decisions.** Future Claude reads them.
 - **Do not work around failing tests by changing the test.** Find the real cause.
@@ -429,7 +435,7 @@ When the user asks "implement stage N", the loop is:
 5. Implement.
 6. Run full suite. Show timing.
 7. Open PR with the template (§7).
-8. Wait for human review unless told to merge.
+8. **Merge and deploy without asking** (standing instruction from the user, 2026-10-18). Once CI is green: `gh pr merge --squash --auto`, then `pnpm promote` to production. The only exceptions are a change where the user explicitly said to wait for their call, or a genuinely irreversible/destructive step the request did not cover. Always report what was merged and the staging/production status.
 
 ### Post-merge deployment check and promotion
 
@@ -437,7 +443,7 @@ Merging to `main` deploys **staging** (`chauffeur-staging.vercel.app`) automatic
 
 1. After the PR merges, wait for the push-to-main CI run and the staging deployment (typically 1–2 minutes). Check `GET /api/readyz` on staging.
 2. If the staging deployment **fails**: read the deployment logs (Vercel connector or `vercel` CLI), create `fix/vercel-deploy-<issue>` immediately, and fix it before any other work. Do not leave main in a broken state.
-3. **Promote with one command when told to deploy:** `pnpm promote` (optionally `pnpm promote "<title>"`). It verifies main's CI check and staging readiness, opens and merges the `main → production` PR, waits for the Vercel production deployment, and checks production `/api/healthz` and `/api/readyz`. Promote PRs do not re-run CI — the required check is read from main's head commit — so they merge immediately.
+3. **Promote with one command — by default after every merge, without asking (see step 8 above):** `pnpm promote` (optionally `pnpm promote "<title>"`). It verifies main's CI check and staging readiness, opens and merges the `main → production` PR, waits for the Vercel production deployment, and checks production `/api/healthz` and `/api/readyz`. Promote PRs do not re-run CI — the required check is read from main's head commit — so they merge immediately.
 4. Report deployment status (staging and, if promoted, production) in the completion message.
 
 ---
