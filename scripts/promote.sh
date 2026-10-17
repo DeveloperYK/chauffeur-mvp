@@ -5,10 +5,10 @@
 #   pnpm promote "Some title"   # explicit PR title
 #
 # What it does:
-#   1. Confirms main's head carries green verify + smoke + lifecycle checks
-#      from the push-to-main CI run — the only run against the combined
-#      tree of every merged PR (promote PRs do not re-run CI).
-#   2. Confirms staging, which auto-deploys main, answers /api/readyz.
+#   1. Confirms verify + smoke + lifecycle are green for main's tree: on
+#      main's head, or on the PR head it was squash-merged from when the two
+#      trees are identical (they are, under strict up-to-date — ADR 0025).
+#   2. Waits for the staging deployment of main's head, then /api/readyz.
 #   3. Opens main -> production and merges it with a merge commit.
 #   4. Waits for Vercel's production deployment of that commit to succeed,
 #      then checks production /api/healthz and /api/readyz. On a failed
@@ -21,6 +21,7 @@ REQUIRED_CHECKS=('Typecheck · Lint · Test' 'E2E smoke' 'E2E lifecycle')
 STAGING_URL='https://chauffeur-staging.vercel.app'
 PROD_URL='https://chauffeur-prod.vercel.app'
 PROD_ENV_PREFIX='Production – chauffeur-prod'
+STAGING_ENV_PREFIX='Production – chauffeur-staging'
 CHECK_WAIT_SECONDS=600
 DEPLOY_WAIT_SECONDS=480
 
@@ -43,31 +44,83 @@ fi
 say "promoting ${ahead} commit(s): ${prod_sha:0:7}..${main_sha:0:7}"
 git log --oneline "origin/production..origin/main" | sed 's/^/    /'
 
-# 1. Every CI check on main's head (from the push-to-main run).
-say "waiting for main CI on ${main_sha:0:7}: ${REQUIRED_CHECKS[*]}"
-deadline=$(( $(date +%s) + CHECK_WAIT_SECONDS ))
-while :; do
-  # Newest run per check name wins (a re-run supersedes a cancelled one).
-  runs=$(gh api "repos/${repo}/commits/${main_sha}/check-runs?per_page=100" \
+# 1. Every required check must be green for main's *tree*.
+#
+# Branch protection requires PRs to be up to date with main (ADR 0024), so
+# a squash-merged PR produces a main commit whose tree is byte-identical to
+# the PR head that CI already verified. Waiting for the push-to-main run to
+# repeat that verification cost ~3.5 min per promote (ADR 0025). So: accept
+# the checks on main's head itself, or on any PR head whose tree equals
+# main's tree. Any other main commit (a direct push, a non-squash merge)
+# still has to wait for its own run.
+checks_state() { # <sha> -> prints "success" | "pending" | "failed <name> <conclusion>"
+  local runs
+  runs=$(gh api "repos/${repo}/commits/$1/check-runs?per_page=100" \
     --jq '[.check_runs[] | {name, conclusion}] | group_by(.name) | map(.[0]) | map("\(.name)=\(.conclusion // "pending")") | .[]')
-  pending=0
+  local name conclusion pending=0
   for name in "${REQUIRED_CHECKS[@]}"; do
     conclusion=$(printf '%s\n' "$runs" | awk -F= -v n="$name" '$1 == n { print $2 }')
     case "${conclusion:-pending}" in
       success) ;;
-      failure|cancelled|timed_out|action_required) fail "main CI check '${name}' concluded '${conclusion}' — fix main before promoting" ;;
+      failure|cancelled|timed_out|action_required) printf 'failed %s %s\n' "$name" "$conclusion"; return ;;
       *) pending=1 ;;
     esac
   done
-  [ "$pending" -eq 0 ] && break
-  [ "$(date +%s)" -lt "$deadline" ] || fail "main CI did not finish within ${CHECK_WAIT_SECONDS}s"
-  sleep 15
-done
-say "main CI green (verify, smoke, lifecycle)"
+  [ "$pending" -eq 0 ] && printf 'success\n' || printf 'pending\n'
+}
 
-# 2. Staging readiness.
+tree_of() { gh api "repos/${repo}/git/commits/$1" --jq .tree.sha; }
+
+# Candidate commits whose checks count: main's head, then the heads of the
+# PRs that produced it, provided their tree matches main's tree.
+main_tree=$(tree_of "$main_sha")
+candidates=("$main_sha")
+while read -r pr_number pr_head; do
+  [ -n "$pr_head" ] || continue
+  if [ "$(tree_of "$pr_head")" = "$main_tree" ]; then
+    candidates+=("$pr_head")
+    say "main's tree equals PR #${pr_number} head ${pr_head:0:7}; its checks count"
+  fi
+done < <(gh api "repos/${repo}/commits/${main_sha}/pulls" --jq '.[] | "\(.number) \(.head.sha)"' 2>/dev/null || true)
+
+say "waiting for CI on ${main_sha:0:7}: ${REQUIRED_CHECKS[*]}"
+deadline=$(( $(date +%s) + CHECK_WAIT_SECONDS ))
+while :; do
+  verified=''
+  for sha in "${candidates[@]}"; do
+    state=$(checks_state "$sha")
+    case "$state" in
+      success) verified="$sha"; break ;;
+      failed*) read -r _ name conclusion <<<"$state"; fail "CI check '${name}' concluded '${conclusion}' on ${sha:0:7} — fix main before promoting" ;;
+    esac
+  done
+  [ -n "$verified" ] && break
+  [ "$(date +%s)" -lt "$deadline" ] || fail "CI did not finish within ${CHECK_WAIT_SECONDS}s"
+  sleep 10
+done
+say "CI green on ${verified:0:7} (verify, smoke, lifecycle)"
+
+# 2. Staging readiness — of *this* commit. Vercel builds staging on every push
+# to main and applies migrations during that build, so this is the one place
+# a migration is exercised against real Postgres before production sees it.
+deployment_state() { # <sha> <env prefix> -> success | failure | error | pending
+  gh api "repos/${repo}/deployments?sha=$1" \
+    --jq "[.[] | select(.environment | startswith(\"$2\"))] | first | .id // empty" \
+    | xargs -I{} gh api "repos/${repo}/deployments/{}/statuses" --jq 'first | .state // "pending"' 2>/dev/null || true
+}
+say "waiting for Vercel staging deployment of ${main_sha:0:7}"
+deadline=$(( $(date +%s) + DEPLOY_WAIT_SECONDS ))
+while :; do
+  state=$(deployment_state "$main_sha" "$STAGING_ENV_PREFIX")
+  case "${state:-pending}" in
+    success) break ;;
+    failure|error) fail "Vercel staging deployment ${state} — fix main before promoting" ;;
+  esac
+  [ "$(date +%s)" -lt "$deadline" ] || fail "staging deployment did not finish within ${DEPLOY_WAIT_SECONDS}s"
+  sleep 10
+done
 if curl -fsS --max-time 20 "${STAGING_URL}/api/readyz" | jq -e '.ok == true' >/dev/null; then
-  say "staging readyz ok"
+  say "staging deployed + readyz ok"
 else
   fail "staging readyz is not ok — look at ${STAGING_URL} before promoting"
 fi
@@ -100,15 +153,13 @@ merge_sha=$(git fetch -q origin production && git rev-parse origin/production)
 say "waiting for Vercel production deployment of ${merge_sha:0:7}"
 deadline=$(( $(date +%s) + DEPLOY_WAIT_SECONDS ))
 while :; do
-  state=$(gh api "repos/${repo}/deployments?sha=${merge_sha}" \
-    --jq "[.[] | select(.environment | startswith(\"${PROD_ENV_PREFIX}\"))] | first | .id // empty" \
-    | xargs -I{} gh api "repos/${repo}/deployments/{}/statuses" --jq 'first | .state // "pending"' 2>/dev/null || true)
+  state=$(deployment_state "$merge_sha" "$PROD_ENV_PREFIX")
   case "${state:-pending}" in
     success) break ;;
     failure|error) fail "Vercel production deployment ${state} — check the Vercel dashboard; production still serves the previous build" ;;
   esac
   [ "$(date +%s)" -lt "$deadline" ] || fail "production deployment did not finish within ${DEPLOY_WAIT_SECONDS}s"
-  sleep 15
+  sleep 10
 done
 say "deployed"
 
