@@ -3891,6 +3891,13 @@ button.driver-row {
   border-radius: calc(var(--r) - 2px);
   cursor: pointer;
 }
+.addr-ac__opt--muted {
+  color: var(--ink-muted, #6b7280);
+  cursor: default;
+}
+.ic--copied {
+  margin-top: 6px;
+}
 .addr-ac__opt.is-active,
 .addr-ac__opt:hover {
   background: var(--primary-ring);
