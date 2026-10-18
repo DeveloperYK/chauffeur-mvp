@@ -87,6 +87,21 @@ interface Layout extends EmailParts {
   footerLabel?: string;
   /** Optional call-to-action link, rendered as a button (HTML) / bare URL (text). */
   cta?: { url: string; label: string };
+  /**
+   * Display name of the operator sending the email. Rendered as a personal
+   * "Kind regards, <name>" sign-off between the closing and the company
+   * footer, so the exec knows who at JJ to reply to. Omitted when blank.
+   */
+  signedBy?: string | undefined;
+}
+
+const SIGN_OFF_GREETING = 'Kind regards,';
+const SIGN_OFF_COMPANY = 'JJ Chauffeuring Services';
+
+/** The sign-off lines, or none when there is no operator name to sign with. */
+function signOffLines(signedBy: string | undefined): string[] {
+  const name = signedBy?.trim();
+  return name ? [SIGN_OFF_GREETING, name, SIGN_OFF_COMPANY] : [];
 }
 
 const DEFAULT_FOOTER_LABEL = 'Booking notification';
@@ -133,9 +148,10 @@ function destination(b: Booking): string {
   return b.dropoffAddress ?? 'As directed';
 }
 
-function renderText({ heading, intro, rows, closing, footerLabel, cta }: Layout): string {
+function renderText({ heading, intro, rows, closing, footerLabel, cta, signedBy }: Layout): string {
   const width = Math.max(0, ...rows.map((r) => r.label.length));
   const lines = rows.map((r) => `  ${r.label.padEnd(width)}   ${r.value}`);
+  const signOff = signOffLines(signedBy);
   return [
     SMS_BRAND_NAME,
     '',
@@ -145,6 +161,7 @@ function renderText({ heading, intro, rows, closing, footerLabel, cta }: Layout)
     ...(lines.length ? [...lines, ''] : []),
     ...(cta ? [`${cta.label}: ${cta.url}`, ''] : []),
     ...(closing ? [closing, ''] : []),
+    ...(signOff.length ? [...signOff, ''] : []),
     '--',
     COMPANY.legalName,
     COMPANY.email,
@@ -157,7 +174,8 @@ function renderText({ heading, intro, rows, closing, footerLabel, cta }: Layout)
   ].join('\n');
 }
 
-function renderHtml({ heading, intro, rows, closing, footerLabel, cta }: Layout): string {
+function renderHtml({ heading, intro, rows, closing, footerLabel, cta, signedBy }: Layout): string {
+  const signOff = signOffLines(signedBy);
   const rowsHtml = rows
     .map(
       (r) =>
@@ -183,6 +201,9 @@ function renderHtml({ heading, intro, rows, closing, footerLabel, cta }: Layout)
     closing
       ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.5;color:#4b5563;white-space:pre-line;">${escapeHtml(closing)}</p>`
       : '',
+    signOff.length
+      ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b5563;">${escapeHtml(SIGN_OFF_GREETING)}<br><strong style="color:#111827;">${escapeHtml(signOff[1] ?? '')}</strong><br>${escapeHtml(SIGN_OFF_COMPANY)}</p>`
+      : '',
     '</div>',
     '<div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;">',
     `<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#374151;">${escapeHtml(COMPANY.legalName)}</p>`,
@@ -196,7 +217,13 @@ function renderHtml({ heading, intro, rows, closing, footerLabel, cta }: Layout)
 
 /** Render a layout as the full email: subject + HTML + text + editable parts. */
 function render(subject: string, layout: Layout): RenderedEmail {
-  const { heading: _heading, footerLabel: _footer, cta: _cta, ...parts } = layout;
+  const {
+    heading: _heading,
+    footerLabel: _footer,
+    cta: _cta,
+    signedBy: _signedBy,
+    ...parts
+  } = layout;
   return { subject, html: renderHtml(layout), text: renderText(layout), parts };
 }
 
@@ -268,8 +295,9 @@ export function driverDetailsEmail(
 
 /**
  * Render the operator-edited parts of an exec email in the branded shell:
- * JJ header, the email's fixed headline, intro, details table, closing, then
- * the signature + confidentiality footer. Same renderer as the pre-filled
+ * JJ header, the email's fixed headline, intro, details table, closing, the
+ * operator's sign-off (when `signedBy` is given), then the signature +
+ * confidentiality footer. Same renderer as the pre-filled
  * templates, so an edited email is pixel-identical in layout to an unedited
  * one — there is no parsing step that could lose the table.
  */
@@ -277,8 +305,9 @@ export function renderExecEmail(
   subject: string,
   parts: EmailParts,
   heading: string,
+  signedBy?: string,
 ): RenderedEmail {
-  return render(subject, { heading, ...parts });
+  return render(subject, { heading, ...parts, signedBy });
 }
 
 /**

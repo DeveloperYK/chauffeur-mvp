@@ -30,6 +30,7 @@ import {
   bookings,
   drivers,
   execNotifications,
+  operators,
 } from '@/server/db/schema';
 import { type LatestMessage, rollupExecStatus } from '@/server/domain/exec-notifications';
 import type { EmailPort } from '@/server/ports/email';
@@ -496,6 +497,20 @@ const manualEmailSchema = z
     path: ['intro'],
   });
 
+/**
+ * Name the email is signed off with. A missing operator (should not happen —
+ * the id comes from the session) just drops the sign-off rather than blocking
+ * the send.
+ */
+async function operatorDisplayName(db: Database, operatorId: string): Promise<string | undefined> {
+  const [op] = await db
+    .select({ name: operators.name })
+    .from(operators)
+    .where(eq(operators.id, operatorId))
+    .limit(1);
+  return op?.name;
+}
+
 export type ManualExecEmailResult =
   | { ok: true; notification: ExecNotification }
   | { ok: false; reason: 'validation'; issues: z.ZodIssue[] }
@@ -526,7 +541,13 @@ export async function sendManualExecEmail(
     return { ok: false, reason: 'no_driver' };
   }
 
-  const rendered = renderExecEmail(subject, { intro, rows, closing }, EXEC_EMAIL_HEADING[kind]);
+  const signedBy = await operatorDisplayName(deps.db, operatorId);
+  const rendered = renderExecEmail(
+    subject,
+    { intro, rows, closing },
+    EXEC_EMAIL_HEADING[kind],
+    signedBy,
+  );
   const base = { bookingId: booking.id, channel: 'email' as const, kind };
   const values: NewExecNotification = deps.email
     ? {

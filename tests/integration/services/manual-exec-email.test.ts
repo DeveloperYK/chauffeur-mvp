@@ -552,3 +552,78 @@ describe('services/exec-notifications manual emails (integration)', () => {
     expect(rows.map((r) => r.id)).not.toContain(b.id);
   });
 });
+
+describe('sendManualExecEmail — operator sign-off', () => {
+  let db: TestDb;
+  let close: () => Promise<void>;
+  let operatorId: string;
+  let emailer: FakeEmailAdapter;
+
+  beforeAll(async () => {
+    const t = await createTestDb();
+    db = t.db;
+    close = t.close;
+    const [op] = await db
+      .insert(operators)
+      .values({ email: 'alice@example.com', passwordHash: 'x', name: 'Alice Okafor' })
+      .returning();
+    operatorId = op?.id ?? '';
+  });
+
+  afterAll(async () => {
+    await close();
+  });
+
+  beforeEach(async () => {
+    await db.delete(bookings);
+    emailer = new FakeEmailAdapter();
+  });
+
+  async function seedBooking(): Promise<Booking> {
+    const [b] = await db
+      .insert(bookings)
+      .values({
+        ...SeedData.bookings.unassigned(operatorId),
+        execEmail: 'exec@client.com',
+      })
+      .returning();
+    if (!b) throw new Error('seed failed');
+    return b;
+  }
+
+  async function sendConfirmation(opId: string) {
+    const booking = await seedBooking();
+    const draft = await execEmailDraft(db, booking.id, 'assigned');
+    if (!draft.ok) throw new Error('draft failed');
+    return sendManualExecEmail(
+      { db, email: emailer },
+      {
+        bookingId: booking.id,
+        kind: 'assigned',
+        to: 'exec@client.com',
+        subject: draft.draft.subject,
+        intro: draft.draft.intro,
+        rows: draft.draft.rows,
+        closing: draft.draft.closing,
+      },
+      opId,
+    );
+  }
+
+  it('signs the sent email and the stored body off with the sending operator', async () => {
+    const result = await sendConfirmation(operatorId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(emailer.sent[0]?.html).toContain('Kind regards,');
+    expect(emailer.sent[0]?.html).toContain('Alice Okafor');
+    expect(emailer.sent[0]?.text).toContain('Kind regards,\nAlice Okafor');
+    expect(result.notification.body).toContain('Kind regards,\nAlice Okafor');
+  });
+
+  it('still sends, without a sign-off, when the operator cannot be found', async () => {
+    const result = await sendConfirmation('00000000-0000-0000-0000-000000000000');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(emailer.sent[0]?.text).not.toContain('Kind regards');
+  });
+});
