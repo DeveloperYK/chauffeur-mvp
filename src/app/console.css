@@ -4360,6 +4360,14 @@ button.driver-row {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-ring);
 }
+.email-editor__signoff {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.email-editor__signoff strong {
+  color: var(--ink);
+}
 .email-editor__rows {
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);

@@ -262,6 +262,8 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // the seeded booking has no exec email).
   await expect(emailModal.locator('input[type="text"]').first()).toHaveValue(/BKNG-/);
   await expect(emailModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
+  // The email is signed off with the sending operator (read-only in the form).
+  await expect(emailModal.getByLabel('Sign-off')).toContainText('Kind regards,');
   // The operator adds a detail. It is a structured row, so the branded table
   // keeps its shape on send (the whole point of the structured editor).
   await emailModal.getByRole('button', { name: 'Add detail' }).click();
