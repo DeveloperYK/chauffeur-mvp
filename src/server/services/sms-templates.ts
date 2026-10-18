@@ -120,6 +120,36 @@ export function dispatchSms(booking: Booking, url: string): string {
 }
 
 /**
+ * Driver — the job details for a driver who is already on the job (e.g. the
+ * operator assigned them by phone, so they never had an offer link). The link
+ * opens their persistent job view; there is nothing to accept.
+ *
+ *   JJ Chauffeuring - Your job BKNG-00001
+ *   Sat 23 May, 14:00
+ *   12 King St, London -> Heathrow T5
+ *   Details: <url>
+ */
+export function driverJobSms(booking: Booking, url: string): string {
+  const lines = [
+    `${SMS_BRAND_NAME} - Your job ${bookingRef(booking.seq)}`,
+    formatLondonDateTimeShort(booking.pickupAt),
+  ];
+  if (booking.serviceType === 'hourly') {
+    lines.push(
+      `Pickup: ${booking.pickupAddress}`,
+      `As directed - ${formatHireDuration(booking.expectedDurationMinutes)}`,
+    );
+  } else {
+    lines.push(`${booking.pickupAddress} -> ${destination(booking)}`);
+  }
+  const travel = travelRefLabel(booking.travelMode, booking.travelRef);
+  if (travel) lines.push(travel);
+  if (booking.requestedCarType) lines.push(`Car: ${booking.requestedCarType}`);
+  lines.push(`Details: ${url}`);
+  return lines.join('\n');
+}
+
+/**
  * Driver — they've been removed from a job they previously accepted
  * (operator reassigned the booking to someone else). Short and unambiguous;
  * the driver should know the job is no longer theirs.
