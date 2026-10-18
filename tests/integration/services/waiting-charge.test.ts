@@ -1,4 +1,6 @@
+import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
 import { auditEvents, bookings, operators } from '@/server/db/schema';
+import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { setWaitingCharge } from '@/server/services/waiting-charge';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
@@ -83,6 +85,68 @@ describe('services/setWaitingCharge (integration)', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.booking.waitingChargePence).toBe(0);
+  });
+
+  // ── Side effects: the backup sheet must mirror the app exactly ──────────
+  // 2026-10-18: an operator edited the waiting fee on a completed booking and
+  // the sheet kept the old figure, because this service never mirrored.
+  const WAITING_COL = 19; // T  Waiting (£)
+  const TOTAL_COL = 20; // U  Total (£)
+
+  it('mirrors an override to the sheet: Waiting (£) and Total (£) change', async () => {
+    const booking = await seed(5);
+    const mirror = new FakeSpreadsheetMirror();
+    const r = await setWaitingCharge(booking.id, 1250, operatorId, { db, mirror });
+    expect(r.ok).toBe(true);
+    const row = mirror.rows.get(booking.id);
+    expect(row?.[WAITING_COL]).toBe('12.50');
+    expect(row?.[TOTAL_COL]).toBe('312.50');
+  });
+
+  it('mirrors a cleared override back to the computed £1/min charge', async () => {
+    const booking = await seed(5);
+    const mirror = new FakeSpreadsheetMirror();
+    await setWaitingCharge(booking.id, 1250, operatorId, { db, mirror });
+    const r = await setWaitingCharge(booking.id, null, operatorId, { db, mirror });
+    expect(r.ok).toBe(true);
+    const row = mirror.rows.get(booking.id);
+    expect(row?.[WAITING_COL]).toBe('5.00');
+    expect(row?.[TOTAL_COL]).toBe('305.00');
+  });
+
+  it('mirrors a £0 waiver', async () => {
+    const booking = await seed(5);
+    const mirror = new FakeSpreadsheetMirror();
+    await setWaitingCharge(booking.id, 0, operatorId, { db, mirror });
+    expect(mirror.rows.get(booking.id)?.[WAITING_COL]).toBe('0.00');
+  });
+
+  it('records mirror_status on the booking so a stale sheet is visible', async () => {
+    const booking = await seed(5);
+    const mirror = new FakeSpreadsheetMirror();
+    await setWaitingCharge(booking.id, 300, operatorId, { db, mirror });
+    const [after] = await db.select().from(bookings);
+    expect(after?.mirrorStatus).toBe('ok');
+  });
+
+  it('still saves the charge when the mirror fails, and flags the row as stale', async () => {
+    const booking = await seed(5);
+    const failing: SpreadsheetMirrorPort = {
+      upsertRow: async () => ({ ok: false, reason: 'sheets down' }),
+      deleteRow: async () => ({ ok: false, reason: 'sheets down' }),
+    };
+    const r = await setWaitingCharge(booking.id, 300, operatorId, { db, mirror: failing });
+    expect(r.ok).toBe(true);
+    const [after] = await db.select().from(bookings);
+    expect(after?.waitingChargePence).toBe(300);
+    expect(after?.mirrorStatus).toBe('failed');
+  });
+
+  it('does not touch the sheet for a rejected charge', async () => {
+    const booking = await seed(5);
+    const mirror = new FakeSpreadsheetMirror();
+    await setWaitingCharge(booking.id, -1, operatorId, { db, mirror });
+    expect(mirror.rows.has(booking.id)).toBe(false);
   });
 
   it('rejects a negative charge', async () => {

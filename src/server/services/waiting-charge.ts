@@ -2,20 +2,25 @@ import type { Database } from '@/server/db';
 import { type Booking, bookings } from '@/server/db/schema';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
+import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { mirrorBooking } from './mirror';
 
 /**
  * Operator override of a booking's waiting charge, the way they set the contract
  * price by hand. `null` clears the override so the charge falls back to the
  * computed £1/min × waiting minutes; a number (£0–£10,000 in pence) pins it.
+ * The backup sheet carries the charge in Waiting (£) and Total (£), so the row
+ * is re-mirrored after every change — the sheet must match the app exactly.
  */
 const chargeSchema = z.union([z.null(), z.coerce.number().int().min(0).max(1_000_00)]);
 
 export interface SetWaitingChargeDeps {
   db: Database;
   clock?: Clock;
+  mirror?: SpreadsheetMirrorPort;
 }
 
 export type SetWaitingChargeResult =
@@ -56,6 +61,8 @@ export async function setWaitingCharge(
     before: { waitingChargePence: booking.waitingChargePence },
     after: { waitingChargePence: parsed.data },
   });
+
+  if (deps.mirror) await mirrorBooking(deps.db, deps.mirror, updated, clock);
 
   return { ok: true, booking: updated };
 }
