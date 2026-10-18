@@ -862,6 +862,52 @@ test('standalone create + detail routes redirect into the board surfaces', async
   await expect(page.locator('.panel.is-open')).toContainText('LEGO Group');
 });
 
+test('copy booking: the panel pre-fills the create form from an earlier job', async ({ page }) => {
+  // Repeat jobs are the norm (same exec + PA, same route, same price), so the
+  // operator copies last time's booking and only sets the new pickup time.
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
+  await gotoSimulator(page);
+  await clickAndSettle(page, page.getByRole('button', { name: 'Seed sample data' }).click());
+  await openBookingPanel(page, LEGO);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Copy booking' }).click();
+
+  const modal = page.locator('.modal.is-open');
+  await expect(modal.locator('.modal__title')).toHaveText('Create booking');
+  await expect(modal.getByTestId('copied-from')).toContainText(/Copied from BKNG-\d+/);
+  await expect(modal.getByPlaceholder('First name')).toHaveValue('Eric');
+  await expect(modal.getByPlaceholder('Last name')).toHaveValue('French');
+  await expect(modal.getByLabel('Customer account')).toHaveValue('LEGO Group');
+  await expect(modal.getByLabel('Pickup address')).not.toHaveValue('');
+  // The pickup time is the form's own default, never the old job's.
+  const pickupAt = await modal.locator('input[type="datetime-local"]').inputValue();
+  expect(pickupAt).toBeTruthy();
+
+  // The seed's Heathrow drop-off carries no postcode, so the postcode rule
+  // asks for one — the same prompt the operator gets when copying a legacy
+  // booking. Everything else submits as copied.
+  const dropoffPostcode = modal.getByLabel('Dropoff postcode');
+  if (await dropoffPostcode.count()) await dropoffPostcode.fill('TW6 2GA');
+  const pickupPostcode = modal.getByLabel('Pickup postcode');
+  if (await pickupPostcode.count()) await pickupPostcode.fill('NW3 4JJ');
+  await modal.getByRole('button', { name: 'Create booking' }).click();
+  await expect(page.locator('.toast')).toContainText('Booking created');
+  await gotoSimulator(page);
+  await expect(page.getByRole('link', { name: LEGO })).toHaveCount(2);
+
+  // The in-form picker reaches the same result: search, pick, pre-filled.
+  await page.goto('/dashboard?new=1', { waitUntil: 'networkidle' });
+  const fresh = page.locator('.modal.is-open');
+  await fresh.getByLabel('Copy from a previous booking').fill('LEGO');
+  await fresh.locator('.addr-ac__menu [role="option"]').first().click();
+  await expect(fresh.getByTestId('copied-from')).toBeVisible();
+  await expect(fresh.getByPlaceholder('First name')).toHaveValue('Eric');
+  // Clear wipes the copy as well as the fields.
+  await fresh.getByRole('button', { name: 'Clear' }).click();
+  await expect(fresh.getByTestId('copied-from')).toHaveCount(0);
+  await expect(fresh.getByPlaceholder('First name')).toHaveValue('');
+});
+
 test('optional pricing: a booking created without a price is flagged until one is set', async ({
   page,
 }) => {
