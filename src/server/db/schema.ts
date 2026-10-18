@@ -26,8 +26,8 @@ export const bookingStateEnum = pgEnum('booking_state', [
 
 // A driver's vehicle class. Each class implies the actual car(s) the driver
 // runs, so the system no longer records a separate car/vehicle descriptor —
-// the class is the vehicle — JJ's six vehicle types: Executive, VIP (S Class),
-// MPV S (7 seater), MPV L (8 seater), E Car (electric only), Coach. The same
+// the class is the vehicle — JJ's six vehicle types: Executive, VIP,
+// MPV S (7 seater), MPV L (8 seater), E Car (electric), Coach. The same
 // list is offered as the booking's requested car type, so ask and driver line up.
 export const vehicleClassEnum = pgEnum('vehicle_class', [
   'executive',

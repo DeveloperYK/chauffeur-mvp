@@ -31,10 +31,10 @@ export const VEHICLE_CLASSES: readonly VehicleClass[] = [
 /** Full name — driver form, booking car-type picker, sheet, warnings. */
 export const VEHICLE_CLASS_LABEL: Record<VehicleClass, string> = {
   executive: 'Executive',
-  vip: 'VIP – S Class',
+  vip: 'VIP',
   mpv_s: 'MPV S – 7 Seater',
   mpv_l: 'MPV L – 8 Seater',
-  e_car: 'E Car – Electric Only',
+  e_car: 'E Car – Electric',
   coach: 'Coach',
 };
 
