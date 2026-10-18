@@ -45,6 +45,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
   const [intro, setIntro] = useState('');
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [closing, setClosing] = useState('');
+  const [signedBy, setSignedBy] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -64,6 +65,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
           setIntro(res.draft.intro);
           setRows(res.draft.rows.map((r, i) => ({ id: i, ...r })));
           setClosing(res.draft.closing);
+          setSignedBy(res.signedBy ?? '');
         } else {
           setError(res.error ?? 'Could not build the email.');
         }
@@ -243,6 +245,15 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
                   value={closing}
                   onChange={(e) => setClosing(e.target.value)}
                 />
+                {signedBy ? (
+                  <div className="email-editor__signoff" aria-label="Sign-off">
+                    Kind regards,
+                    <br />
+                    <strong>{signedBy}</strong>
+                    <br />
+                    JJ Chauffeuring Services
+                  </div>
+                ) : null}
               </div>
             </>
           )}
