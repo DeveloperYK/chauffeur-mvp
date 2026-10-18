@@ -1,15 +1,17 @@
 'use client';
 
 import { createBookingAction } from '@/app/(dashboard)/dashboard/new/actions';
+import type { BookingTemplate } from '@/lib/booking-template';
 import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { PHONE_HINT } from '@/lib/phone';
 import { hasPostcode, isValidUkPostcode, withPostcode } from '@/lib/postcode';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { AddressAutocomplete } from './address-autocomplete';
 import { CarTypeField } from './car-type-field';
+import { type CopiedFrom, CopyFromBooking } from './copy-from-booking';
 import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { Icon } from './icons';
 import { POSTCODE_INVALID_MESSAGE, PostcodeField } from './postcode-field';
@@ -26,6 +28,12 @@ interface NewBookingModalProps {
   onCreated: (bookingDay?: string) => void;
   /** Test-only: fills the form with sample data. Hidden in real production. */
   showSampleGenerator?: boolean;
+  /**
+   * "Copy booking" from the detail panel: pre-fills the form with this
+   * booking's reusable fields when the modal opens. The pickup time is never
+   * copied — it defaults like a blank form and the operator sets the new one.
+   */
+  copyFrom?: CopiedFrom | null;
 }
 
 interface NewForm {
@@ -171,8 +179,11 @@ export function NewBookingModal({
   onClose,
   onCreated,
   showSampleGenerator = false,
+  copyFrom = null,
 }: NewBookingModalProps) {
   const [form, setForm] = useState<NewForm>(EMPTY);
+  /** Which earlier booking the form was pre-filled from, for the notice. */
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
@@ -187,6 +198,31 @@ export function NewBookingModal({
       setFieldErrors({});
     }
   }, [isOpen]);
+
+  /** Pre-fill from an earlier booking; keeps the pickup time already on the form. */
+  const applyTemplate = useCallback((template: BookingTemplate, ref: string) => {
+    if (routeTimer.current) clearTimeout(routeTimer.current);
+    setForm((f) => ({
+      ...EMPTY,
+      ...template,
+      pickupPostcode: '',
+      dropoffPostcode: '',
+      pickupAt: f.pickupAt || defaultDateTime(),
+    }));
+    // The copied distance + duration are the estimate already made for this
+    // route; show them as ready rather than re-estimating on open.
+    setRouteStatus(
+      template.serviceType === 'transfer' && template.distanceMeters != null ? 'ready' : 'idle',
+    );
+    setCopiedRef(ref);
+    setError(null);
+    setFieldErrors({});
+  }, []);
+
+  // Opened via the panel's "Copy booking".
+  useEffect(() => {
+    if (isOpen && copyFrom) applyTemplate(copyFrom.template, copyFrom.ref);
+  }, [isOpen, copyFrom, applyTemplate]);
 
   // After a rejected submit, bring the first flagged field into view so the
   // operator sees exactly what to fix rather than hunting up a long form.
@@ -295,6 +331,7 @@ export function NewBookingModal({
     if (routeTimer.current) clearTimeout(routeTimer.current);
     setForm({ ...EMPTY, pickupAt: defaultDateTime() });
     setRouteStatus('idle');
+    setCopiedRef(null);
     setError(null);
     setFieldErrors({});
   };
@@ -371,6 +408,7 @@ export function NewBookingModal({
         return;
       }
       setForm(EMPTY);
+      setCopiedRef(null);
       onCreated(result.bookingDay);
     });
   };
@@ -396,6 +434,18 @@ export function NewBookingModal({
               <div className="ic__body">{error}</div>
             </div>
           ) : null}
+
+          <div className="form-section">
+            <CopyFromBooking onPick={(c) => applyTemplate(c.template, c.ref)} />
+            {copiedRef ? (
+              <div className="ic ic--copied" data-testid="copied-from">
+                <div className="ic__body">
+                  Copied from <span className="mono">{copiedRef}</span> — set the new pickup time
+                  and check the details before creating.
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <div className="form-section">
             <div className="form-section__head">Trip</div>
