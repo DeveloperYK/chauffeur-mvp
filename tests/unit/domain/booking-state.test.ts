@@ -125,16 +125,14 @@ describe('booking state machine', () => {
     });
   });
 
-  describe('decline keeps ticket unassigned', () => {
-    it('decline does not move state', () => {
-      const t = transition('unassigned', { type: 'driver_decline' });
-      expect(t.ok && t.next).toBe('unassigned');
-    });
-
-    it('decline from any other state is illegal', () => {
-      const t = transition('assigned', { type: 'driver_decline' });
-      expect(t.ok).toBe(false);
-    });
+  describe('drivers cannot decline', () => {
+    it.each(['unassigned', 'assigned', 'in_progress'] as const)(
+      'a driver_decline event is refused from %s',
+      (state) => {
+        const t = transition(state, { type: 'driver_decline' } as unknown as BookingEvent);
+        expect(t.ok).toBe(false);
+      },
+    );
   });
 
   describe('driver released back to unassigned', () => {

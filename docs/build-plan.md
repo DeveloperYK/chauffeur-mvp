@@ -10,7 +10,7 @@ Each stage = one PR. Tests written first (TDD). Full unit+integration suite must
 | 3 | Domain core | `feat/stage-03-domain` | Pure state-machine transitions and JWT link signing; 100% unit-tested |
 | 4 | Booking creation + board | `feat/stage-04-booking` | New-booking server action, validation, 7-column board UI, audit on create |
 | 5 | Driver roster CRUD | `feat/stage-05-roster` | Roster page; create/edit/deactivate drivers; tier + default car + WhatsApp number |
-| 6 | Dispatch flow | `feat/stage-06-dispatch` | Generate signed link from a ticket; public /j/[token] page; accept/decline; car change; Unassigned→Assigned transition |
+| 6 | Dispatch flow | `feat/stage-06-dispatch` | Generate signed link from a ticket; public /j/[token] page; accept (decline removed 2026-10-18, ADR 0027); car change; Unassigned→Assigned transition |
 | 7 | Clock service | `feat/stage-07-clock` | Scheduler: T-1h, T+expected_end, 24h no-accept; SELECT … FOR UPDATE SKIP LOCKED |
 | 8 | SMS adapter | `feat/stage-08-sms` | NotificationPort, TwilioAdapter, FakeNotificationAdapter; fire on Assigned + InProgress |
 | 9 | Completion form + review | `feat/stage-09-completion` | Driver second link, completion form, AwaitingReview→Completed flow |
