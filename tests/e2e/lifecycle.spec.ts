@@ -126,6 +126,43 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'Unassigned');
 
+  // ── Console: assign by phone → the driver gets a job link ────────────────
+  // The operator rang a driver who agreed. "Confirmed by phone" commits them
+  // with no offer link, so the modal hands back a job link to send — the
+  // phone-assigned driver would otherwise have nothing to track the job with.
+  await openBookingPanel(page, LEGO);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Find a driver' }).click();
+  const phoneModal = page.locator('.modal.is-open');
+  await expect(phoneModal).toBeVisible();
+  await phoneModal.locator('.driver-row:not(.is-busy)').first().click();
+  await phoneModal.getByRole('button', { name: 'Confirmed by phone' }).click();
+  await expect(phoneModal).toContainText(/confirmed by phone/i);
+  const phoneLinkRow = phoneModal.locator('.offer-row[data-link]');
+  await expect(phoneLinkRow).toHaveCount(1);
+  const jobLinkUrl = (await phoneLinkRow.getAttribute('data-link'))?.trim();
+  expect(jobLinkUrl, 'expected a job link after assigning by phone').toBeTruthy();
+  await phoneModal.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
+  // The link opens the driver's persistent job view — there is nothing to accept.
+  await page.goto(jobLinkUrl as string, { waitUntil: 'networkidle' });
+  await expect(page.getByText('Your job', { exact: true })).toBeVisible();
+  await expect(page.getByText('CONFIRMED - YOUR JOB')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Accept job' })).toHaveCount(0);
+  // The panel can re-issue a job link later (e.g. the driver lost the message).
+  await openBookingPanel(page, LEGO);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Job link for driver' }).click();
+  const jobLinkModal = page.locator('.modal.is-open', { hasText: 'Driver job link' });
+  await expect(jobLinkModal.locator('.dispatch-result__url span').first()).toContainText('/j/');
+  await jobLinkModal.getByRole('button', { name: 'Close' }).click();
+  // Release again so the link-based re-dispatch below starts from unassigned.
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Driver pulled out/i })
+    .click();
+  await expect(page.locator('.toast')).toContainText(/released/i);
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'Unassigned');
+
   // Re-dispatch via the multi-select fan-out: tick two free drivers, offer to
   // both (each gets its own link), then accept one — first-to-accept wins.
   await openBookingPanel(page, LEGO);
@@ -793,6 +830,11 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
     "1 selected driver doesn't match the requested car type (MPV S – 7 Seater)",
   );
   await modal.getByRole('button', { name: /Confirmed by phone/i }).click();
+  // The driver is committed, and the modal stays open with their job link
+  // (one row, send on WhatsApp / copy) before the operator is done.
+  await expect(modal).toContainText(/confirmed by phone/i);
+  await expect(modal.locator('.offer-row[data-link]')).toHaveCount(1);
+  await modal.getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('.toast')).toContainText(/confirmed by phone/i);
 
   await gotoSimulator(page);
@@ -814,6 +856,10 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   // Pick a different free driver than the one already assigned.
   await reassign.locator('.driver-row:not(.is-busy)').nth(1).click();
   await reassign.getByRole('button', { name: /Confirmed by phone/i }).click();
+  // The swapped-in driver gets a job link too; closing by × still refreshes.
+  await expect(reassign).toContainText(/reassigned/i);
+  await expect(reassign.locator('.offer-row[data-link]')).toHaveCount(1);
+  await reassign.locator('.icon-btn').first().click();
   await expect(page.locator('.toast')).toContainText(/reassigned|confirmed by phone/i);
 
   await gotoSimulator(page);

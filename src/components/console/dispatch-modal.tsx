@@ -61,6 +61,10 @@ export function DispatchModal({
   const [skippedCount, setSkippedCount] = useState(0);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Set once the operator has committed a driver by phone: the single "offer"
+  // row is then the driver's job link (nothing to accept), and leaving the
+  // modal by any route must refresh the board behind it.
+  const [phoneAssigned, setPhoneAssigned] = useState<{ summary: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -69,6 +73,7 @@ export function DispatchModal({
     if (isOpen) {
       setPicked(new Set());
       setOffers(null);
+      setPhoneAssigned(null);
       setSkippedCount(0);
       setOpened(new Set());
       setCopiedId(null);
@@ -155,8 +160,10 @@ export function DispatchModal({
   };
 
   // Operator-attested assign: the operator phoned the single picked driver, who
-  // agreed, so commit them directly — no link to send. In `assigned` state this
-  // is a swap (the modal opens as "Reassign driver").
+  // agreed, so commit them directly — no offer link. In `assigned` state this
+  // is a swap (the modal opens as "Reassign driver"). The driver never saw a
+  // link, so the action hands back a job link for them, shown in the same
+  // "send on WhatsApp / copy" row as a fan-out offer.
   const confirmByPhone = () => {
     if (picked.size !== 1) return;
     const driverId = [...picked][0] as string;
@@ -167,13 +174,33 @@ export function DispatchModal({
         setError(result.error ?? 'Could not assign the driver.');
         return;
       }
-      const name = drivers.find((d) => d.id === driverId)?.name.split(' ')[0] ?? 'driver';
-      onSent(
-        isReassign
-          ? `Reassigned to ${name} — confirmed by phone.`
-          : `Assigned ${name} — confirmed by phone.`,
-      );
+      const fullName = result.driverName ?? drivers.find((d) => d.id === driverId)?.name ?? '';
+      const name = fullName.split(' ')[0] || 'driver';
+      const summary = isReassign
+        ? `Reassigned to ${name} — confirmed by phone.`
+        : `Assigned ${name} — confirmed by phone.`;
+      if (!result.url || !result.whatsappUrl || !result.message) {
+        onSent(summary);
+        return;
+      }
+      setPhoneAssigned({ summary });
+      setOffers([
+        {
+          driverId,
+          driverName: fullName,
+          url: result.url,
+          whatsappUrl: result.whatsappUrl,
+          message: result.message,
+        },
+      ]);
     });
+  };
+
+  // After a phone assign the booking has already changed; closing by any route
+  // (scrim, ×, Done) must report that so the board refreshes.
+  const close = () => {
+    if (phoneAssigned) onSent(phoneAssigned.summary);
+    else onClose();
   };
 
   // Copy the same formatted message the WhatsApp button pre-fills (short link
@@ -205,14 +232,20 @@ export function DispatchModal({
   return (
     <div className={`modal ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss; Esc and the close button provide keyboard access */}
-      <div className="modal__scrim" onClick={onClose} />
+      <div className="modal__scrim" onClick={close} />
       {/* biome-ignore lint/a11y/useSemanticElements: styled dialog surface; native <dialog> conflicts with the design CSS */}
       <div className="modal__card" style={{ width: 680 }} role="dialog" aria-modal="true">
         <header className="modal__head">
           <div className="row">
             <div>
               <div className="modal__title">
-                {offers ? 'Send the links' : isReassign ? 'Reassign driver' : 'Find drivers'}{' '}
+                {phoneAssigned
+                  ? 'Send the job link'
+                  : offers
+                    ? 'Send the links'
+                    : isReassign
+                      ? 'Reassign driver'
+                      : 'Find drivers'}{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>
@@ -223,7 +256,7 @@ export function DispatchModal({
               </div>
             </div>
             <span style={{ flex: 1 }} />
-            <button type="button" className="icon-btn" onClick={onClose}>
+            <button type="button" className="icon-btn" onClick={close}>
               <Icon.Close />
             </button>
           </div>
@@ -373,12 +406,23 @@ export function DispatchModal({
           ) : (
             <div className="dispatch-result">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontWeight: 600 }}>
-                  {offers.length} link{offers.length === 1 ? '' : 's'} ready
-                </span>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  — send each driver theirs on WhatsApp.
-                </span>
+                {phoneAssigned ? (
+                  <>
+                    <span style={{ fontWeight: 600 }}>{phoneAssigned.summary}</span>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      — send them the job link so they have the booking details.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontWeight: 600 }}>
+                      {offers.length} link{offers.length === 1 ? '' : 's'} ready
+                    </span>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      — send each driver theirs on WhatsApp.
+                    </span>
+                  </>
+                )}
               </div>
 
               {skippedCount > 0 ? (
@@ -427,16 +471,20 @@ export function DispatchModal({
                 ))}
               </div>
 
-              <div className="link-warning">
-                <Icon.Flag style={{ width: 14, height: 14 }} />
-                <span>
-                  <strong>Each link is signed for one driver.</strong> Send a driver only their own
-                  row — anyone opening a link is recorded as that driver in the audit log.
-                </span>
-              </div>
+              {phoneAssigned ? null : (
+                <div className="link-warning">
+                  <Icon.Flag style={{ width: 14, height: 14 }} />
+                  <span>
+                    <strong>Each link is signed for one driver.</strong> Send a driver only their
+                    own row — anyone opening a link is recorded as that driver in the audit log.
+                  </span>
+                </div>
+              )}
 
               <div className="dispatch-result__hint">
-                Links expire {expiry} · one-tap accept on the driver&apos;s phone.
+                {phoneAssigned
+                  ? `Opens the job details on the driver's phone · expires ${expiry}.`
+                  : `Links expire ${expiry} · one-tap accept on the driver's phone.`}
               </div>
             </div>
           )}
@@ -446,8 +494,12 @@ export function DispatchModal({
           <span className="left">
             {offers
               ? allOpened
-                ? 'All sent.'
-                : 'Tap WhatsApp on each driver.'
+                ? phoneAssigned
+                  ? 'Sent.'
+                  : 'All sent.'
+                : phoneAssigned
+                  ? 'Tap WhatsApp to send the job link.'
+                  : 'Tap WhatsApp on each driver.'
               : picked.size > 0
                 ? `${picked.size} selected.`
                 : 'Tick drivers to offer this job to.'}
@@ -455,7 +507,7 @@ export function DispatchModal({
           <span className="spacer" />
           {!offers ? (
             <>
-              <button type="button" className="btn" onClick={onClose}>
+              <button type="button" className="btn" onClick={close}>
                 Close
               </button>
               <button
@@ -480,17 +532,21 @@ export function DispatchModal({
             </>
           ) : (
             <>
-              <button type="button" className="btn" onClick={() => setOffers(null)}>
-                ← Back to drivers
-              </button>
+              {phoneAssigned ? null : (
+                <button type="button" className="btn" onClick={() => setOffers(null)}>
+                  ← Back to drivers
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn--primary"
                 onClick={() =>
                   onSent(
-                    offers.length === 1
-                      ? `Offered to ${offers[0]?.driverName.split(' ')[0]}.`
-                      : `Offered to ${offers.length} drivers.`,
+                    phoneAssigned
+                      ? phoneAssigned.summary
+                      : offers.length === 1
+                        ? `Offered to ${offers[0]?.driverName.split(' ')[0]}.`
+                        : `Offered to ${offers.length} drivers.`,
                   )
                 }
               >
