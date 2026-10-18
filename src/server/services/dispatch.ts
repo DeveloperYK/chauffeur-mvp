@@ -308,9 +308,12 @@ export type AssignDirectResult =
 
 /**
  * Operator-attested assignment: the operator phoned the driver, who agreed, so
- * the operator commits them directly — no signed-link round-trip. Handles both
- *  - initial assign (`unassigned → assigned`), and
- *  - swap (`assigned → assigned` with a different driver), dropping the old one.
+ * the operator commits them directly — no signed-link round-trip. Handles
+ *  - initial assign (`unassigned → assigned`),
+ *  - swap (`assigned → assigned` with a different driver), dropping the old one, and
+ *  - mid-trip replace (`in_progress → in_progress`): breakdown / stuck in
+ *    traffic, another driver is sent instead. The trip stays live — nobody
+ *    goes back to the queue — and the audit action is distinct.
  *
  * The newly-assigned driver is NOT messaged (the phone call was the
  * confirmation); the exec gets the usual confirmation, any open offers lapse,
@@ -368,10 +371,11 @@ export async function assignDriverDirect(
     return { ok: true, booking: updated, driver, swapped: false };
   }
 
-  // ── Swap: assigned → assigned (different driver) ──
-  if (booking.state === 'assigned') {
+  // ── Swap: assigned → assigned, or in_progress → in_progress (different driver) ──
+  if (booking.state === 'assigned' || booking.state === 'in_progress') {
     const previousDriverId = booking.assignedDriverId;
     if (previousDriverId === driver.id) return { ok: false, reason: 'same_driver' };
+    const swapState = booking.state;
 
     const [updated] = await deps.db
       .update(bookings)
@@ -384,7 +388,7 @@ export async function assignDriverDirect(
       .where(
         and(
           eq(bookings.id, booking.id),
-          eq(bookings.state, 'assigned'),
+          eq(bookings.state, swapState),
           previousDriverId
             ? eq(bookings.assignedDriverId, previousDriverId)
             : isNull(bookings.assignedDriverId),
@@ -398,9 +402,9 @@ export async function assignDriverDirect(
       actorId: operatorId,
       entityType: 'booking',
       entityId: booking.id,
-      action: 'operator_swap',
-      before: { state: 'assigned', driverId: previousDriverId },
-      after: { state: 'assigned', driverId: driver.id, method: 'operator_attested' },
+      action: swapState === 'in_progress' ? 'operator_swap_in_progress' : 'operator_swap',
+      before: { state: swapState, driverId: previousDriverId },
+      after: { state: swapState, driverId: driver.id, method: 'operator_attested' },
     });
 
     await resolveOffersOnAccept(deps.db, booking.id, driver.id, now);

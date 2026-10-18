@@ -21,6 +21,12 @@ function describe(action: string, passenger: string, after: unknown): string {
       return `generated a dispatch link for ${passenger}.`;
     case 'driver_job_link_generated':
       return `generated a job link for the driver on ${passenger}.`;
+    case 'operator_assign':
+      return `assigned a driver to ${passenger} (confirmed by phone).`;
+    case 'operator_swap':
+      return `reassigned ${passenger} to another driver (confirmed by phone).`;
+    case 'operator_swap_in_progress':
+      return `replaced the driver on ${passenger} mid-trip (confirmed by phone).`;
     case 'hand_to_backfill':
       return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to ${passenger}.`;
     case 'driver_accept':
@@ -118,6 +124,12 @@ function describeBookingDetail(action: string, after: unknown): string | null {
       return 'generated a dispatch link.';
     case 'driver_job_link_generated':
       return "generated the driver's job link.";
+    case 'operator_assign':
+      return 'assigned a driver, confirmed by phone.';
+    case 'operator_swap':
+      return 'reassigned to another driver, confirmed by phone.';
+    case 'operator_swap_in_progress':
+      return 'replaced the driver mid-trip, confirmed by phone.';
     case 'driver_accept':
       return 'accepted the job.';
     case 'driver_decline':
