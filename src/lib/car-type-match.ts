@@ -46,6 +46,9 @@ const LEGACY: ReadonlyMap<string, readonly VehicleClass[]> = new Map([
   ['luxury', ['vip']],
   // A plain "MPV" never said which size, so either MPV driver satisfies it.
   ['mpv', ['mpv_s', 'mpv_l']],
+  // Picker labels before the 2026-10-18 rename ("VIP", "E Car – Electric").
+  ['vip s class', ['vip']],
+  ['e car electric only', ['e_car']],
 ]);
 
 const CLASSES_BY_TOKEN: ReadonlyMap<string, readonly VehicleClass[]> = new Map([

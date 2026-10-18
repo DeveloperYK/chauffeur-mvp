@@ -11,10 +11,10 @@ describe('CAR_TYPES', () => {
   it('is the six vehicle classes, one quick-pick each, in roster order', () => {
     expect(CAR_TYPES.map((t) => [t.vehicleClass, t.label])).toEqual([
       ['executive', 'Executive'],
-      ['vip', 'VIP – S Class'],
+      ['vip', 'VIP'],
       ['mpv_s', 'MPV S – 7 Seater'],
       ['mpv_l', 'MPV L – 8 Seater'],
-      ['e_car', 'E Car – Electric Only'],
+      ['e_car', 'E Car – Electric'],
       ['coach', 'Coach'],
     ]);
   });
@@ -23,11 +23,19 @@ describe('CAR_TYPES', () => {
 describe('requestedVehicleClasses', () => {
   it('maps each picker label to exactly its driver class', () => {
     expect(requestedVehicleClasses('Executive')).toEqual(['executive']);
-    expect(requestedVehicleClasses('VIP – S Class')).toEqual(['vip']);
+    expect(requestedVehicleClasses('VIP')).toEqual(['vip']);
     expect(requestedVehicleClasses('MPV S – 7 Seater')).toEqual(['mpv_s']);
     expect(requestedVehicleClasses('MPV L – 8 Seater')).toEqual(['mpv_l']);
-    expect(requestedVehicleClasses('E Car – Electric Only')).toEqual(['e_car']);
+    expect(requestedVehicleClasses('E Car – Electric')).toEqual(['e_car']);
     expect(requestedVehicleClasses('Coach')).toEqual(['coach']);
+  });
+
+  it('still maps the pre-rename labels stored on older bookings', () => {
+    expect(requestedVehicleClasses('VIP – S Class')).toEqual(['vip']);
+    expect(requestedVehicleClasses('vip - s class')).toEqual(['vip']);
+    expect(requestedVehicleClasses('E Car – Electric Only')).toEqual(['e_car']);
+    expect(carTypeMatch('VIP – S Class', 'vip')).toBe('match');
+    expect(carTypeMatch('E Car – Electric Only', 'executive')).toBe('mismatch');
   });
 
   it('accepts the short codes and is case/dash/space-insensitive', () => {
@@ -77,14 +85,14 @@ describe('carTypeFor', () => {
 describe('carTypeMatch', () => {
   it("is 'match' when the driver's class is exactly what was asked for", () => {
     expect(carTypeMatch('MPV S – 7 Seater', 'mpv_s')).toBe('match');
-    expect(carTypeMatch('E Car – Electric Only', 'e_car')).toBe('match');
+    expect(carTypeMatch('E Car – Electric', 'e_car')).toBe('match');
     expect(carTypeMatch('MPV', 'mpv_l')).toBe('match');
   });
 
   it("is 'mismatch' when the class differs — including 7- vs 8-seater", () => {
     expect(carTypeMatch('MPV S – 7 Seater', 'mpv_l')).toBe('mismatch');
     expect(carTypeMatch('MPV L – 8 Seater', 'mpv_s')).toBe('mismatch');
-    expect(carTypeMatch('E Car – Electric Only', 'executive')).toBe('mismatch');
+    expect(carTypeMatch('E Car – Electric', 'executive')).toBe('mismatch');
     expect(carTypeMatch('Coach', 'vip')).toBe('mismatch');
   });
 
