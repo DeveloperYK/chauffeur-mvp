@@ -811,7 +811,10 @@ export async function setWaitingChargeAction(
   const op = await requireOperator();
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
-  const result = await setWaitingCharge(bookingId, chargePence, op.id, { db: db() });
+  const result = await setWaitingCharge(bookingId, chargePence, op.id, {
+    db: db(),
+    mirror: spreadsheetMirror(),
+  });
   if (!result.ok) {
     return {
       ok: false,
