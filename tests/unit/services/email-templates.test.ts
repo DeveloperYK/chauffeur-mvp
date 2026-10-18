@@ -350,3 +350,51 @@ describe('services/email-templates — flight/train and requested vehicle rows',
     expect(e.text).toContain('S&S <van>');
   });
 });
+
+describe('services/email-templates — operator sign-off', () => {
+  const parts: EmailParts = {
+    intro: 'Your booking is confirmed.',
+    rows: [{ label: 'Reference', value: 'BKNG-00042' }],
+    closing: 'To make any changes, please contact our team.',
+  };
+
+  it('signs the email off with the sending operator in the text body, before the signature block', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed', 'Alice Okafor');
+    expect(e.text).toContain('Kind regards,\nAlice Okafor\nJJ Chauffeuring Services');
+    expect(e.text.indexOf('Kind regards,')).toBeGreaterThan(e.text.indexOf(parts.closing));
+    expect(e.text.indexOf('Kind regards,')).toBeLessThan(e.text.indexOf('\n--\n'));
+  });
+
+  it('signs the HTML off with the operator name inside the message body, above the footer', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed', 'Alice Okafor');
+    expect(e.html).toContain('Kind regards,');
+    expect(e.html).toContain('Alice Okafor');
+    expect(e.html.indexOf('Kind regards,')).toBeGreaterThan(e.html.indexOf(parts.closing));
+    expect(e.html.indexOf('Kind regards,')).toBeLessThan(
+      e.html.indexOf('JJ Chauffeuring Services (UK) Ltd'),
+    );
+  });
+
+  it('keeps the sign-off out of the editable parts so it cannot be removed by accident', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed', 'Alice Okafor');
+    expect(e.parts).toEqual(parts);
+  });
+
+  it('renders no sign-off when no operator name is given', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed');
+    expect(e.text).not.toContain('Kind regards');
+    expect(e.html).not.toContain('Kind regards');
+  });
+
+  it('renders no sign-off for a blank operator name', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed', '   ');
+    expect(e.text).not.toContain('Kind regards');
+  });
+
+  it('HTML-escapes the operator name', () => {
+    const e = renderExecEmail('S', parts, 'Booking confirmed', '<b>Al</b>');
+    expect(e.html).not.toContain('<b>Al</b>');
+    expect(e.html).toContain('&lt;b&gt;Al&lt;/b&gt;');
+    expect(e.text).toContain('<b>Al</b>');
+  });
+});

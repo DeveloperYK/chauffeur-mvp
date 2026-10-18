@@ -3891,6 +3891,13 @@ button.driver-row {
   border-radius: calc(var(--r) - 2px);
   cursor: pointer;
 }
+.addr-ac__opt--muted {
+  color: var(--ink-muted, #6b7280);
+  cursor: default;
+}
+.ic--copied {
+  margin-top: 6px;
+}
 .addr-ac__opt.is-active,
 .addr-ac__opt:hover {
   background: var(--primary-ring);
@@ -4352,6 +4359,14 @@ button.driver-row {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-ring);
+}
+.email-editor__signoff {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.email-editor__signoff strong {
+  color: var(--ink);
 }
 .email-editor__rows {
   border-top: 1px solid var(--hairline);

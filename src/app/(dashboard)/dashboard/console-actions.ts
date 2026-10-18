@@ -15,6 +15,10 @@ import {
 } from '@/server/composition';
 import { listBookingHistory } from '@/server/services/activity';
 import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
+import {
+  type LoadBookingTemplateResult,
+  loadBookingTemplate,
+} from '@/server/services/booking-template';
 import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
@@ -96,10 +100,10 @@ export interface HistoryEntry {
  * "Not authenticated." on a dead session; a redirect from a server action is
  * honoured by the router, so they land on the login screen straight away.
  */
-async function requireOperator(): Promise<{ id: string }> {
+async function requireOperator(): Promise<{ id: string; name: string }> {
   const session = await currentSession();
   if (!session) redirect('/login');
-  return { id: session.operator.id };
+  return { id: session.operator.id, name: session.operator.name };
 }
 
 // Driver messaging is WhatsApp-only — operators use the WhatsApp Web
@@ -622,6 +626,8 @@ export async function execNotificationsAction(bookingId: string): Promise<ExecMe
 
 export interface ExecEmailDraftActionResult extends ActionResult {
   draft?: ExecEmailDraft;
+  /** Name the server will sign the email off with — shown read-only in the form. */
+  signedBy?: string;
 }
 
 /** Default To/Subject/Body for the operator's send-email form. */
@@ -629,7 +635,7 @@ export async function execEmailDraftAction(
   bookingId: string,
   kind: ManualEmailKind,
 ): Promise<ExecEmailDraftActionResult> {
-  await requireOperator();
+  const op = await requireOperator();
   if (!bookingId) return { ok: false, error: 'Missing booking.' };
 
   const result = await execEmailDraft(db(), bookingId, kind);
@@ -642,7 +648,7 @@ export async function execEmailDraftAction(
           : 'Booking not found.',
     };
   }
-  return { ok: true, draft: result.draft };
+  return { ok: true, draft: result.draft, signedBy: op.name };
 }
 
 /** Send the operator-edited exec email and record it in the message trail. */
@@ -701,6 +707,15 @@ export async function resendExecNotificationAction(notificationId: string): Prom
   }
   revalidatePath('/dashboard');
   return { ok: true };
+}
+
+/**
+ * "Copy booking" from a search pick: the reusable fields of an existing
+ * booking, to pre-fill the create form. Read-only; nothing is recorded.
+ */
+export async function bookingTemplateAction(bookingId: string): Promise<LoadBookingTemplateResult> {
+  await requireOperator();
+  return loadBookingTemplate(db(), bookingId);
 }
 
 /** Re-run a booking's backup-sheet write, to clear a failed mirror flag on demand. */
