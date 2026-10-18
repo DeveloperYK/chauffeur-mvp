@@ -764,9 +764,9 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await carType.fill('Range Rover');
   await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
   await expect(carType).toHaveValue('MPV S – 7 Seater');
-  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
-  await expect(carType).toHaveValue('VIP – S Class');
-  await carTypePicks.getByRole('button', { name: 'VIP – S Class' }).click();
+  await carTypePicks.getByRole('button', { name: 'VIP', exact: true }).click();
+  await expect(carType).toHaveValue('VIP');
+  await carTypePicks.getByRole('button', { name: 'VIP', exact: true }).click();
   await expect(carType).toHaveValue('');
   await carTypePicks.getByRole('button', { name: 'MPV S – 7 Seater' }).click();
   await expect(carType).toHaveValue('MPV S – 7 Seater');
@@ -835,10 +835,10 @@ test('driver roster and driver form offer the same six vehicle types as the book
   const options = page.locator('select[name="vehicleClass"] option');
   await expect(options).toHaveText([
     'Executive',
-    'VIP – S Class',
+    'VIP',
     'MPV S – 7 Seater',
     'MPV L – 8 Seater',
-    'E Car – Electric Only',
+    'E Car – Electric',
     'Coach',
   ]);
 });

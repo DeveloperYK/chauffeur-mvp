@@ -1,5 +1,6 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDateTimeShort, formatLondonTimeOfDay } from '@/lib/dates';
+import { travelModeLabel } from '@/lib/travel-ref';
 import type { Booking } from '@/server/db/schema';
 import { SMS_BRAND_NAME } from './sms-templates';
 
@@ -110,6 +111,22 @@ function formatHireDuration(minutes: number): string {
   return `${Math.round(hours * 10) / 10} hours`;
 }
 
+/**
+ * "Flight BA268" / "Train 12:03 from Manchester" as its own row, so the exec can
+ * check the service we are meeting. Omitted when the booking has no reference.
+ */
+function travelRows(b: Booking): EmailDetailRow[] {
+  const ref = b.travelRef?.trim();
+  if (!b.travelMode || !ref) return [];
+  return [{ label: travelModeLabel(b.travelMode), value: ref }];
+}
+
+/** The vehicle class the exec asked for (free text), distinct from the driver's actual car. */
+function requestedVehicleRows(b: Booking): EmailDetailRow[] {
+  const requested = b.requestedCarType?.trim();
+  return requested ? [{ label: 'Requested vehicle', value: requested }] : [];
+}
+
 function destination(b: Booking): string {
   if (b.serviceType === 'hourly')
     return `As directed — ${formatHireDuration(b.expectedDurationMinutes)}`;
@@ -207,7 +224,9 @@ export function assignedEmail(booking: Booking): RenderedEmail {
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Date & time', value: when },
       { label: 'Pickup', value: booking.pickupAddress },
+      ...travelRows(booking),
       { label: 'Destination', value: destination(booking) },
+      ...requestedVehicleRows(booking),
     ],
     closing: 'To make any changes, please contact our team.',
   };
@@ -238,7 +257,9 @@ export function driverDetailsEmail(
       ...(plate?.trim() ? [{ label: 'Number plate', value: plate.trim() }] : []),
       { label: 'Pickup time', value: time },
       { label: 'Pickup', value: booking.pickupAddress },
+      ...travelRows(booking),
       { label: 'Destination', value: destination(booking) },
+      ...requestedVehicleRows(booking),
     ],
     closing: 'To make any changes, please contact our team.',
   };
@@ -277,7 +298,9 @@ export function changeExecEmail(booking: Booking): RenderedEmail {
       { label: 'Passenger', value: passengerName(booking) },
       { label: 'Date & time', value: when },
       { label: 'Pickup', value: booking.pickupAddress },
+      ...travelRows(booking),
       { label: 'Destination', value: destination(booking) },
+      ...requestedVehicleRows(booking),
     ],
     closing: 'If anything looks incorrect, please contact our team.',
   };

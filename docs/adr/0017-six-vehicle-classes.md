@@ -14,8 +14,10 @@ all.
 ## Decision
 
 1. The `vehicle_class` enum becomes JJ's six vehicle types, in roster order:
-   `executive` (Ex), `vip` (VIP – S Class), `mpv_s` (MPV S – 7 Seater),
-   `mpv_l` (MPV L – 8 Seater), `e_car` (E Car – Electric Only), `coach` (C).
+   `executive` (Ex), `vip` (VIP), `mpv_s` (MPV S – 7 Seater),
+   `mpv_l` (MPV L – 8 Seater), `e_car` (E Car – Electric), `coach` (C).
+   (Labels shortened 2026-10-18 from "VIP – S Class" / "E Car – Electric Only";
+   the old wording stays recognised on bookings that stored it.)
 2. The booking's car-type quick-picks are generated from the same list
    (`CAR_TYPES` derives from `VEHICLE_CLASS_LABEL`), so ask and driver class are
    1:1 and the mismatch warning is exact.

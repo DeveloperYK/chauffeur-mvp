@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
 import { BackfillModal } from './backfill-modal';
+import { bookingHighlights } from './booking-highlights';
 import { CancelModal } from './cancel-modal';
 import { CompleteFormModal } from './complete-form-modal';
 import { DetailPanel } from './detail-panel';
@@ -445,6 +446,7 @@ function ListRow({
   selected: boolean;
   onClick: () => void;
 }) {
+  const highlights = bookingHighlights(b);
   return (
     <button
       type="button"
@@ -466,8 +468,17 @@ function ListRow({
           {b.caseCode ? ` · ${b.caseCode}` : ''}
         </div>
       </span>
-      <span className="route">
-        {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
+      <span className="list__route">
+        <span className="list__route-line">
+          {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
+        </span>
+        {highlights.length > 0 ? (
+          <div className="list__route-highlights">
+            {highlights.map((h) => (
+              <Tag key={h}>{h}</Tag>
+            ))}
+          </div>
+        ) : null}
       </span>
       <span className="driver-cell">
         {b.isBackfill ? (
@@ -639,6 +650,7 @@ function BoardCard({
   selected: boolean;
   onClick: () => void;
 }) {
+  const highlights = bookingHighlights(booking);
   return (
     <button
       type="button"
@@ -662,6 +674,13 @@ function BoardCard({
         <span className="pin to" />
         <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
       </div>
+      {highlights.length > 0 ? (
+        <div className="card__highlights">
+          {highlights.map((h) => (
+            <Tag key={h}>{h}</Tag>
+          ))}
+        </div>
+      ) : null}
       <div className="card__meta">
         {booking.isBackfill ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
