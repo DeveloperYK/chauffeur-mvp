@@ -32,6 +32,7 @@ import {
   generateDispatchLinks,
   releaseDriver,
 } from '@/server/services/dispatch';
+import { generateDriverJobLink } from '@/server/services/driver-job-link';
 import { editBooking } from '@/server/services/edit-booking';
 import { waiveExecEmail } from '@/server/services/exec-email-waiver';
 import {
@@ -213,14 +214,50 @@ export async function dispatchManyAction(
 }
 
 /**
+ * A job link for the driver already on the booking (assigned / in progress):
+ * opens their persistent job view. The phone-assigned driver never had an
+ * offer link, so this is how the operator gives them the booking details.
+ */
+export async function generateDriverJobLinkAction(
+  bookingId: string,
+): Promise<DispatchActionResult> {
+  const op = await requireOperator();
+  if (!bookingId) return { ok: false, error: 'Missing booking.' };
+
+  const result = await generateDriverJobLink(bookingId, op.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  if (!result.ok) {
+    const error =
+      result.reason === 'booking_not_found'
+        ? 'Booking not found.'
+        : result.reason === 'no_driver'
+          ? 'No app driver on this booking to send a job link to.'
+          : `No job link in state: ${result.state}.`;
+    return { ok: false, error };
+  }
+  return {
+    ok: true,
+    url: result.url,
+    whatsappUrl: result.whatsappUrl,
+    message: result.message,
+    driverName: result.driver.name,
+  };
+}
+
+/**
  * Operator-attested assignment: the operator phoned the driver, who agreed, so
  * commit them directly (no link round-trip). Works from `unassigned` (assign)
- * and `assigned` (swap to a different driver).
+ * and `assigned` (swap to a different driver). On success the result carries a
+ * freshly minted job link for the driver, so the operator can hand it over
+ * straight away; the assignment stands even if minting that link fails.
  */
 export async function confirmAssignByPhoneAction(
   bookingId: string,
   driverId: string,
-): Promise<ActionResult> {
+): Promise<DispatchActionResult> {
   const op = await requireOperator();
   if (!bookingId || !driverId) return { ok: false, error: 'Missing booking or driver.' };
 
@@ -246,7 +283,26 @@ export async function confirmAssignByPhoneAction(
     return { ok: false, error };
   }
   revalidatePath('/dashboard');
-  return { ok: true };
+
+  const link = await generateDriverJobLink(bookingId, op.id, {
+    db: db(),
+    secret: driverLinkSecret(),
+    appUrl: appUrl(),
+  });
+  if (!link.ok) {
+    logger.warn(
+      { bookingId, reason: link.reason },
+      'assigned by phone but could not mint the driver job link',
+    );
+    return { ok: true, driverName: result.driver.name };
+  }
+  return {
+    ok: true,
+    url: link.url,
+    whatsappUrl: link.whatsappUrl,
+    message: link.message,
+    driverName: result.driver.name,
+  };
 }
 
 /**

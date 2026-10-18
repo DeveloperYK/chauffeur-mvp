@@ -7,6 +7,7 @@ import {
   changeSms,
   completionRequestSms,
   dispatchSms,
+  driverJobSms,
   enRouteSms,
 } from '@/server/services/sms-templates';
 import { describe, expect, it } from 'vitest';
@@ -159,5 +160,28 @@ describe('dispatch SMS — requested car type', () => {
   it('omits the car line when nothing was requested', () => {
     const body = dispatchSms(booking, 'https://app.test/s/Ab3xK7');
     expect(body).not.toContain('Car:');
+  });
+
+  it('formats the driver job-details message (post-assignment, no Accept wording)', () => {
+    const body = driverJobSms(booking, 'https://app.test/s/Ab3xK7');
+    expect(body).toBe(
+      `${SMS_BRAND_NAME} - Your job BKNG-00001\n${when}\n12 King St, London -> Heathrow T5\nDetails: https://app.test/s/Ab3xK7`,
+    );
+    expect(body).not.toContain('Accept');
+  });
+
+  it('formats the driver job-details message for an as-directed hire', () => {
+    const body = driverJobSms(hourlyBooking, 'https://app.test/s/Ab3xK7');
+    expect(body).toContain('Pickup: 12 King St, London\nAs directed - 4 hours\n');
+    expect(body).toContain('Details: https://app.test/s/Ab3xK7');
+    expect(body).not.toContain('->');
+  });
+
+  it('includes the requested car type in the driver job-details message when set', () => {
+    const body = driverJobSms(
+      { ...booking, requestedCarType: 'Mercedes V-Class' } as unknown as Booking,
+      'https://app.test/s/Ab3xK7',
+    );
+    expect(body).toContain('Car: Mercedes V-Class');
   });
 });
