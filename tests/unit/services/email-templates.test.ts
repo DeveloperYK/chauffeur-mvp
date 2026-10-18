@@ -270,3 +270,83 @@ describe('services/email-templates', () => {
     expect(e.text).toContain('+447852188558');
   });
 });
+
+describe('services/email-templates — flight/train and requested vehicle rows', () => {
+  const driver = { name: 'Tom Hardy' };
+  const withTravel = { travelMode: 'flight' as const, travelRef: 'BA268', requestedCarType: 'MPV' };
+
+  it('confirmation email shows the Flight row and the Requested vehicle row', () => {
+    const e = assignedEmail(booking(withTravel));
+    expect(e.parts.rows).toContainEqual({ label: 'Flight', value: 'BA268' });
+    expect(e.parts.rows).toContainEqual({ label: 'Requested vehicle', value: 'MPV' });
+    expect(e.html).toContain('>Flight</td>');
+    expect(e.text).toMatch(/Flight\s+BA268/);
+    expect(e.text).toMatch(/Requested vehicle\s+MPV/);
+  });
+
+  it('driver-details email shows the Flight row and the Requested vehicle row', () => {
+    const e = driverDetailsEmail(booking(withTravel), driver, 'Mercedes V-Class', 'AB12 CDE');
+    expect(e.parts.rows).toContainEqual({ label: 'Flight', value: 'BA268' });
+    expect(e.parts.rows).toContainEqual({ label: 'Requested vehicle', value: 'MPV' });
+    // The driver's actual car stays its own row.
+    expect(e.parts.rows).toContainEqual({ label: 'Vehicle', value: 'Mercedes V-Class' });
+  });
+
+  it('booking-update email shows the Flight row and the Requested vehicle row', () => {
+    const e = changeExecEmail(booking(withTravel));
+    expect(e.parts.rows).toContainEqual({ label: 'Flight', value: 'BA268' });
+    expect(e.parts.rows).toContainEqual({ label: 'Requested vehicle', value: 'MPV' });
+  });
+
+  it('labels a train reference as Train', () => {
+    const e = assignedEmail(
+      booking({ travelMode: 'train', travelRef: '12:03 from Manchester Piccadilly' }),
+    );
+    expect(e.parts.rows).toContainEqual({
+      label: 'Train',
+      value: '12:03 from Manchester Piccadilly',
+    });
+    expect(e.parts.rows.some((r) => r.label === 'Flight')).toBe(false);
+  });
+
+  it('places the travel row directly after Pickup, and the requested vehicle after Destination', () => {
+    const labels = assignedEmail(booking(withTravel)).parts.rows.map((r) => r.label);
+    expect(labels.indexOf('Flight')).toBe(labels.indexOf('Pickup') + 1);
+    expect(labels.indexOf('Requested vehicle')).toBe(labels.indexOf('Destination') + 1);
+  });
+
+  it('omits both rows when the booking has neither a travel reference nor a requested vehicle', () => {
+    for (const e of [
+      assignedEmail(booking()),
+      driverDetailsEmail(booking(), driver, 'Car'),
+      changeExecEmail(booking()),
+    ]) {
+      const labels = e.parts.rows.map((r) => r.label);
+      expect(labels).not.toContain('Flight');
+      expect(labels).not.toContain('Train');
+      expect(labels).not.toContain('Requested vehicle');
+    }
+  });
+
+  it('omits the travel row when the mode is set but the reference is blank, and vice versa', () => {
+    const noRef = assignedEmail(booking({ travelMode: 'flight', travelRef: '  ' }));
+    expect(noRef.parts.rows.some((r) => r.label === 'Flight')).toBe(false);
+    const noMode = assignedEmail(booking({ travelMode: null, travelRef: 'BA268' }));
+    expect(noMode.parts.rows.some((r) => r.label === 'Flight' || r.label === 'Train')).toBe(false);
+  });
+
+  it('omits the Requested vehicle row when the requested car type is blank', () => {
+    const e = assignedEmail(booking({ requestedCarType: '   ' }));
+    expect(e.parts.rows.some((r) => r.label === 'Requested vehicle')).toBe(false);
+  });
+
+  it('HTML-escapes the requested vehicle and travel reference', () => {
+    const e = assignedEmail(
+      booking({ travelMode: 'train', travelRef: '<b>late</b>', requestedCarType: 'S&S <van>' }),
+    );
+    expect(e.html).not.toContain('<b>late</b>');
+    expect(e.html).toContain('&lt;b&gt;late&lt;/b&gt;');
+    expect(e.html).toContain('S&amp;S &lt;van&gt;');
+    expect(e.text).toContain('S&S <van>');
+  });
+});

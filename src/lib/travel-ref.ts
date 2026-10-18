@@ -48,8 +48,13 @@ export function normalizeTravelRef(mode: TravelMode, raw: string): TravelRefResu
   return { ok: true, value: trimmed };
 }
 
+/** "Flight" / "Train" — the row label used wherever the reference is shown. */
+export function travelModeLabel(mode: TravelMode): string {
+  return mode === 'flight' ? 'Flight' : 'Train';
+}
+
 /** Driver-facing label: "Flight BA268" / "Train 12:03 from Manchester". */
 export function travelRefLabel(mode: TravelMode | null, ref: string | null): string {
   if (!mode || !ref) return '';
-  return `${mode === 'flight' ? 'Flight' : 'Train'} ${ref}`;
+  return `${travelModeLabel(mode)} ${ref}`;
 }
