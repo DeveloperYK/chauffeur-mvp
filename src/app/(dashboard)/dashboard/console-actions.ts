@@ -15,6 +15,10 @@ import {
 } from '@/server/composition';
 import { listBookingHistory } from '@/server/services/activity';
 import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
+import {
+  type LoadBookingTemplateResult,
+  loadBookingTemplate,
+} from '@/server/services/booking-template';
 import { type DayCounts, monthlyDayCounts } from '@/server/services/bookings-query';
 import { cancelBooking } from '@/server/services/cancel';
 import {
@@ -701,6 +705,15 @@ export async function resendExecNotificationAction(notificationId: string): Prom
   }
   revalidatePath('/dashboard');
   return { ok: true };
+}
+
+/**
+ * "Copy booking" from a search pick: the reusable fields of an existing
+ * booking, to pre-fill the create form. Read-only; nothing is recorded.
+ */
+export async function bookingTemplateAction(bookingId: string): Promise<LoadBookingTemplateResult> {
+  await requireOperator();
+  return loadBookingTemplate(db(), bookingId);
 }
 
 /** Re-run a booking's backup-sheet write, to clear a failed mirror flag on demand. */

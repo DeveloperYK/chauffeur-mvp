@@ -1,6 +1,7 @@
 'use client';
 import { undoCancelAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
+import { templateFromBooking } from '@/lib/booking-template';
 import { UNDO_CANCEL_WINDOW_MS } from '@/lib/undo-window';
 import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -10,6 +11,7 @@ import { BackfillModal } from './backfill-modal';
 import { bookingHighlights } from './booking-highlights';
 import { CancelModal } from './cancel-modal';
 import { CompleteFormModal } from './complete-form-modal';
+import type { CopiedFrom } from './copy-from-booking';
 import { DetailPanel } from './detail-panel';
 import { DispatchModal } from './dispatch-modal';
 import { EditBookingModal } from './edit-booking-modal';
@@ -82,6 +84,8 @@ export function ConsoleBoard({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(initialNewOpen);
+  /** Set by the panel's "Copy booking"; the create modal pre-fills from it. */
+  const [copyFrom, setCopyFrom] = useState<CopiedFrom | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [, startTransition] = useTransition();
 
@@ -345,6 +349,12 @@ export function ConsoleBoard({
         onCompleteOnBehalf={() => setCompleteFormOpen(true)}
         onEdit={() => setEditOpen(true)}
         onCancel={() => setCancelOpen(true)}
+        onCopy={() => {
+          if (!selected) return;
+          setCopyFrom({ ref: bookingRef(selected.seq), template: templateFromBooking(selected) });
+          setPanelOpen(false);
+          setNewOpen(true);
+        }}
         onMutated={(toast) => handleMutated(toast, toast.startsWith('Trip approved'))}
       />
 
@@ -412,9 +422,16 @@ export function ConsoleBoard({
       <NewBookingModal
         isOpen={newOpen}
         meName={me.name}
-        onClose={() => setNewOpen(false)}
-        onCreated={handleCreated}
+        onClose={() => {
+          setNewOpen(false);
+          setCopyFrom(null);
+        }}
+        onCreated={(day) => {
+          setCopyFrom(null);
+          handleCreated(day);
+        }}
         showSampleGenerator={showSampleGenerator}
+        copyFrom={copyFrom}
       />
 
       <div className="toast-stack">

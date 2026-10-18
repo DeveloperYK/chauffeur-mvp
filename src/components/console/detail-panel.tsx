@@ -50,6 +50,8 @@ interface DetailPanelProps {
   onCompleteOnBehalf: () => void;
   onEdit: () => void;
   onCancel: () => void;
+  /** Open the create form pre-filled from this booking (any state). */
+  onCopy: () => void;
   onMutated: (toast: string) => void;
 }
 
@@ -65,6 +67,7 @@ export function DetailPanel({
   onCompleteOnBehalf,
   onEdit,
   onCancel,
+  onCopy,
   onMutated,
 }: DetailPanelProps) {
   const [showHistory, setShowHistory] = useState(false);
@@ -614,6 +617,14 @@ export function DetailPanel({
             <span className="mono">{bookingRef(booking.seq)}</span>
           </span>
           <span className="spacer" />
+          <button
+            type="button"
+            className="btn btn--sm"
+            title="Create a new booking with these details"
+            onClick={onCopy}
+          >
+            <Icon.Plus /> Copy booking
+          </button>
           <button type="button" className="icon-btn" title="Close (esc)" onClick={onClose}>
             <Icon.Close />
           </button>
