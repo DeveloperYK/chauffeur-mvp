@@ -25,6 +25,7 @@ function describe(action: string, passenger: string, after: unknown): string {
       return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to ${passenger}.`;
     case 'driver_accept':
       return `accepted the job for ${passenger}.`;
+    // Drivers can no longer decline (2026-10-18); older audit rows still render.
     case 'driver_decline':
       return `declined the job for ${passenger}.`;
     case 'clock_pickup_minus_1h':

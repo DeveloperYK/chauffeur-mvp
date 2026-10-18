@@ -56,7 +56,7 @@ This MVP is sized accordingly: it gives operators a real workplace and structure
 ### Non-goals (MVP)
 
 - **No secretary portal.** PAs phone the operator exactly as today.
-- **No native driver app, no GPS, no live tracking link.** Drivers receive a WhatsApp link, open it in their browser, tap accept/decline. The exec gets the same two messages they get today (assignment + en route), just sent automatically.
+- **No native driver app, no GPS, no live tracking link.** Drivers receive a WhatsApp link, open it in their browser, tap accept (there is no decline — a driver who cannot take the job tells the operator, who offers it to someone else). The exec gets the same two messages they get today (assignment + en route), just sent automatically.
 - **No auto-cascade dispatch.** The operator chooses which driver to offer a job to.
 - **No backfill subcontractor workflow.** Subcontractors continue to use the existing WhatsApp group. The client has confirmed this is rare and not a priority.
 - **No automated billing or payment processing.** Month-end invoicing stays manual.
@@ -70,7 +70,7 @@ This MVP is sized accordingly: it gives operators a real workplace and structure
 | **PA / secretary** at the consultancy | Phone (to the operator) | Nothing. Same call, same questions, same confirmation message. |
 | **Executive** (passenger) | SMS | Nothing visible. Same two messages, but sent by the system instead of typed by an operator. |
 | **Operator** | Web dashboard | Big change. Replaces the spreadsheet, the phone-down-the-driver-list, and the WhatsApp scramble. Four operators today, each gets a login. |
-| **Employee driver** (Premium / Ordinary) | WhatsApp link | New. Receives a link from the operator. Taps accept/decline in the browser. After the trip, taps a second link to submit completion details. No app, no signup. |
+| **Employee driver** (Premium / Ordinary) | WhatsApp link | New. Receives a link from the operator. Taps accept in the browser (no decline option). After the trip, taps a second link to submit completion details. No app, no signup. |
 | **Subcontractor backfill driver** | Out of MVP | No change. Continues to use the existing WhatsApp group. |
 
 ## 4. System architecture
@@ -111,7 +111,7 @@ graph TB
 
 - **Operator Dashboard (web).** The operator's only workplace. Ticket board (six columns), booking form, driver roster, audit history. Login per operator.
 - **Booking API.** Owns CRUD for bookings, drivers, audit events. All writes route through it.
-- **Driver Link Service.** Mints signed, expiring URLs that embed `{job_id, driver_id}`. Two link types: **accept/decline** and **completion form**.
+- **Driver Link Service.** Mints signed, expiring URLs that embed `{job_id, driver_id}`. Two link types: **accept** and **completion form**.
 - **Driver Link Page (web, no login).** What the driver opens. Same hostname for both link types; the URL token disambiguates.
 - **Clock / Scheduler.** A simple in-process job that polls every minute. Drives the timed transitions: `Assigned → In Progress` at T-1h, `In Progress → Needs Action · Awaiting Driver Form` at T+expected_end. Fires exec SMS on the relevant transitions. Fires the 24h no-accept auto-flag.
 - **SMS Provider.** Twilio or equivalent. Two outbound templates: "booking confirmed" and "driver en route".
@@ -183,16 +183,15 @@ sequenceDiagram
     API->>API: state → Assigned, capture car
     API->>N: SMS exec "booking confirmed"
     N-->>E: SMS
-  else Driver declines
-    Dr->>L: tap Decline
-    L->>API: POST decline
-    Note over O,D: ticket stays Unassigned, operator picks next driver
+  else Driver cannot take it
+    Note over Dr,O: driver tells the operator by phone/WhatsApp — no decline button;
+    Note over O,D: ticket stays Unassigned, operator offers it to the next driver
   end
 ```
 
 **Key points:**
 
-- **Operator-chosen, sequential.** The operator picks one driver. If declined or ignored, the operator picks the next. No auto-cascade.
+- **Operator-chosen, sequential.** The operator picks one driver. If the driver can't take it or ignores the link, the operator picks the next. No auto-cascade.
 - **One-tap WhatsApp send.** The dashboard renders a `wa.me/<phone>?text=<prefilled>` link so the operator doesn't need to copy/paste.
 - **Default car comes from the roster.** Driver can change for this job only — for example, S-Class default but using EX today. Roster default is not touched.
 - **24-hour auto-flag.** If no driver accepts within the configurable window (default 24h, since bookings are placed ≥24h ahead), the ticket gets a flag badge in the Unassigned column so it doesn't get forgotten.
@@ -357,7 +356,7 @@ The single-Postgres single-service shape supports 10× the MVP volume with no re
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Operators don't trust the new dashboard | Medium | High | Sheets mirror stays live throughout MVP; operators can fall back any time. Pilot with one operator before all four cut over. |
-| Drivers don't tap "decline" — they just ignore | High | Medium | 24h auto-flag is the safety net; operator can offer to another driver at any time without explicit decline. |
+| Drivers ignore the link instead of accepting | High | Medium | 24h auto-flag is the safety net; operator can offer to another driver at any time (there is deliberately no decline button — see ADR 0027). |
 | Driver forwards link to another driver | Low | Low | Name on accept page; audit log; ongoing employment relationship. |
 | Driver's WhatsApp number changes | Medium | Low | Operator updates the roster from the dashboard in seconds. |
 | Driver doesn't fill the completion form | Medium | Medium | Ticket sits in "Awaiting Driver Form" — visible on board; operator chases. |

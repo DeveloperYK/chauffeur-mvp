@@ -10,7 +10,7 @@ import {
 } from '@/server/composition';
 import { confirmChangeBySelf } from '@/server/services/change-confirmation';
 import { submitCompletionForm } from '@/server/services/completion';
-import { acceptDispatchLink, declineDispatchLink } from '@/server/services/dispatch';
+import { acceptDispatchLink } from '@/server/services/dispatch';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -56,20 +56,6 @@ export async function acceptAction(formData: FormData): Promise<void> {
   // Operator console needs to reflect the new (or swapped) driver promptly.
   revalidatePath('/dashboard');
   redirect(`/j/${parsed.data.token}?status=accepted`);
-}
-
-const declineSchema = z.object({ token: z.string().min(20).max(4096) }).strict();
-
-export async function declineAction(formData: FormData): Promise<void> {
-  const parsed = declineSchema.safeParse({ token: String(formData.get('token') ?? '') });
-  if (!parsed.success) redirect('/j/_/?error=invalid');
-  await declineDispatchLink(parsed.data.token, {
-    db: db(),
-    notifications: notifications(),
-    secret: driverLinkSecret(),
-    appUrl: appUrl(),
-  });
-  redirect(`/j/${parsed.data.token}?status=declined`);
 }
 
 const confirmChangeSchema = z.object({ token: z.string().min(20).max(4096) }).strict();
