@@ -9,10 +9,10 @@ describe('vehicle classes', () => {
   it('has a full label and a short pill label for every class', () => {
     expect(VEHICLE_CLASSES.map((c) => VEHICLE_CLASS_LABEL[c])).toEqual([
       'Executive',
-      'VIP – S Class',
+      'VIP',
       'MPV S – 7 Seater',
       'MPV L – 8 Seater',
-      'E Car – Electric Only',
+      'E Car – Electric',
       'Coach',
     ]);
     expect(VEHICLE_CLASSES.map((c) => VEHICLE_CLASS_SHORT[c])).toEqual([

@@ -10,6 +10,7 @@ import {
   execNotificationsAction,
   generateChangeConfirmLinkAction,
   generateCompletionLinkAction,
+  generateDriverJobLinkAction,
   rejectBookingAction,
   releaseDriverAction,
   resendExecNotificationAction,
@@ -74,6 +75,7 @@ export function DetailPanel({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
   const [changeLink, setChangeLink] = useState<CompletionLink | null>(null);
+  const [jobLink, setJobLink] = useState<CompletionLink | null>(null);
   const [editingPay, setEditingPay] = useState(false);
   const [payDraft, setPayDraft] = useState('');
   const [editingCharge, setEditingCharge] = useState(false);
@@ -324,6 +326,19 @@ export function DetailPanel({
       });
     });
   };
+  // The assigned driver's job-view link. A phone-assigned driver never had an
+  // offer link; this is how the operator gives them the booking to keep track.
+  const generateJobLink = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await generateDriverJobLinkAction(booking.id);
+      if (!result.ok || !result.url || !result.whatsappUrl || !result.message) {
+        setError(result.error ?? 'Could not generate the job link.');
+        return;
+      }
+      setJobLink({ url: result.url, whatsappUrl: result.whatsappUrl, message: result.message });
+    });
+  };
   const confirmChangeByPhone = () =>
     run(
       () => confirmChangeOnBehalfAction(booking.id),
@@ -451,6 +466,17 @@ export function DetailPanel({
                 <Icon.Whatsapp /> Message driver on WhatsApp
               </a>
             ) : null}
+            {driver ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={generateJobLink}
+                disabled={isPending}
+                title="A link to the job details for the assigned driver"
+              >
+                <Icon.Link /> {isPending ? 'Generating…' : 'Job link for driver'}
+              </button>
+            ) : null}
             <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
               <Icon.Reset /> Driver pulled out — unassign
             </button>
@@ -484,6 +510,17 @@ export function DetailPanel({
               >
                 <Icon.Whatsapp /> Message driver
               </a>
+            ) : null}
+            {driver ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={generateJobLink}
+                disabled={isPending}
+                title="A link to the job details for the assigned driver"
+              >
+                <Icon.Link /> {isPending ? 'Generating…' : 'Job link for driver'}
+              </button>
             ) : null}
             {booking.execMobile ? (
               <a
@@ -1224,6 +1261,13 @@ export function DetailPanel({
         link={changeLink}
         onClose={() => setChangeLink(null)}
         title="Change confirmation link"
+      />
+      <CompletionLinkModal
+        booking={booking}
+        driverName={driver?.name ?? null}
+        link={jobLink}
+        onClose={() => setJobLink(null)}
+        title="Driver job link"
       />
       <SendExecEmailModal
         bookingId={booking.id}
