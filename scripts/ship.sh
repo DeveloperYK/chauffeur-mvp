@@ -61,7 +61,10 @@ while :; do
 done
 say "checks green"
 
+head_sha=$(gh pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid)
 gh pr merge "$pr" --repo "$repo" --squash >/dev/null || fail "merge failed — is the branch up to date with main?"
-say "merged #${pr}"
+say "merged #${pr} (verified head ${head_sha:0:7})"
 
-exec "$(dirname "$0")/promote.sh" "$title"
+# Hand promote the head whose checks we just watched: the squash commit's
+# tree is identical to it, and GitHub's commit→PR lookup lags after a merge.
+PROMOTE_VERIFIED_SHA="$head_sha" exec "$(dirname "$0")/promote.sh" "$title"

@@ -24,6 +24,7 @@ PROD_ENV_PREFIX='Production – chauffeur-prod'
 STAGING_ENV_PREFIX='Production – chauffeur-staging'
 CHECK_WAIT_SECONDS=600
 DEPLOY_WAIT_SECONDS=480
+DEPLOY_TRIGGER_AFTER_SECONDS=75
 
 say() { printf '→ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -75,6 +76,13 @@ tree_of() { gh api "repos/${repo}/git/commits/$1" --jq .tree.sha; }
 # PRs that produced it, provided their tree matches main's tree.
 main_tree=$(tree_of "$main_sha")
 candidates=("$main_sha")
+# ship.sh passes the PR head it just merged: GitHub's commit→PR association
+# can lag a minute or more right after the merge, which made the lookup
+# below miss and the promote wait for the push-to-main run anyway.
+if [ -n "${PROMOTE_VERIFIED_SHA-}" ] && [ "$(tree_of "$PROMOTE_VERIFIED_SHA")" = "$main_tree" ]; then
+  candidates+=("$PROMOTE_VERIFIED_SHA")
+  say "main's tree equals verified head ${PROMOTE_VERIFIED_SHA:0:7}; its checks count"
+fi
 while read -r pr_number pr_head; do
   [ -n "$pr_head" ] || continue
   if [ "$(tree_of "$pr_head")" = "$main_tree" ]; then
@@ -150,14 +158,33 @@ say "merged"
 merge_sha=$(git fetch -q origin production && git rev-parse origin/production)
 
 # 4. Wait for the production deployment of the merge commit.
+#
+# Vercel occasionally never receives the push webhook (2026-10-18: the
+# production branch moved, no deployment was ever created, production kept
+# serving the previous build). If nothing has appeared after
+# DEPLOY_TRIGGER_AFTER_SECONDS, fire the production Deploy Hook once — it
+# builds the branch head, which is exactly this merge commit. The hook URL
+# is a secret: read from the environment or the gitignored .env.
 say "waiting for Vercel production deployment of ${merge_sha:0:7}"
 deadline=$(( $(date +%s) + DEPLOY_WAIT_SECONDS ))
+trigger_at=$(( $(date +%s) + DEPLOY_TRIGGER_AFTER_SECONDS ))
+triggered=0
 while :; do
   state=$(deployment_state "$merge_sha" "$PROD_ENV_PREFIX")
   case "${state:-pending}" in
     success) break ;;
     failure|error) fail "Vercel production deployment ${state} — check the Vercel dashboard; production still serves the previous build" ;;
   esac
+  if [ -z "$state" ] && [ "$triggered" -eq 0 ] && [ "$(date +%s)" -ge "$trigger_at" ]; then
+    triggered=1
+    hook="${VERCEL_PROD_DEPLOY_HOOK_URL:-$(grep -s '^VERCEL_PROD_DEPLOY_HOOK_URL=' "$(git rev-parse --show-toplevel)/.env" | cut -d= -f2- | tr -d '"')}"
+    if [ -n "$hook" ]; then
+      say "no deployment after ${DEPLOY_TRIGGER_AFTER_SECONDS}s — Vercel missed the push; firing the production deploy hook"
+      curl -fsS --max-time 20 -X POST "$hook" >/dev/null || say "deploy hook call failed; will keep waiting"
+    else
+      say "no deployment after ${DEPLOY_TRIGGER_AFTER_SECONDS}s and no VERCEL_PROD_DEPLOY_HOOK_URL set — trigger it from the Vercel dashboard (Deployments → Redeploy on branch production)"
+    fi
+  fi
   [ "$(date +%s)" -lt "$deadline" ] || fail "production deployment did not finish within ${DEPLOY_WAIT_SECONDS}s"
   sleep 10
 done
