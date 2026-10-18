@@ -510,38 +510,6 @@ export async function releaseDriver(
   return { ok: true, booking: updated };
 }
 
-export type DeclineResult =
-  | { ok: true }
-  | { ok: false; reason: 'token_invalid' | 'token_expired' | 'booking_not_found' | 'wrong_state' };
-
-export async function declineDispatchLink(
-  token: string,
-  deps: DispatchDeps,
-): Promise<DeclineResult> {
-  const clock = deps.clock ?? systemClock;
-  const verified = await verifyDriverLink(deps.secret, token, clock.now());
-  if (!verified.ok) {
-    if (verified.reason === 'expired') return { ok: false, reason: 'token_expired' };
-    return { ok: false, reason: 'token_invalid' };
-  }
-  const { jobId, driverId, type } = verified.payload;
-  if (type !== 'dispatch') return { ok: false, reason: 'token_invalid' };
-  const [booking] = await deps.db.select().from(bookings).where(eq(bookings.id, jobId)).limit(1);
-  if (!booking) return { ok: false, reason: 'booking_not_found' };
-  if (booking.state !== 'unassigned') return { ok: false, reason: 'wrong_state' };
-
-  await recordAuditEvent(deps.db, {
-    actorType: 'driver',
-    actorId: driverId,
-    entityType: 'booking',
-    entityId: booking.id,
-    action: 'driver_decline',
-    before: { state: booking.state },
-    after: { state: booking.state },
-  });
-  return { ok: true };
-}
-
 export interface PreviewResult {
   booking: Booking;
   driver: Driver;

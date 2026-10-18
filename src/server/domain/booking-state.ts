@@ -27,7 +27,6 @@ import type { BookingState } from '@/server/db/schema';
 
 export type BookingEvent =
   | { type: 'driver_accept' }
-  | { type: 'driver_decline' }
   | { type: 'driver_released' }
   | { type: 'backfill_assign' }
   | { type: 'cancel' }
@@ -63,10 +62,6 @@ export function transition(current: BookingState, event: BookingEvent): Transiti
           next: 'assigned',
           sideEffects: [{ kind: 'notify_exec_assigned' }],
         };
-      }
-      if (event.type === 'driver_decline') {
-        // Decline keeps the ticket unassigned — operator picks the next driver.
-        return { ok: true, next: 'unassigned', sideEffects: [] };
       }
       if (event.type === 'backfill_assign') {
         // No internal driver was available — the operator hands the job to a

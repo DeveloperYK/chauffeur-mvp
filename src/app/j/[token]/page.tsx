@@ -15,12 +15,7 @@ import { previewChangeConfirmLink } from '@/server/services/change-confirmation'
 import { previewDispatchLink, previewDriverJob } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
 import type { ReactNode } from 'react';
-import {
-  acceptAction,
-  confirmChangeAction,
-  declineAction,
-  submitCompletionAction,
-} from './actions';
+import { acceptAction, confirmChangeAction, submitCompletionAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,16 +67,6 @@ export default async function DriverLinkPage({
             The operator and the passenger have been notified. <strong>Keep this link</strong> —
             reopen it any time to see the job details.
           </p>
-        </div>
-      </Stage>
-    );
-  }
-  if (search.status === 'declined') {
-    return (
-      <Stage>
-        <div className="ph-center">
-          <h1>Job declined</h1>
-          <p className="you">Thank you — the operator will reassign.</p>
         </div>
       </Stage>
     );
@@ -236,16 +221,6 @@ export default async function DriverLinkPage({
           style={{ marginTop: 12 }}
         >
           <Icon.Check /> Accept job
-        </button>
-      </form>
-      <form action={declineAction}>
-        <input type="hidden" name="token" value={token} />
-        <button
-          type="submit"
-          className="btn btn--block"
-          style={{ marginTop: 6, color: 'var(--lz-red-fg)' }}
-        >
-          Decline
         </button>
       </form>
 

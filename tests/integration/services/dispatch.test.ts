@@ -3,7 +3,6 @@ import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/ser
 import { fixedClock } from '@/server/ports/clock';
 import {
   acceptDispatchLink,
-  declineDispatchLink,
   generateDispatchLink,
   generateDispatchLinks,
   previewDispatchLink,
@@ -214,31 +213,6 @@ describe('services/dispatch (integration)', () => {
     const r = await acceptDispatchLink({ token }, wayLater);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('token_expired');
-  });
-
-  it('decline records audit event but does not change state', async () => {
-    const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
-    if (!gen.ok) throw new Error('setup');
-    const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    const r = await declineDispatchLink(token, deps());
-    expect(r.ok).toBe(true);
-
-    const [b] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
-    expect(b?.state).toBe('unassigned');
-
-    const declineEvents = (await db.select().from(auditEvents)).filter(
-      (e) => e.action === 'driver_decline',
-    );
-    expect(declineEvents.length).toBe(1);
-  });
-
-  it('decline after state change errors', async () => {
-    const gen = await generateDispatchLink(bookingId, driverId, operatorId, deps());
-    if (!gen.ok) throw new Error('setup');
-    const token = new URL(gen.url).pathname.split('/').pop() ?? '';
-    await acceptDispatchLink({ token }, deps());
-    const r = await declineDispatchLink(token, deps());
-    expect(r.ok).toBe(false);
   });
 
   it('previewDispatchLink returns booking + driver for valid token', async () => {

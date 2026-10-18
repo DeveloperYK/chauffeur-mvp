@@ -188,6 +188,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.locator('.list__row, .card', { hasText: 'LEGO Group' })).toHaveCount(0);
   // Drive the driver-side accept by opening one driver's link.
   await page.goto(linkUrl as string, { waitUntil: 'networkidle' });
+  // Drivers cannot decline — the offer page has only the Accept button.
+  await expect(page.getByRole('button', { name: 'Accept job' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Decline' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Accept job' }).click();
   // Accepting lands the driver straight on their job view: a "Job accepted"
   // banner that tells them this link can be reopened any time, above the
