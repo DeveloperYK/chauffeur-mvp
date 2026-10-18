@@ -13,7 +13,7 @@ import { whatsappMobileLink } from '@/lib/whatsapp';
 import type { VehicleClass } from '@/server/db/schema';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar } from './avatar';
-import { fmtTimeWithDay, passengerName } from './format';
+import { fmtTimeWithDay, passengerName, relTime } from './format';
 import { Icon } from './icons';
 import { Lozenge } from './lozenge';
 import type { AssignmentWindow, ConsoleBooking, ConsoleDriver } from './types';
@@ -133,8 +133,12 @@ export function DispatchModal({
 
   // Opened on an already-assigned booking → this is a driver swap, not initial
   // dispatch. Only the operator-attested (phone) path applies (link-based swap
-  // is out of scope); the fan-out "Offer" action is hidden.
-  const isReassign = booking.state === 'assigned';
+  // is out of scope); the fan-out "Offer" action is hidden. Mid-trip (the car
+  // broke down, the driver is stuck) it is a *replacement*: same path, but the
+  // modal shows the live-trip urgency and the trip never leaves in_progress.
+  const isMidTrip = booking.state === 'in_progress';
+  const isReassign = booking.state === 'assigned' || isMidTrip;
+  const pickedDriver = picked.size === 1 ? drivers.find((d) => picked.has(d.id)) : undefined;
 
   const toggle = (driverId: string) => {
     setPicked((prev) => {
@@ -176,9 +180,11 @@ export function DispatchModal({
       }
       const fullName = result.driverName ?? drivers.find((d) => d.id === driverId)?.name ?? '';
       const name = fullName.split(' ')[0] || 'driver';
-      const summary = isReassign
-        ? `Reassigned to ${name} — confirmed by phone.`
-        : `Assigned ${name} — confirmed by phone.`;
+      const summary = isMidTrip
+        ? `Replaced with ${name} mid-trip — confirmed by phone.`
+        : isReassign
+          ? `Reassigned to ${name} — confirmed by phone.`
+          : `Assigned ${name} — confirmed by phone.`;
       if (!result.url || !result.whatsappUrl || !result.message) {
         onSent(summary);
         return;
@@ -243,9 +249,11 @@ export function DispatchModal({
                   ? 'Send the job link'
                   : offers
                     ? 'Send the links'
-                    : isReassign
-                      ? 'Reassign driver'
-                      : 'Find drivers'}{' '}
+                    : isMidTrip
+                      ? 'Replace driver'
+                      : isReassign
+                        ? 'Reassign driver'
+                        : 'Find drivers'}{' '}
                 <span className="mono" style={{ color: 'var(--ink-3)', fontWeight: 500 }}>
                   {bookingRef(booking.seq)}
                 </span>
@@ -266,6 +274,21 @@ export function DispatchModal({
           {error ? (
             <div className="ic ic--danger" style={{ marginBottom: 10 }}>
               <div className="ic__body">{error}</div>
+            </div>
+          ) : null}
+
+          {!offers && isMidTrip ? (
+            <div className="ic ic--danger" style={{ marginBottom: 10 }}>
+              <div className="ic__head">
+                Trip in progress
+                <span className="ic__head-meta" style={{ marginLeft: 8 }}>
+                  Pickup {relTime(booking.pickupAt)}
+                </span>
+              </div>
+              <div className="ic__body ic__body--prose">
+                The current driver stays on the job until you confirm a replacement. Pick a free
+                driver, call them, then confirm — they get the job link straight away.
+              </div>
             </div>
           ) : null}
 
@@ -510,9 +533,14 @@ export function DispatchModal({
               <button type="button" className="btn" onClick={close}>
                 Close
               </button>
+              {isReassign && pickedDriver ? (
+                <a className="btn" href={`tel:${pickedDriver.whatsappNumber}`}>
+                  <Icon.Phone /> Call {pickedDriver.name.split(' ')[0]}
+                </a>
+              ) : null}
               <button
                 type="button"
-                className="btn"
+                className={`btn ${isMidTrip ? 'btn--primary' : ''}`}
                 disabled={picked.size !== 1 || isPending}
                 onClick={confirmByPhone}
                 title="Operator phoned the driver, who agreed — assign them directly"

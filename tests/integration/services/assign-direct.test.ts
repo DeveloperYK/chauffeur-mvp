@@ -210,6 +210,69 @@ describe('services/dispatch — assignDriverDirect (integration)', () => {
     expect(res).toMatchObject({ ok: false, reason: 'same_driver' });
   });
 
+  // ── Replace mid-trip (in_progress → in_progress, different driver) ────────
+  // Breakdown / stuck in traffic: the operator rings another driver and sends
+  // them instead. The trip is still live, so the state does not move.
+  it('replaces the driver while the trip is in progress, keeping the state', async () => {
+    const booking = await seed('in_progress', driverA.id);
+    const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.swapped).toBe(true);
+    expect(res.booking.state).toBe('in_progress');
+
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, booking.id));
+    expect(row?.state).toBe('in_progress');
+    expect(row?.assignedDriverId).toBe(driverB.id);
+    expect(row?.assignmentMethod).toBe('operator_attested');
+    expect(row?.assignedAt).not.toBeNull();
+
+    // Old driver A is told they're off; B is confirmed by phone; exec untouched.
+    expect(notifications.sent.some((m) => m.to === driverA.whatsapp)).toBe(true);
+    expect(notifications.sent.some((m) => m.to === driverB.whatsapp)).toBe(false);
+    expect(notifications.sent.some((m) => m.to === EXEC)).toBe(false);
+    expect(mirror.rows.has(booking.id)).toBe(true);
+  });
+
+  it('records a distinct mid-trip audit action so history shows the emergency swap', async () => {
+    const booking = await seed('in_progress', driverA.id);
+    const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
+    expect(res.ok).toBe(true);
+
+    const audits = await db.select().from(auditEvents).where(eq(auditEvents.entityId, booking.id));
+    const swap = audits.find((a) => a.action === 'operator_swap_in_progress');
+    expect(swap).toBeDefined();
+    expect(swap?.before).toMatchObject({ state: 'in_progress', driverId: driverA.id });
+    expect(swap?.after).toMatchObject({
+      state: 'in_progress',
+      driverId: driverB.id,
+      method: 'operator_attested',
+    });
+    expect(audits.some((a) => a.action === 'operator_swap')).toBe(false);
+  });
+
+  it('rejects replacing mid-trip with the same driver', async () => {
+    const booking = await seed('in_progress', driverA.id);
+    const res = await assignDriverDirect(booking.id, driverA.id, operatorId, deps());
+    expect(res).toMatchObject({ ok: false, reason: 'same_driver' });
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, booking.id));
+    expect(row?.assignedDriverId).toBe(driverA.id);
+    expect(notifications.sent).toHaveLength(0);
+  });
+
+  it('rejects replacing mid-trip with an inactive driver', async () => {
+    const booking = await seed('in_progress', driverA.id);
+    await db.update(drivers).set({ active: false }).where(eq(drivers.id, driverB.id));
+    const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
+    expect(res).toMatchObject({ ok: false, reason: 'driver_inactive' });
+  });
+
+  it('still refuses once the trip has ended (awaiting_driver_form)', async () => {
+    const booking = await seed('awaiting_driver_form', driverA.id);
+    const res = await assignDriverDirect(booking.id, driverB.id, operatorId, deps());
+    expect(res).toMatchObject({ ok: false, reason: 'wrong_state', state: 'awaiting_driver_form' });
+  });
+
   // ── acceptDispatchLink records driver_self ────────────────────────────────
   it('a link-accept records assignmentMethod = driver_self', async () => {
     const booking = await seed('unassigned');
