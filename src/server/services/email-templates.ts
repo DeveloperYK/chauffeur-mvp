@@ -1,5 +1,6 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDateTimeShort, formatLondonTimeOfDay } from '@/lib/dates';
+import { type RouteStop, orderedStops } from '@/lib/route-summary';
 import { travelModeLabel } from '@/lib/travel-ref';
 import type { Booking } from '@/server/db/schema';
 import { SMS_BRAND_NAME } from './sms-templates';
@@ -142,6 +143,18 @@ function requestedVehicleRows(b: Booking): EmailDetailRow[] {
   return requested ? [{ label: 'Requested vehicle', value: requested }] : [];
 }
 
+/**
+ * The intermediate stops of a multi-stop journey as "Stop N" rows, each with
+ * its planned wait, placed between Pickup (+ travel) and Destination.
+ */
+function stopRows(stops: readonly RouteStop[]): EmailDetailRow[] {
+  return orderedStops(stops).map((s, i) => ({
+    label: `Stop ${i + 1}`,
+    value:
+      s.plannedWaitMinutes > 0 ? `${s.address} — wait ~${s.plannedWaitMinutes} min` : s.address,
+  }));
+}
+
 function destination(b: Booking): string {
   if (b.serviceType === 'hourly')
     return `As directed — ${formatHireDuration(b.expectedDurationMinutes)}`;
@@ -240,7 +253,7 @@ export function renderBrandedEmail(subject: string, layout: Layout): RenderedEma
  * rows, whether or not a driver is on the job yet: the driver goes out in the
  * separate driver-details email, so the two never read as the same message.
  */
-export function assignedEmail(booking: Booking): RenderedEmail {
+export function assignedEmail(booking: Booking, stops: readonly RouteStop[] = []): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
@@ -252,6 +265,7 @@ export function assignedEmail(booking: Booking): RenderedEmail {
       { label: 'Date & time', value: when },
       { label: 'Pickup', value: booking.pickupAddress },
       ...travelRows(booking),
+      ...stopRows(stops),
       { label: 'Destination', value: destination(booking) },
       ...requestedVehicleRows(booking),
     ],
@@ -269,6 +283,7 @@ export function driverDetailsEmail(
   driver: NamedDriver,
   car: string,
   plate?: string | null,
+  stops: readonly RouteStop[] = [],
 ): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
@@ -285,6 +300,7 @@ export function driverDetailsEmail(
       { label: 'Pickup time', value: time },
       { label: 'Pickup', value: booking.pickupAddress },
       ...travelRows(booking),
+      ...stopRows(stops),
       { label: 'Destination', value: destination(booking) },
       ...requestedVehicleRows(booking),
     ],
@@ -316,7 +332,7 @@ export function renderExecEmail(
  * (email only) once an exec-relevant change is confirmed. See
  * docs/shaping/mid-flight-changes.
  */
-export function changeExecEmail(booking: Booking): RenderedEmail {
+export function changeExecEmail(booking: Booking, stops: readonly RouteStop[] = []): RenderedEmail {
   const ref = bookingRef(booking.seq);
   const when = formatLondonDateTimeShort(booking.pickupAt);
   const layout: Layout = {
@@ -328,6 +344,7 @@ export function changeExecEmail(booking: Booking): RenderedEmail {
       { label: 'Date & time', value: when },
       { label: 'Pickup', value: booking.pickupAddress },
       ...travelRows(booking),
+      ...stopRows(stops),
       { label: 'Destination', value: destination(booking) },
       ...requestedVehicleRows(booking),
     ],

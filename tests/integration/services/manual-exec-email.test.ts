@@ -3,6 +3,7 @@ import {
   type Booking,
   type Driver,
   auditEvents,
+  bookingStops,
   bookings,
   drivers,
   operators,
@@ -80,6 +81,43 @@ describe('services/exec-notifications manual emails (integration)', () => {
   }
 
   // ── Drafts ─────────────────────────────────────────────────────
+
+  describe('multi-stop route', () => {
+    async function withStops(b: Booking): Promise<Booking> {
+      await db.insert(bookingStops).values([
+        {
+          bookingId: b.id,
+          seq: 1,
+          address: '1 Canary Wharf, London E14 5AB',
+          plannedWaitMinutes: 40,
+        },
+      ]);
+      return b;
+    }
+
+    it('drafts the confirmation and update emails with a Stop row between Pickup and Destination', async () => {
+      const booking = await withStops(await seed());
+      for (const kind of ['assigned', 'changed'] as const) {
+        const result = await execEmailDraft(db, booking.id, kind);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const labels = result.draft.rows.map((r) => r.label);
+        expect(labels.indexOf('Stop 1')).toBe(labels.indexOf('Pickup') + 1);
+        expect(labels.indexOf('Destination')).toBe(labels.indexOf('Stop 1') + 1);
+        expect(result.draft.rows.find((r) => r.label === 'Stop 1')?.value).toContain(
+          'wait ~40 min',
+        );
+      }
+    });
+
+    it('drafts the driver-details email with the Stop row', async () => {
+      const booking = await withStops(await seedAssigned());
+      const result = await execEmailDraft(db, booking.id, 'en_route');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.rows.map((r) => r.label)).toContain('Stop 1');
+    });
+  });
 
   it('drafts a confirmation email before any driver is assigned (no driver rows)', async () => {
     const booking = await seed();

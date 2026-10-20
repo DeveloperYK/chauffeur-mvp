@@ -24,6 +24,7 @@ import { logger } from '@/lib/logger';
 import type { Database } from '@/server/db';
 import {
   type Booking,
+  type BookingStop,
   type ExecNotification,
   type NewExecNotification,
   type NotificationKind,
@@ -38,6 +39,7 @@ import type { NotificationPort } from '@/server/ports/notifications';
 import { and, asc, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { listStops } from './booking-stops';
 import {
   type EmailParts,
   type RenderedEmail,
@@ -79,6 +81,8 @@ export interface ExecMessageContext {
   pcoNumber?: string | null;
   /** Driver's contact number, shown to the exec in the email. */
   driverPhone?: string | null;
+  /** Intermediate stops of a multi-stop journey, listed in the emails. */
+  stops?: readonly BookingStop[] | undefined;
 }
 
 interface SendOutcome {
@@ -99,13 +103,14 @@ function renderSmsBody(ctx: ExecMessageContext): string {
 
 function renderEmail(ctx: ExecMessageContext): RenderedEmail {
   const driver = { name: ctx.driverName, pcoNumber: ctx.pcoNumber, phone: ctx.driverPhone };
+  const stops = ctx.stops ?? [];
   if (ctx.kind === 'assigned') {
-    return assignedEmail(ctx.booking);
+    return assignedEmail(ctx.booking, stops);
   }
   if (ctx.kind === 'changed') {
-    return changeExecEmail(ctx.booking);
+    return changeExecEmail(ctx.booking, stops);
   }
-  return driverDetailsEmail(ctx.booking, driver, ctx.car ?? '', ctx.plate);
+  return driverDetailsEmail(ctx.booking, driver, ctx.car ?? '', ctx.plate, stops);
 }
 
 async function performSmsSend(
@@ -304,7 +309,12 @@ export async function buildExecContextForBooking(
       .from(drivers)
       .where(eq(drivers.id, booking.assignedDriverId))
       .limit(1);
-    if (driver) return execContextFromDriver(booking, kind, driver);
+    if (driver) {
+      return {
+        ...execContextFromDriver(booking, kind, driver),
+        stops: await listStops(db, booking.id),
+      };
+    }
   }
   return null;
 }
@@ -488,9 +498,10 @@ export async function execEmailDraft(
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
 
+  const stops = await listStops(db, booking.id);
   // The update email restates the booking; it never needs a driver.
   if (kind === 'changed') {
-    const rendered = changeExecEmail(booking);
+    const rendered = changeExecEmail(booking, stops);
     return {
       ok: true,
       hasDriver: booking.assignedDriverId != null,
@@ -501,7 +512,7 @@ export async function execEmailDraft(
   const ctx = await buildExecContextForBooking(db, booking, kind);
   if (kind === 'en_route' && !ctx) return { ok: false, reason: 'no_driver' };
 
-  const rendered = ctx ? renderEmail(ctx) : assignedEmail(booking);
+  const rendered = ctx ? renderEmail(ctx) : assignedEmail(booking, stops);
   return {
     ok: true,
     hasDriver: ctx !== null,
