@@ -1,5 +1,6 @@
 'use server';
 
+import { bookedByErrors } from '@/lib/booked-by-rule';
 import { parseMonthString } from '@/lib/dates';
 import { logger } from '@/lib/logger';
 import { parsePoundsFieldToPence } from '@/lib/money';
@@ -533,6 +534,10 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
   );
   const postcodeErrors = Object.values(addressPostcodeErrors({ ...raw, stops: stopAddresses }));
   if (postcodeErrors.length > 0) return { ok: false, error: postcodeErrors.join('; ') };
+
+  // The PA's name + email are mandatory, on edit too (ADR 0031).
+  const paErrors = Object.values(bookedByErrors(raw));
+  if (paErrors.length > 0) return { ok: false, error: paErrors.join('; ') };
 
   const result = await editBooking(raw, op.id, { db: db(), mirror: spreadsheetMirror() });
   if (!result.ok) {

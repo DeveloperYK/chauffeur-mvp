@@ -1,4 +1,4 @@
-import { type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 
 /**
  * End-to-end booking lifecycle, driven through the **test simulator** and the
@@ -75,6 +75,19 @@ async function expectSimState(page: Page, passenger: string, label: string) {
  * so clicking the card on today's board is a flake. The id is read from the
  * booking's link on the simulator page.
  */
+/**
+ * The PA's name + email are mandatory on the create/edit forms (ADR 0031).
+ * Seeded bookings predate the rule, so an edit of one must supply them first.
+ */
+const PA_NAME = 'Sandra Miles';
+const PA_EMAIL = 'sandra.miles@example.com';
+async function fillBookedByIfMissing(modal: Locator) {
+  const section = modal.locator('.form-section', { hasText: 'Booked by (PA)' });
+  if ((await section.locator('input[type="email"]').inputValue()) !== '') return;
+  await section.getByPlaceholder("Who booked on the exec's behalf").fill(PA_NAME);
+  await section.locator('input[type="email"]').fill(PA_EMAIL);
+}
+
 async function openBookingPanel(page: Page, name: string) {
   await gotoSimulator(page);
   const href = await row(page, name).getByRole('link', { name }).getAttribute('href');
@@ -371,6 +384,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await midTripModal
     .locator('input[aria-label="Dropoff address"]')
     .fill('The Shard, 32 London Bridge St, London SE1 9SG');
+  await fillBookedByIfMissing(midTripModal);
   await midTripModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
   await openBookingPanel(page, LEGO);
@@ -466,6 +480,7 @@ test('booking moves through every stage via the simulator + console', async ({ p
     .locator('.field', { hasText: 'Private notes' })
     .locator('textarea')
     .fill('Client asked for the Shard on the day — invoice the extra leg.');
+  await fillBookedByIfMissing(postTripModal);
   await postTripModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/1 field changed/i);
   await openBookingPanel(page, LEGO);
@@ -538,6 +553,7 @@ test('assigned driver: clock → completion link → driver fills the form → a
     .getByLabel('Stop 1 address')
     .fill('1 Canada Square, Canary Wharf, London E14 5AB');
   await stopModal.getByLabel('Stop 1 wait minutes').fill('40');
+  await fillBookedByIfMissing(stopModal);
   await stopModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
   await expect(page.locator('.toast')).toHaveCount(0);
@@ -710,6 +726,7 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await editModal.getByLabel('Stop 1 wait minutes').fill('40');
   // LEGO's seeded destination has no postcode (a pre-postcode-rule booking), so
   // the edit form insists on one before it will save.
+  await fillBookedByIfMissing(editModal);
   await editModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(editModal.locator('.err').first()).toContainText('valid UK postcode');
   await editModal.locator('input[aria-label="Dropoff postcode"]').fill('TW6 2GA');
@@ -788,6 +805,7 @@ test('mid-flight change: driver confirms via the link, operator sends the update
     .locator('.field', { hasText: 'Exec email' })
     .locator('input')
     .fill('exec-change@example.com');
+  await fillBookedByIfMissing(editModal);
   await editModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
@@ -829,7 +847,8 @@ test('mid-flight change: driver confirms via the link, operator sends the update
     .click();
   const updateModal = page.locator('.modal.is-open', { hasText: 'Send booking update email' });
   // Pre-addressed to the exec email captured on the edit, draft holds the new plan.
-  await expect(updateModal.locator('input[type="email"]')).toHaveValue('exec-change@example.com');
+  // Addressed to the PA added on the edit above (ADR 0028), not the exec.
+  await expect(updateModal.locator('input[type="email"]')).toHaveValue(PA_EMAIL);
   await expect(updateModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
   await updateModal.locator('input[type="email"]').fill('delivered@resend.dev');
   await updateModal.getByRole('button', { name: 'Send email' }).click();
@@ -877,6 +896,7 @@ test('operator-attested assign: confirm a driver by phone, then reassign by phon
   await expect(carType).toHaveValue('MPV S – 7 Seater');
   // LEGO's seeded destination has no postcode; the edit form insists on one.
   await editModal.locator('input[aria-label="Dropoff postcode"]').fill('TW6 2GA');
+  await fillBookedByIfMissing(editModal);
   await editModal.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.locator('.toast')).toContainText(/Booking updated/i);
 
@@ -1004,6 +1024,10 @@ test('copy booking: the panel pre-fills the create form from an earlier job', as
   if (await dropoffPostcode.count()) await dropoffPostcode.fill('TW6 2GA');
   const pickupPostcode = modal.getByLabel('Pickup postcode');
   if (await pickupPostcode.count()) await pickupPostcode.fill('NW3 4JJ');
+  // Likewise the seed has no PA; the mandatory PA fields are asked for (ADR 0031).
+  await modal.getByRole('button', { name: 'Create booking' }).click();
+  await expect(modal.locator('.err', { hasText: /PA's email/ })).toBeVisible();
+  await fillBookedByIfMissing(modal);
   await modal.getByRole('button', { name: 'Create booking' }).click();
   await expect(page.locator('.toast')).toContainText('Booking created');
   await gotoSimulator(page);
@@ -1072,11 +1096,11 @@ test('optional pricing: a booking created without a price is flagged until one i
   await modal.locator('input[aria-label="Dropoff address"]').fill('2 Sample Road, London W1K 2AL');
   await expect(modal.locator('input[aria-label="Dropoff postcode"]')).toHaveCount(0);
 
-  // ── Booked by (PA): a name alone is rejected — it needs a contact ──
+  // ── Booked by (PA): mandatory — a name alone is rejected until the email is in ──
   const bookedBy = modal.locator('.form-section', { hasText: 'Booked by (PA)' });
   await bookedBy.getByPlaceholder("Who booked on the exec's behalf").fill('Sandra Miles');
   await modal.getByRole('button', { name: 'Create booking' }).click();
-  await expect(bookedBy.locator('.err')).toContainText(/phone number or email/i);
+  await expect(bookedBy.locator('.err')).toContainText(/PA's email/);
   await bookedBy.locator('input[type="email"]').fill('sandra@nopriceco.com');
 
   await modal.getByRole('button', { name: 'Create booking' }).click();
