@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import type { Database } from '@/server/db';
-import { type Booking, type Driver, bookings, consumedTokens, drivers } from '@/server/db/schema';
+import {
+  type Booking,
+  type BookingStop,
+  type Driver,
+  bookingStops,
+  bookings,
+  consumedTokens,
+  drivers,
+} from '@/server/db/schema';
 import { transition } from '@/server/domain/booking-state';
 import { resolveCompletionTimes } from '@/server/domain/completion-times';
 import { completionLinkExpiry } from '@/server/domain/durations';
@@ -12,6 +20,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { listStops } from './booking-stops';
 import { mirrorBooking } from './mirror';
 import { createShortLink } from './short-links';
 import { completionRequestSms } from './sms-templates';
@@ -112,15 +121,40 @@ const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a time as
 // those (on-board − the later of booked pickup and arrival) — the driver never
 // types a waiting figure. Calendar dates are inferred from the booking's pickup
 // day (with day-rollover), so a job running past midnight resolves correctly.
+const stopTimesSchema = z.object({ arrivedTime: timeOfDay, leftTime: timeOfDay }).strict();
+
 export const completionFormSchema = z
   .object({
     token: z.string().min(20).max(4096),
     carParkPence: z.coerce.number().int().min(0).max(1_000_00),
     arrivalTime: timeOfDay,
     passengerOnBoardTime: timeOfDay,
+    // One arrived/left pair per intermediate stop, in journey order; must
+    // match the booking's stops exactly (checked against the DB on submit).
+    stops: z.array(stopTimesSchema).max(8).optional().default([]),
     completionTime: timeOfDay,
   })
   .strict();
+
+/**
+ * Write the driver-recorded arrival/departure onto each stop row, in `seq`
+ * order. The caller has already checked the counts match.
+ */
+async function recordStopTimes(
+  db: Database,
+  stops: readonly BookingStop[],
+  times: readonly { arrivedAt: Date; departedAt: Date }[],
+  now: Date,
+): Promise<void> {
+  for (const [i, stop] of stops.entries()) {
+    const t = times[i];
+    if (!t) continue;
+    await db
+      .update(bookingStops)
+      .set({ arrivedAt: t.arrivedAt, departedAt: t.departedAt, updatedAt: now })
+      .where(eq(bookingStops.id, stop.id));
+  }
+}
 
 export type SubmitCompletionResult =
   | { ok: true; booking: Booking }
@@ -172,8 +206,11 @@ export async function submitCompletionForm(
   const t = transition(booking.state, { type: 'driver_submit_form' });
   if (!t.ok) return { ok: false, reason: 'wrong_state' };
 
-  // Resolve the three wall-clock times against the booking's pickup day (with
-  // day-rollover); the chargeable waiting minutes are derived from them.
+  // Resolve the wall-clock times against the booking's pickup day (with
+  // day-rollover); the chargeable waiting minutes are derived from them. A
+  // multi-stop journey needs exactly one arrived/left pair per stop.
+  const stops = await listStops(deps.db, booking.id);
+  if (parsed.data.stops.length !== stops.length) return { ok: false, reason: 'times_invalid' };
   const times = resolveCompletionTimes(booking.pickupAt, parsed.data);
   if (!times.ok) return { ok: false, reason: 'times_invalid' };
 
@@ -193,6 +230,8 @@ export async function submitCompletionForm(
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'awaiting_driver_form')))
     .returning();
   if (!updated) return { ok: false, reason: 'wrong_state' };
+
+  await recordStopTimes(deps.db, stops, times.stopTimes, now);
 
   await deps.db.insert(consumedTokens).values({
     jti,
@@ -336,6 +375,8 @@ export async function completeFormOnBehalf(
   if (!t.ok) return { ok: false, reason: 'wrong_state', state: booking.state };
 
   // Same time resolution and waiting-fee maths as the driver form.
+  const stops = await listStops(deps.db, booking.id);
+  if (parsed.data.stops.length !== stops.length) return { ok: false, reason: 'times_invalid' };
   const times = resolveCompletionTimes(booking.pickupAt, parsed.data);
   if (!times.ok) return { ok: false, reason: 'times_invalid' };
   const { carParkPence } = parsed.data;
@@ -363,6 +404,8 @@ export async function completeFormOnBehalf(
     .where(and(eq(bookings.id, booking.id), eq(bookings.state, 'awaiting_driver_form')))
     .returning();
   if (!updated) return { ok: false, reason: 'wrong_state', state: booking.state };
+
+  await recordStopTimes(deps.db, stops, times.stopTimes, now);
 
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
