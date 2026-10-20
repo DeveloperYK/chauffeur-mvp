@@ -501,6 +501,16 @@ export function DetailPanel({
                 <Icon.Phone /> Call driver
               </a>
             ) : null}
+            {driver && !booking.isBackfill ? (
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={onDispatch}
+                title="Breakdown, traffic — send another driver instead. The trip stays in progress."
+              >
+                <Icon.Reset /> Driver can&apos;t continue — replace
+              </button>
+            ) : null}
             {contact ? (
               <a
                 className="btn"

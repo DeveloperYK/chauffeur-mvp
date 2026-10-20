@@ -200,6 +200,7 @@ function MessageView({
         {message.to ? (
           <div className="muted mono" style={{ fontSize: 11, marginTop: 2 }}>
             To: {message.to}
+            {message.cc.length > 0 ? ` · CC: ${message.cc.join(', ')}` : ''}
           </div>
         ) : null}
         <div className="muted" style={{ fontSize: 12, whiteSpace: 'pre-line', marginTop: 4 }}>

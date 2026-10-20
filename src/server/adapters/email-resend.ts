@@ -28,6 +28,7 @@ export class ResendEmailAdapter implements EmailPort {
     msg: EmailMessage,
   ): Promise<{ ok: true; id: string } | { ok: false; reason: string }> {
     if (!msg.to.includes('@')) return { ok: false, reason: 'invalid_to' };
+    if (msg.cc?.some((addr) => !addr.includes('@'))) return { ok: false, reason: 'invalid_cc' };
     if (!msg.subject) return { ok: false, reason: 'empty_subject' };
     if (!msg.text) return { ok: false, reason: 'empty_body' };
 
@@ -44,6 +45,7 @@ export class ResendEmailAdapter implements EmailPort {
         body: JSON.stringify({
           from: this.cfg.from,
           to: msg.to,
+          ...(msg.cc && msg.cc.length > 0 ? { cc: msg.cc } : {}),
           subject: msg.subject,
           text: msg.text,
           ...(msg.html ? { html: msg.html } : {}),

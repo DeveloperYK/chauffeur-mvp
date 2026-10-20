@@ -260,7 +260,11 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // The draft shows exactly what will be sent — subject + the email's parts
   // (intro, details rows, closing) pre-filled; recipient editable (blank here:
   // the seeded booking has no exec email).
-  await expect(emailModal.locator('input[type="text"]').first()).toHaveValue(/BKNG-/);
+  await expect(emailModal.getByLabel('Subject')).toHaveValue(/BKNG-/);
+  // Recipients: To is blank (no exec or PA email on the seeded booking) and
+  // the CC field is empty, ready for extra addresses.
+  await expect(emailModal.getByLabel('To')).toHaveValue('');
+  await expect(emailModal.getByLabel('CC')).toHaveValue('');
   await expect(emailModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
   // The email is signed off with the sending operator (read-only in the form).
   await expect(emailModal.getByLabel('Sign-off')).toContainText('Kind regards,');
@@ -375,6 +379,41 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expect(page.getByRole('link', { name: /Tell driver of change/ })).toContainText('0');
   await gotoSimulator(page);
   await expectSimState(page, LEGO, 'In progress');
+
+  // ── Console: the driver's car breaks down MID-TRIP — replace the driver. ──
+  // Time is short, so this is phone-first: the modal flags the live trip and
+  // the pickup countdown, offers a Call button for the picked driver, and
+  // "Confirmed by phone" swaps them in and hands back a job link. The trip
+  // stays in progress throughout; nobody goes back to the queue.
+  await openBookingPanel(page, LEGO);
+  // The driver row is the one carrying a vehicle-class tag.
+  const driverRow = () =>
+    page.locator('.panel.is-open .ir__row', { has: page.locator('.vc-tag') }).first();
+  const replacedFrom = await driverRow().textContent();
+  await page
+    .locator('.panel.is-open')
+    .getByRole('button', { name: /Driver can.t continue/i })
+    .click();
+  const replaceModal = page.locator('.modal.is-open');
+  await expect(replaceModal).toContainText('Replace driver');
+  await expect(replaceModal).toContainText(/Trip in progress/i);
+  await expect(replaceModal).toContainText(/Pickup (in \d+ min|\d+ min ago|now|moments ago)/);
+  // Only the phone path exists mid-trip — no offer links.
+  await expect(replaceModal.getByRole('button', { name: /Offer to/ })).toHaveCount(0);
+  await replaceModal.locator('.driver-row:not(.is-busy)').first().click();
+  await expect(replaceModal.getByRole('link', { name: /^Call / })).toHaveAttribute('href', /^tel:/);
+  await replaceModal.getByRole('button', { name: /Confirmed by phone/i }).click();
+  await expect(replaceModal).toContainText(/replaced/i);
+  await expect(replaceModal.locator('.offer-row[data-link]')).toHaveCount(1);
+  await replaceModal.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.toast')).toContainText(/replaced/i);
+  await gotoSimulator(page);
+  await expectSimState(page, LEGO, 'In progress');
+  await openBookingPanel(page, LEGO);
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('IN PROGRESS');
+  await expect(page.locator('.panel.is-open')).toContainText('Confirmed by phone');
+  expect(await driverRow().textContent()).not.toBe(replacedFrom);
+  await gotoSimulator(page);
 
   // ── Clock: in_progress → awaiting_driver_form (trip ended) ───
   await row(page, LEGO).locator('select[name="scenario"]').selectOption('trip_finished');

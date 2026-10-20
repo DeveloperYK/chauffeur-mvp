@@ -498,6 +498,9 @@ export const execNotifications = pgTable(
     channel: notificationChannelEnum('channel').notNull(),
     kind: notificationKindEnum('kind').notNull(),
     to: text('to').notNull(),
+    // Carbon-copy recipients of an operator-sent email (e.g. the PA copied on
+    // the driver details). Empty for SMS and for emails sent to one address.
+    cc: text('cc').array().notNull().default(sql`'{}'::text[]`),
     subject: text('subject'),
     body: text('body').notNull(),
     status: notificationStatusEnum('status').notNull(),

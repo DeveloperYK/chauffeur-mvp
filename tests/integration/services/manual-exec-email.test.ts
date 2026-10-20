@@ -137,6 +137,167 @@ describe('services/exec-notifications manual emails (integration)', () => {
 
   const EMPTY_PARTS = { intro: '', rows: [], closing: '' };
 
+  describe('recipients', () => {
+    const withPa = { bookedByName: 'Jane PA', bookedByEmail: 'pa@client.com' };
+
+    it('addresses the confirmation to the PA when one is on file, offering the exec as a copy', async () => {
+      const booking = await seed(withPa);
+      const result = await execEmailDraft(db, booking.id, 'assigned');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.to).toBe('pa@client.com');
+      expect(result.draft.cc).toEqual([]);
+      expect(result.draft.copyTo).toEqual({ role: 'exec', email: 'exec@example.com' });
+    });
+
+    it('addresses the confirmation to the exec when no PA email is on file', async () => {
+      const booking = await seed({ bookedByName: 'Jane PA', bookedByPhone: '+447700900123' });
+      const result = await execEmailDraft(db, booking.id, 'assigned');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.to).toBe('exec@example.com');
+      expect(result.draft.copyTo).toBeNull();
+    });
+
+    it('addresses the driver details to the exec, copying the PA by default', async () => {
+      const [b] = await db
+        .insert(bookings)
+        .values({
+          ...SeedData.bookings.assigned(operatorId, driver.id),
+          execEmail: 'exec@example.com',
+          ...withPa,
+        })
+        .returning();
+      if (!b) throw new Error('seed failed');
+      const result = await execEmailDraft(db, b.id, 'en_route');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.to).toBe('exec@example.com');
+      expect(result.draft.cc).toEqual(['pa@client.com']);
+      expect(result.draft.copyTo).toEqual({ role: 'pa', email: 'pa@client.com' });
+    });
+
+    it('addresses the booking update like the confirmation (PA first)', async () => {
+      const booking = await seed(withPa);
+      const result = await execEmailDraft(db, booking.id, 'changed');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.to).toBe('pa@client.com');
+      expect(result.draft.copyTo).toEqual({ role: 'exec', email: 'exec@example.com' });
+    });
+
+    it('falls back to the PA when the booking has no exec email at all', async () => {
+      const booking = await seed({ execEmail: null, ...withPa });
+      const details = await execEmailDraft(db, booking.id, 'assigned');
+      expect(details.ok).toBe(true);
+      if (!details.ok) return;
+      expect(details.draft.to).toBe('pa@client.com');
+      expect(details.draft.copyTo).toBeNull();
+    });
+
+    it('never offers a copy to the same address as the To', async () => {
+      const booking = await seed({ bookedByName: 'Self', bookedByEmail: 'exec@example.com' });
+      const result = await execEmailDraft(db, booking.id, 'assigned');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft.to).toBe('exec@example.com');
+      expect(result.draft.copyTo).toBeNull();
+    });
+  });
+
+  describe('cc on send', () => {
+    const parts = { subject: 'S', intro: 'Hello', rows: [], closing: '' };
+
+    it('sends the CC list to the provider, stores it on the row and in the audit trail', async () => {
+      const booking = await seed();
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        {
+          bookingId: booking.id,
+          kind: 'assigned',
+          to: 'pa@client.com',
+          cc: ['exec@example.com', 'office@client.com'],
+          ...parts,
+        },
+        operatorId,
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(emailer.sent[0]?.cc).toEqual(['exec@example.com', 'office@client.com']);
+      expect(result.notification.cc).toEqual(['exec@example.com', 'office@client.com']);
+      const events = await db.select().from(auditEvents);
+      const sent = events.find((e) => e.action === 'send_exec_email');
+      expect((sent?.after as Record<string, unknown>)?.cc).toEqual([
+        'exec@example.com',
+        'office@client.com',
+      ]);
+    });
+
+    it('sends with no CC when the list is omitted or empty', async () => {
+      const booking = await seed();
+      const omitted = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId: booking.id, kind: 'assigned', to: 'pa@client.com', ...parts },
+        operatorId,
+      );
+      const empty = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId: booking.id, kind: 'assigned', to: 'pa@client.com', cc: [], ...parts },
+        operatorId,
+      );
+      expect(omitted.ok && empty.ok).toBe(true);
+      if (!omitted.ok || !empty.ok) return;
+      expect(omitted.notification.cc).toEqual([]);
+      expect(empty.notification.cc).toEqual([]);
+      expect(emailer.sent[0]?.cc).toBeUndefined();
+    });
+
+    it('dedupes the CC list and drops the To address from it', async () => {
+      const booking = await seed();
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        {
+          bookingId: booking.id,
+          kind: 'assigned',
+          to: 'pa@client.com',
+          cc: ['Exec@Example.com', 'exec@example.com', 'PA@client.com'],
+          ...parts,
+        },
+        operatorId,
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.notification.cc).toEqual(['exec@example.com']);
+      expect(emailer.sent[0]?.cc).toEqual(['exec@example.com']);
+    });
+
+    it('rejects an invalid CC address with a message naming it', async () => {
+      const booking = await seed();
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId: booking.id, kind: 'assigned', to: 'pa@client.com', cc: ['nope'], ...parts },
+        operatorId,
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok || result.reason !== 'validation') throw new Error('expected validation');
+      expect(result.issues[0]?.message).toContain('CC');
+      expect(emailer.sent.length).toBe(0);
+    });
+
+    it('rejects more than 5 CC addresses', async () => {
+      const booking = await seed();
+      const cc = Array.from({ length: 6 }, (_, i) => `cc${i}@client.com`);
+      const result = await sendManualExecEmail(
+        { db, email: emailer },
+        { bookingId: booking.id, kind: 'assigned', to: 'pa@client.com', cc, ...parts },
+        operatorId,
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
+    });
+  });
+
   it('renders an added detail row as a table row in the HTML and a line in the stored text', async () => {
     const booking = await seedAssigned();
     const draft = await execEmailDraft(db, booking.id, 'en_route');
