@@ -4,13 +4,16 @@ import { Icon } from '@/components/console/icons';
 import { Lozenge } from '@/components/console/lozenge';
 import { driverJobCalendarUrl } from '@/lib/calendar';
 import { carDescription } from '@/lib/labels';
+import { orderedStops } from '@/lib/route-summary';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
 import {
+  type bookingStops as bookingStopsTable,
   bookings as bookingsTable,
   consumedTokens,
   drivers as driversTable,
 } from '@/server/db/schema';
 import { verifyDriverLink } from '@/server/domain/link-tokens';
+import { listStops } from '@/server/services/booking-stops';
 import { previewChangeConfirmLink } from '@/server/services/change-confirmation';
 import { previewDispatchLink, previewDriverJob } from '@/server/services/dispatch';
 import { eq } from 'drizzle-orm';
@@ -52,8 +55,15 @@ export default async function DriverLinkPage({
     });
     if (job.ok) {
       const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
+      const stops = await listStops(db(), job.booking.id);
       return (
-        <DriverJobView booking={job.booking} driver={job.driver} jobUrl={jobUrl} justAccepted />
+        <DriverJobView
+          booking={job.booking}
+          driver={job.driver}
+          stops={stops}
+          jobUrl={jobUrl}
+          justAccepted
+        />
       );
     }
     return (
@@ -139,7 +149,10 @@ export default async function DriverLinkPage({
       });
       if (job.ok) {
         const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
-        return <DriverJobView booking={job.booking} driver={job.driver} jobUrl={jobUrl} />;
+        const stops = await listStops(db(), job.booking.id);
+        return (
+          <DriverJobView booking={job.booking} driver={job.driver} stops={stops} jobUrl={jobUrl} />
+        );
       }
       if (job.reason === 'cancelled') {
         return (
@@ -171,6 +184,7 @@ export default async function DriverLinkPage({
   }
 
   const { booking, driver } = result.preview;
+  const stops = await listStops(db(), booking.id);
   const passengerName = `${booking.passengerFirstName} ${booking.passengerLastName}`.trim();
 
   return (
@@ -199,7 +213,7 @@ export default async function DriverLinkPage({
 
       {search.error ? <div className="ph-error">{decodeURIComponent(search.error)}</div> : null}
 
-      <JobCard booking={booking} />
+      <JobCard booking={booking} stops={stops} />
 
       <div
         style={{
@@ -233,9 +247,10 @@ export default async function DriverLinkPage({
 
 type JobBooking = typeof bookingsTable.$inferSelect;
 type JobDriver = typeof driversTable.$inferSelect;
+type JobStop = typeof bookingStopsTable.$inferSelect;
 
 /** The job facts card shared by the dispatch offer and the accepted-job view. */
-function JobCard({ booking }: { booking: JobBooking }) {
+function JobCard({ booking, stops }: { booking: JobBooking; stops: JobStop[] }) {
   return (
     <div className="public-card__job">
       <div className="row">
@@ -245,6 +260,18 @@ function JobCard({ booking }: { booking: JobBooking }) {
           {booking.pickupAddress}
         </div>
       </div>
+      {orderedStops(stops).map((stop, i) => (
+        <div className="row" key={stop.id} data-testid="job-stop">
+          <span className="pin via" />
+          <div className="addr">
+            <div className="lbl">
+              Stop {i + 1}
+              {stop.plannedWaitMinutes > 0 ? ` · wait ~${stop.plannedWaitMinutes} min` : ''}
+            </div>
+            {stop.address}
+          </div>
+        </div>
+      ))}
       <div className="row">
         <span className="pin to" />
         <div className="addr">
@@ -310,11 +337,13 @@ function jobStatus(state: string): { label: string; tone: 'green' | 'blue' | 'ye
 function DriverJobView({
   booking,
   driver,
+  stops,
   jobUrl,
   justAccepted = false,
 }: {
   booking: JobBooking;
   driver: JobDriver;
+  stops: JobStop[];
   jobUrl: string;
   /** Shown once, straight after the driver taps Accept. */
   justAccepted?: boolean;
@@ -357,7 +386,7 @@ function DriverJobView({
 
       <h1>{passengerName}</h1>
 
-      <JobCard booking={booking} />
+      <JobCard booking={booking} stops={stops} />
 
       <div
         style={{
@@ -375,7 +404,7 @@ function DriverJobView({
       {booking.state === 'assigned' || booking.state === 'in_progress' ? (
         <>
           <a
-            href={driverJobCalendarUrl(booking, jobUrl)}
+            href={driverJobCalendarUrl(booking, jobUrl, stops)}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn--block"

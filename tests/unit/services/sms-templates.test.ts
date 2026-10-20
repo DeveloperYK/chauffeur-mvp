@@ -185,3 +185,37 @@ describe('dispatch SMS — requested car type', () => {
     expect(body).toContain('Car: Mercedes V-Class');
   });
 });
+
+describe('driver SMS — multi-stop route', () => {
+  const stops = [
+    { seq: 1, address: '1 Canary Wharf, London E14 5AB', plannedWaitMinutes: 40 },
+    { seq: 2, address: 'Kings Cross Station, London N1 9AL', plannedWaitMinutes: 0 },
+  ];
+
+  it('lists each stop on its own line with the planned wait in the dispatch SMS', () => {
+    const body = dispatchSms(booking, 'https://app.test/s/Ab3xK7', stops);
+    expect(body).toContain(
+      '12 King St, London\n-> 1 Canary Wharf, London E14 5AB (wait ~40 min)\n-> Kings Cross Station, London N1 9AL\n-> Heathrow T5',
+    );
+    expect(body).not.toContain('12 King St, London -> Heathrow T5');
+  });
+
+  it('lists the stops in the job SMS too', () => {
+    const body = driverJobSms(booking, 'https://app.test/s/Ab3xK7', stops);
+    expect(body).toContain('-> 1 Canary Wharf, London E14 5AB (wait ~40 min)');
+    expect(body).toContain('-> Heathrow T5');
+  });
+
+  it('keeps the one-line route when there are no stops', () => {
+    expect(dispatchSms(booking, 'u', [])).toContain('12 King St, London -> Heathrow T5');
+    expect(driverJobSms(booking, 'u')).toContain('12 King St, London -> Heathrow T5');
+  });
+
+  it('orders stops by seq regardless of array order', () => {
+    const body = dispatchSms(booking, 'u', [
+      stops[1] as (typeof stops)[number],
+      stops[0] as (typeof stops)[number],
+    ]);
+    expect(body.indexOf('Canary Wharf')).toBeLessThan(body.indexOf('Kings Cross'));
+  });
+});

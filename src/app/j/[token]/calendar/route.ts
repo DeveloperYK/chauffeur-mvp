@@ -1,6 +1,7 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { driverJobIcs } from '@/lib/ics';
 import { appUrl, db, driverLinkSecret } from '@/server/composition';
+import { listStops } from '@/server/services/booking-stops';
 import { previewDriverJob } from '@/server/services/dispatch';
 import { NextResponse } from 'next/server';
 
@@ -26,7 +27,7 @@ export async function GET(
   if (!job.ok) return new NextResponse('Not found', { status: 404 });
 
   const jobUrl = `${appUrl().replace(/\/+$/, '')}/j/${token}`;
-  const ics = driverJobIcs(job.booking, jobUrl);
+  const ics = driverJobIcs(job.booking, jobUrl, await listStops(db(), job.booking.id));
   return new NextResponse(ics, {
     status: 200,
     headers: {

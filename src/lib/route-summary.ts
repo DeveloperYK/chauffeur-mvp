@@ -60,6 +60,26 @@ export function routeSummary(route: RouteLike, opts: RouteSummaryOptions = {}): 
   return parts.join(' → ');
 }
 
+/**
+ * The journey as message lines: the pickup, then "-> stop (wait ~40 min)" per
+ * stop, then "-> destination". One "A -> B" line when there are no stops, so
+ * existing single-leg messages read exactly as before.
+ */
+export function routeLines(route: RouteLike): string[] {
+  const end = route.dropoffAddress?.trim() || AS_DIRECTED_LABEL;
+  const stops = orderedStops(route.stops);
+  if (stops.length === 0) return [`${route.pickupAddress} -> ${end}`];
+  return [
+    route.pickupAddress,
+    ...stops.map((s) =>
+      s.plannedWaitMinutes > 0
+        ? `-> ${s.address} (wait ~${s.plannedWaitMinutes} min)`
+        : `-> ${s.address}`,
+    ),
+    `-> ${end}`,
+  ];
+}
+
 /** Planned waiting across the journey, in minutes. */
 export function totalPlannedWaitMinutes(stops: readonly RouteStop[]): number {
   return stops.reduce((sum, s) => sum + (s.plannedWaitMinutes || 0), 0);

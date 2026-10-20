@@ -1,5 +1,12 @@
 import { FakeNotificationAdapter } from '@/server/adapters/notification-fake';
-import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
+import {
+  auditEvents,
+  bookingStops,
+  bookings,
+  consumedTokens,
+  drivers,
+  operators,
+} from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
 import {
   acceptDispatchLink,
@@ -86,6 +93,18 @@ describe('services/dispatch (integration)', () => {
     notifications,
     secret: SECRET,
     appUrl: APP_URL,
+  });
+
+  it("lists the booking's stops in the driver message", async () => {
+    await db
+      .insert(bookingStops)
+      .values([
+        { bookingId, seq: 1, address: '1 Canary Wharf, London E14 5AB', plannedWaitMinutes: 40 },
+      ]);
+    const r = await generateDispatchLink(bookingId, driverId, operatorId, deps());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.message).toContain('-> 1 Canary Wharf, London E14 5AB (wait ~40 min)');
   });
 
   it('returns the formatted driver message (copy = same text WhatsApp pre-fills)', async () => {
