@@ -94,12 +94,22 @@ export async function submitCompletionAction(formData: FormData): Promise<void> 
   const parkingFeePounds = Number.parseFloat(String(formData.get('parkingFeePounds') ?? '0'));
   const carParkPence = Number.isFinite(parkingFeePounds) ? Math.round(parkingFeePounds * 100) : 0;
 
+  // One arrived/left pair per stop, posted as stop.<i>.arrivedTime / leftTime.
+  const stops: { arrivedTime: string; leftTime: string }[] = [];
+  for (let i = 0; i < 8; i++) {
+    const arrived = formData.get(`stop.${i}.arrivedTime`);
+    const left = formData.get(`stop.${i}.leftTime`);
+    if (arrived == null && left == null) break;
+    stops.push({ arrivedTime: String(arrived ?? ''), leftTime: String(left ?? '') });
+  }
+
   const result = await submitCompletionForm(
     {
       token,
       carParkPence,
       arrivalTime: String(formData.get('arrivalTime') ?? ''),
       passengerOnBoardTime: String(formData.get('passengerOnBoardTime') ?? ''),
+      stops,
       completionTime: String(formData.get('completionTime') ?? ''),
     },
     {

@@ -38,6 +38,8 @@ export function CompleteFormModal({
   const [arrivalTime, setArrivalTime] = useState('');
   const [passengerOnBoardTime, setPassengerOnBoardTime] = useState('');
   const [completionTime, setCompletionTime] = useState('');
+  /** One arrived/left pair per intermediate stop, in journey order. */
+  const [stopTimes, setStopTimes] = useState<{ arrivedTime: string; leftTime: string }[]>([]);
   const [carParkPounds, setCarParkPounds] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -51,6 +53,8 @@ export function CompleteFormModal({
       setArrivalTime(pickupTime);
       setPassengerOnBoardTime(pickupTime);
       setCompletionTime(defaultCompletionTime(booking));
+      // Stops default to arrived = left = the booked pickup (zero waiting).
+      setStopTimes(booking.stops.map(() => ({ arrivedTime: pickupTime, leftTime: pickupTime })));
       setCarParkPounds('0');
       setError(null);
     }
@@ -63,8 +67,12 @@ export function CompleteFormModal({
     HHMM.test(arrivalTime) &&
     HHMM.test(passengerOnBoardTime) &&
     HHMM.test(completionTime) &&
+    stopTimes.length === booking.stops.length &&
+    stopTimes.every((s) => HHMM.test(s.arrivedTime) && HHMM.test(s.leftTime)) &&
     Number.isFinite(carParkPence) &&
     carParkPence >= 0;
+  const setStopTime = (i: number, patch: Partial<{ arrivedTime: string; leftTime: string }>) =>
+    setStopTimes((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
   const submit = () => {
     if (!valid) return;
@@ -73,6 +81,7 @@ export function CompleteFormModal({
       const result = await completeFormOnBehalfAction(booking.id, {
         arrivalTime,
         passengerOnBoardTime,
+        stops: stopTimes,
         completionTime,
         carParkPence,
       });
@@ -140,6 +149,38 @@ export function CompleteFormModal({
               <div className="hint">Waiting is charged from this minus the booked pickup.</div>
             </div>
           </div>
+
+          {booking.stops.map((stop, i) => (
+            <div className="field" key={stop.seq} data-testid="modal-stop">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: inputs are the controls inside .ctrl */}
+              <label>Stop {i + 1}</label>
+              <div className="ctrl">
+                <div className="hint" style={{ marginBottom: 4 }}>
+                  {stop.address}
+                </div>
+                <div className="stop-times__row">
+                  <label className="stop-times__lbl">
+                    Arrived
+                    <input
+                      type="time"
+                      aria-label={`Stop ${i + 1} arrived`}
+                      value={stopTimes[i]?.arrivedTime ?? ''}
+                      onChange={(e) => setStopTime(i, { arrivedTime: e.target.value })}
+                    />
+                  </label>
+                  <label className="stop-times__lbl">
+                    Left
+                    <input
+                      type="time"
+                      aria-label={`Stop ${i + 1} left`}
+                      value={stopTimes[i]?.leftTime ?? ''}
+                      onChange={(e) => setStopTime(i, { leftTime: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          ))}
 
           <div className="field">
             {/* biome-ignore lint/a11y/noLabelWithoutControl: input is the control inside .ctrl */}

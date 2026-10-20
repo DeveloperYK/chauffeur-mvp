@@ -165,3 +165,71 @@ describe('resolveCompletionTimes', () => {
     if (!r.ok) expect(r.reason).toBe('waiting_too_long');
   });
 });
+
+describe('resolveCompletionTimes — multi-stop journeys', () => {
+  // Pickup 10:00 London (BST → 09:00 UTC) on 1 Jun 2026.
+  const pickup = new Date('2026-06-01T09:00:00.000Z');
+  const base = { arrivalTime: '09:55', passengerOnBoardTime: '10:12', completionTime: '13:30' };
+
+  it('chains each stop between on-board and drop-off and sums the waiting', () => {
+    const r = resolveCompletionTimes(pickup, {
+      ...base,
+      stops: [
+        { arrivedTime: '10:40', leftTime: '11:25' }, // 45 min
+        { arrivedTime: '12:00', leftTime: '12:10' }, // 10 min
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.stopTimes.map((t) => [t.arrivedAt.toISOString(), t.departedAt.toISOString()])).toEqual(
+      [
+        ['2026-06-01T09:40:00.000Z', '2026-06-01T10:25:00.000Z'],
+        ['2026-06-01T11:00:00.000Z', '2026-06-01T11:10:00.000Z'],
+      ],
+    );
+    // 12 min at the pickup + 45 + 10 at the stops.
+    expect(r.waitingTimeMinutes).toBe(67);
+    expect(r.dropoffAt.toISOString()).toBe('2026-06-01T12:30:00.000Z');
+  });
+
+  it('is unchanged with no stops (empty list or omitted)', () => {
+    const a = resolveCompletionTimes(pickup, base);
+    const b = resolveCompletionTimes(pickup, { ...base, stops: [] });
+    expect(a.ok && b.ok).toBe(true);
+    if (!a.ok || !b.ok) return;
+    expect(a.waitingTimeMinutes).toBe(12);
+    expect(b.waitingTimeMinutes).toBe(12);
+    expect(b.stopTimes).toEqual([]);
+  });
+
+  it('rolls a stop past midnight like the other times', () => {
+    const latePickup = new Date('2026-06-01T22:00:00.000Z'); // 23:00 London
+    const r = resolveCompletionTimes(latePickup, {
+      arrivalTime: '22:50',
+      passengerOnBoardTime: '23:05',
+      stops: [{ arrivedTime: '23:50', leftTime: '00:20' }],
+      completionTime: '01:00',
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.stopTimes[0]?.departedAt.toISOString()).toBe('2026-06-01T23:20:00.000Z');
+    expect(r.dropoffAt.toISOString()).toBe('2026-06-02T00:00:00.000Z');
+    expect(r.waitingTimeMinutes).toBe(5 + 30);
+  });
+
+  it('rejects a malformed stop time', () => {
+    const r = resolveCompletionTimes(pickup, {
+      ...base,
+      stops: [{ arrivedTime: '10:40', leftTime: '25:00' }],
+    });
+    expect(r).toEqual({ ok: false, reason: 'bad_format' });
+  });
+
+  it('rejects a stop whose times put the total wait over 12 hours (order typo)', () => {
+    const r = resolveCompletionTimes(pickup, {
+      ...base,
+      stops: [{ arrivedTime: '11:25', leftTime: '11:20' }],
+    });
+    expect(r).toEqual({ ok: false, reason: 'waiting_too_long' });
+  });
+});
