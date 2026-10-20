@@ -27,8 +27,9 @@ function describe(action: string, passenger: string, after: unknown): string {
       return `reassigned ${passenger} to another driver (confirmed by phone).`;
     case 'operator_swap_in_progress':
       return `replaced the driver on ${passenger} mid-trip (confirmed by phone).`;
+    // Legacy (pre-ADR 0029) hand-offs still appear in old bookings' history.
     case 'hand_to_backfill':
-      return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to ${passenger}.`;
+      return `assigned subcontractor ${a.backfillDriverName ?? 'driver'} to ${passenger}.`;
     case 'driver_accept':
       return `accepted the job for ${passenger}.`;
     // Drivers can no longer decline (2026-10-18); older audit rows still render.
@@ -136,8 +137,9 @@ function describeBookingDetail(action: string, after: unknown): string | null {
       return 'declined the job.';
     case 'edit':
       return `edited ${a.changedFields?.length ? a.changedFields.join(', ') : 'the booking'}.`;
+    // Legacy (pre-ADR 0029) hand-offs still appear in old bookings' history.
     case 'hand_to_backfill':
-      return `assigned backfill driver ${a.backfillDriverName ?? 'a backfill driver'} to the booking.`;
+      return `assigned subcontractor ${a.backfillDriverName ?? 'driver'} to the booking.`;
     case 'operator_completed_form':
       return 'completed the trip on the driver’s behalf.';
     case 'operator_approve':

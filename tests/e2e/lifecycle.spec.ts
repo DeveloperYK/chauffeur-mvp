@@ -23,7 +23,7 @@ import { type Page, expect, test } from '@playwright/test';
 
 const LEGO = 'Eric French'; // LEGO Group booking — the one we walk through
 const MERC = 'Martin Finch'; // Mercedes-Benz UK booking — the one we cancel
-const JJ = 'Sophia Lefevre'; // Johnson & Johnson booking — the backfill-driver arm
+const JJ = 'Sophia Lefevre'; // Johnson & Johnson booking — the driver completion-link arm
 
 test.describe.configure({ mode: 'serial' });
 
@@ -506,7 +506,9 @@ test('booking moves through every stage via the simulator + console', async ({ p
   await expectSimState(page, MERC, 'Cancelled');
 });
 
-test('backfill driver: hand off → clock → driver completion form → approve', async ({ page }) => {
+test('assigned driver: clock → completion link → driver fills the form → approve', async ({
+  page,
+}) => {
   // Fresh data so the J&J booking starts unassigned regardless of the prior arm.
   await gotoSimulator(page);
   await clickAndSettle(page, page.getByRole('button', { name: 'Reset all data' }).click());
@@ -518,23 +520,12 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await row(page, JJ).locator('select[name="scenario"]').selectOption('about_to_start');
   await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
 
-  // ── Console: hand to a backfill (subcontractor) driver ───────
-  await openBookingPanel(page, JJ);
-  await page.locator('.panel.is-open').getByRole('button', { name: 'Hand to backfill' }).click();
-  const bfModal = page.locator('.modal.is-open');
-  await expect(bfModal).toBeVisible();
-  await bfModal.locator('input[name="backfillDriverName"]').fill('Dave Smith');
-  await bfModal.locator('input[name="backfillDriverPhone"]').fill('+44 7911 123456');
-  await bfModal.locator('input[name="backfillCar"]').fill('BMW 5 Series');
-  // Backfill drivers are paid per job (internal drivers are salaried) — pay is
-  // required and starts at the ticket's subcontractor price (JJ seeds £250).
-  await expect(bfModal.locator('input[name="backfillDriverPay"]')).toHaveValue('250');
-  await expect(bfModal).toContainText('Pre-filled from the ticket');
-  await bfModal.locator('input[name="backfillDriverPay"]').fill('120');
-  await bfModal.getByRole('button', { name: 'Hand to backfill' }).click();
-  await expect(page.locator('.toast')).toContainText(/backfill/i);
+  // ── Simulator: put a roster driver on it (subcontractors are ordinary
+  //    drivers now — there is no separate hand-off) ──
+  await gotoSimulator(page);
+  await row(page, JJ).locator('select[name="state"]').selectOption('assigned');
+  await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Set' }).click());
 
-  // → Assigned, flagged as backfill (no internal driver committed).
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Assigned');
 
@@ -542,19 +533,16 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, JJ, 'In progress');
 
-  // ── Clock: trip ended → awaiting_driver_form, same as a normal driver. The
-  //    backfill driver fills out the completion form via a link. ──
+  // ── Clock: trip ended → awaiting_driver_form. The driver fills out the
+  //    completion form via a link. ──
   await row(page, JJ).locator('select[name="scenario"]').selectOption('trip_finished');
   await clickAndSettle(page, row(page, JJ).getByRole('button', { name: 'Apply' }).click());
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, JJ, 'Awaiting driver form');
 
-  // ── Console: generate the completion link for the backfill driver ──
+  // ── Console: generate the completion link for the driver ──
   await openBookingPanel(page, JJ);
-  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).toContainText('BACKFILL');
-  // The operator-entered backfill driver pay is recorded and shown on the panel.
-  await expect(page.locator('.panel.is-open')).toContainText('Backfill pay');
-  await expect(page.locator('.panel.is-open')).toContainText('£120');
+  await expect(page.locator('.panel.is-open .dp-hero__lozenges')).not.toContainText('BACKFILL');
   await page
     .locator('.panel.is-open')
     .getByRole('button', { name: 'Generate completion link' })
@@ -576,7 +564,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await page.goto('/dashboard?savedView=send_form', { waitUntil: 'networkidle' });
   await expect(page.locator('.list__row, .card', { hasText: JJ })).toHaveCount(0);
 
-  // ── Backfill driver fills out the same completion form via the link ──
+  // ── The driver fills out the completion form via the link ──
   await page.goto(completionUrl as string, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Trip completion' })).toBeVisible();
   // The form asks for arrival, passenger-on-board and completion times plus
@@ -595,7 +583,7 @@ test('backfill driver: hand off → clock → driver completion form → approve
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Awaiting operator review');
 
-  // ── Console: approve → completed (same as a normal driver) ──
+  // ── Console: approve → completed ──
   await openBookingPanel(page, JJ);
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);

@@ -6,8 +6,7 @@ import type { Booking } from '@/server/db/schema';
 /**
  * The exec-facing templates only need the driver's display name. Taking the
  * narrow `{ name }` shape (rather than a full `Driver` row) lets the same
- * template name a backfill/subcontractor driver, who has no `drivers` row —
- * the operator-entered `backfillDriverName` is passed straight through.
+ * template name a driver by plain name (no `drivers` row needed).
  */
 type NamedDriver = { name: string };
 

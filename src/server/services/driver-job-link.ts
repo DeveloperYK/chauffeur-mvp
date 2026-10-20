@@ -65,7 +65,6 @@ export async function generateDriverJobLink(
   if (!JOB_LINK_STATES.has(booking.state)) {
     return { ok: false, reason: 'wrong_state', state: booking.state };
   }
-  // A backfill (subcontractor) job has no app driver to sign a link for.
   if (!booking.assignedDriverId) return { ok: false, reason: 'no_driver' };
 
   const [driver] = await deps.db

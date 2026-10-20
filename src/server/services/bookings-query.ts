@@ -254,7 +254,6 @@ function tokenMatch(token: string): SQL | undefined {
     ilike(bookings.dropoffAddress, pattern),
     ilike(bookings.accountCode, pattern),
     ilike(bookings.caseCode, pattern),
-    ilike(bookings.backfillCar, pattern),
     ilike(drivers.car, pattern),
     ilike(bookings.clientName, pattern),
     ilike(bookings.execMobile, pattern),
@@ -284,7 +283,7 @@ const SEARCH_FIELDS: SearchField[] = [
   { category: 'company', weight: 2, value: (h) => h.caseCode },
   { category: 'address', weight: 3, value: (h) => h.pickupAddress },
   { category: 'address', weight: 3, value: (h) => h.dropoffAddress },
-  { category: 'other', weight: 2, value: (h) => h.driverCar ?? h.backfillCar },
+  { category: 'other', weight: 2, value: (h) => h.driverCar },
 ];
 
 const PHONE_WEIGHT = 4;

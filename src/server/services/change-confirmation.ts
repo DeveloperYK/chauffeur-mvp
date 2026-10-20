@@ -43,9 +43,8 @@ export type GenerateChangeLinkResult =
  * assigned (internal) driver and return a WhatsApp deep link the operator sends,
  * mirroring the dispatch flow (side-effect-free beyond the short link + audit).
  *
- * Only valid while a change is `pending`. Backfill/subcontractor jobs have no
- * `drivers` row (`assignedDriverId` is null) — there the operator attests via
- * `confirmChangeOnBehalf` instead, so this returns `no_app_driver`.
+ * Only valid while a change is `pending`. An unassigned booking has no driver
+ * to sign for, so this returns `no_app_driver`.
  */
 export async function generateChangeConfirmLink(
   bookingId: string,
@@ -161,7 +160,7 @@ export interface ConfirmChangeOnBehalfDeps {
 /**
  * Operator attests — after a phone call — that the assigned driver knows and
  * agreed to the changed plan. Clears the `pending` flag, recording who attested
- * and when. Works in any state and for backfill drivers (no app link needed).
+ * and when. Works in any state (no app link needed).
  */
 export async function confirmChangeOnBehalf(
   bookingId: string,

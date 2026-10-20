@@ -140,7 +140,6 @@ export default async function DashboardHome({
       b.dropoffAddress ?? '',
       b.accountCode ?? '',
       b.caseCode ?? '',
-      b.backfillCar ?? '',
     ].some((x) => x.toLowerCase().includes(needle));
   };
   const matchesAssignee = (b: Booking) => {
