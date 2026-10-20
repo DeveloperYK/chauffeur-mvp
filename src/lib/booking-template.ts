@@ -9,7 +9,15 @@
  * server (copying from a booking picked by search).
  */
 
+import { orderedStops } from './route-summary';
+
 export type ServiceTypeValue = 'transfer' | 'hourly';
+
+/** A stop as the create form holds it. */
+export interface TemplateStop {
+  address: string;
+  plannedWaitMinutes: number;
+}
 export type TravelModeValue = 'flight' | 'train';
 
 /** The subset of a booking the template reads; satisfied by both the DB row
@@ -23,6 +31,8 @@ export interface TemplateSource {
   distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string | null;
+  /** Intermediate stops; any recorded times are ignored (a copy is a new trip). */
+  stops: readonly { seq?: number; address: string; plannedWaitMinutes: number }[];
   passengerFirstName: string;
   passengerLastName: string | null;
   execMobile: string | null;
@@ -49,6 +59,7 @@ export interface BookingTemplate {
   distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
+  stops: TemplateStop[];
   passengerFirstName: string;
   passengerLastName: string;
   execMobile: string;
@@ -77,6 +88,10 @@ export function templateFromBooking(b: TemplateSource): BookingTemplate {
     distanceMeters: b.distanceMeters,
     pickupAddress: b.pickupAddress,
     dropoffAddress: b.dropoffAddress ?? '',
+    stops: orderedStops(b.stops).map((s) => ({
+      address: s.address,
+      plannedWaitMinutes: s.plannedWaitMinutes,
+    })),
     passengerFirstName: b.passengerFirstName,
     passengerLastName: b.passengerLastName ?? '',
     execMobile: b.execMobile ?? '',

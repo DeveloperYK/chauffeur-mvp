@@ -9,6 +9,7 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import { refineStopsForServiceType, replaceStops, stopsInputSchema } from './booking-stops';
 import { mirrorBooking } from './mirror';
 
 // A `datetime-local` value from the booking form is a bare Europe/London
@@ -51,6 +52,9 @@ export const createBookingSchema = z
     pickupAddress: z.string().min(3, 'Pickup address is required').max(500),
     // Required for transfers (enforced below); omitted for hourly (no destination).
     dropoffAddress: z.string().max(500).optional().nullable(),
+    // Intermediate stops of a multi-stop transfer, in journey order. Empty for
+    // a plain A→B transfer; must be empty for hourly (enforced below).
+    stops: stopsInputSchema.optional().default([]),
     passengerFirstName: z.string().min(1, 'Passenger first name is required').max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     // Optional: not every booking comes with the exec's mobile.
@@ -121,6 +125,7 @@ export const createBookingSchema = z
     }
     refineTravelRef(data, ctx);
     refineBookedBy(data, ctx);
+    refineStopsForServiceType(data, ctx);
   });
 
 /**
@@ -300,6 +305,10 @@ export async function createBooking(
 
   if (!inserted) {
     throw new Error('insert returned no row');
+  }
+
+  if (!isHourly && parsed.data.stops.length > 0) {
+    await replaceStops(deps.db, inserted.id, parsed.data.stops);
   }
 
   await recordAuditEvent(deps.db, {

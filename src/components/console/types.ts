@@ -10,6 +10,17 @@ import type {
 // Serializable shapes passed from the board server component into the client
 // console shell. Dates are ISO strings so the client formats them consistently.
 
+/** One intermediate stop as the console renders it. */
+export interface ConsoleStop {
+  seq: number;
+  address: string;
+  /** Operator's scheduling estimate; shown to the driver as "wait ~40 min". */
+  plannedWaitMinutes: number;
+  /** Driver-recorded times from the completion form (ISO), null until then. */
+  arrivedAt: string | null;
+  departedAt: string | null;
+}
+
 export interface ConsoleBooking {
   id: string;
   /** Auto-incrementing reference number; rendered as "BKNG-00001". */
@@ -27,6 +38,8 @@ export interface ConsoleBooking {
   pickupAddress: string;
   /** Empty string for hourly as-directed bookings (no destination). */
   dropoffAddress: string;
+  /** Intermediate stops of a multi-stop transfer, in journey order; empty for A→B. */
+  stops: ConsoleStop[];
   passengerFirstName: string;
   passengerLastName: string | null;
   execMobile: string | null;

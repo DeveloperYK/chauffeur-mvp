@@ -8,7 +8,13 @@ import {
 } from '@/lib/dates';
 import { type DriverStatus, type DriverStatusRow, deriveDriverStatus } from '@/lib/driver-status';
 import type { Database } from '@/server/db';
-import { type Booking, type BookingState, bookings, drivers } from '@/server/db/schema';
+import {
+  type Booking,
+  type BookingState,
+  bookingStops,
+  bookings,
+  drivers,
+} from '@/server/db/schema';
 import { type SQL, and, asc, desc, eq, gte, ilike, inArray, lt, ne, or, sql } from 'drizzle-orm';
 
 const ACTIVE_STATES: BookingState[] = [
@@ -195,6 +201,8 @@ export interface BookingSearchHit extends Booking {
   driverName: string | null;
   /** Car of the assigned internal driver, if any — joined for matching/display. */
   driverCar: string | null;
+  /** Intermediate stop addresses in order, " | "-joined; null when none. */
+  stopAddresses: string | null;
   /** The field category this row matched most strongly — used to group results. */
   matchType: BookingMatchType;
 }
@@ -258,6 +266,8 @@ function tokenMatch(token: string): SQL | undefined {
     ilike(bookings.clientName, pattern),
     ilike(bookings.execMobile, pattern),
     phoneDigitsMatch(token),
+    // An intermediate stop of a multi-stop journey.
+    sql`exists (select 1 from ${bookingStops} where ${bookingStops.bookingId} = ${bookings.id} and ${bookingStops.address} ilike ${pattern})`,
   );
 }
 
@@ -283,6 +293,7 @@ const SEARCH_FIELDS: SearchField[] = [
   { category: 'company', weight: 2, value: (h) => h.caseCode },
   { category: 'address', weight: 3, value: (h) => h.pickupAddress },
   { category: 'address', weight: 3, value: (h) => h.dropoffAddress },
+  { category: 'address', weight: 3, value: (h) => h.stopAddresses },
   { category: 'other', weight: 2, value: (h) => h.driverCar },
 ];
 
@@ -399,7 +410,14 @@ export async function searchBookings(
   if (driverId) conditions.push(eq(bookings.assignedDriverId, driverId));
 
   const rows = await db
-    .select({ booking: bookings, driverName: drivers.name, driverCar: drivers.car })
+    .select({
+      booking: bookings,
+      driverName: drivers.name,
+      driverCar: drivers.car,
+      stopAddresses: sql<
+        string | null
+      >`(select string_agg(${bookingStops.address}, ' | ' order by ${bookingStops.seq}) from ${bookingStops} where ${bookingStops.bookingId} = ${bookings.id})`,
+    })
     .from(bookings)
     .leftJoin(drivers, eq(bookings.assignedDriverId, drivers.id))
     .where(and(...conditions))
@@ -410,6 +428,7 @@ export async function searchBookings(
     ...r.booking,
     driverName: r.driverName ?? null,
     driverCar: r.driverCar ?? null,
+    stopAddresses: r.stopAddresses ?? null,
     matchType: isRef ? 'ref' : 'other',
   }));
 

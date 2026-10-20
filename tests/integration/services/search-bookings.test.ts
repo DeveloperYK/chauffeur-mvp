@@ -1,6 +1,7 @@
 import { bookingRef } from '@/lib/booking-ref';
-import { bookings, drivers, operators } from '@/server/db/schema';
+import { bookingStops, bookings, drivers, operators } from '@/server/db/schema';
 import { searchBookings } from '@/server/services/bookings-query';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SeedData } from '~test/fixtures/seed-data';
 import { type TestDb, createTestDb } from '~test/helpers/pglite-db';
@@ -119,6 +120,23 @@ describe('searchBookings (integration)', () => {
 
   afterAll(async () => {
     await close();
+  });
+
+  it('matches an intermediate stop address', async () => {
+    const [target] = await db
+      .select({ id: bookings.id, seq: bookings.seq })
+      .from(bookings)
+      .where(eq(bookings.seq, seqB1));
+    await db.insert(bookingStops).values({
+      bookingId: target?.id ?? '',
+      seq: 1,
+      address: 'Battersea Power Station, London SW11 8DD',
+      plannedWaitMinutes: 30,
+    });
+    const hits = await searchBookings(db, 'battersea');
+    expect(hits.map((h) => h.seq)).toEqual([seqB1]);
+    expect(hits[0]?.matchType).toBe('address');
+    await db.delete(bookingStops);
   });
 
   it('finds a booking by exact seq (bare number)', async () => {

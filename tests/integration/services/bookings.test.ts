@@ -1,4 +1,4 @@
-import { auditEvents, bookings, operators } from '@/server/db/schema';
+import { auditEvents, bookingStops, bookings, operators } from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
 import { createBooking } from '@/server/services/bookings';
 import { groupByState, listActiveBookings } from '@/server/services/bookings-query';
@@ -173,6 +173,91 @@ describe('services/bookings (integration)', () => {
       operatorId,
     });
     expect(result.ok).toBe(false);
+  });
+
+  describe('stops (multi-stop journeys)', () => {
+    const stops = [
+      { address: '1 Canary Wharf, London E14 5AB', plannedWaitMinutes: 40 },
+      { address: 'Kings Cross Station, London N1 9AL', plannedWaitMinutes: 0 },
+    ];
+
+    it('creates a transfer with ordered stops and planned waits', async () => {
+      const result = await createBooking(validInput({ stops }), { db, clock, operatorId });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const rows = await db.select().from(bookingStops).orderBy(bookingStops.seq);
+      expect(rows.map((r) => [r.seq, r.address, r.plannedWaitMinutes])).toEqual([
+        [1, '1 Canary Wharf, London E14 5AB', 40],
+        [2, 'Kings Cross Station, London N1 9AL', 0],
+      ]);
+      expect(rows.every((r) => r.bookingId === result.booking.id)).toBe(true);
+      expect(rows.every((r) => r.arrivedAt === null && r.departedAt === null)).toBe(true);
+    });
+
+    it('creates with no stops when the field is omitted or empty', async () => {
+      const a = await createBooking(validInput(), { db, clock, operatorId });
+      const b = await createBooking(validInput({ stops: [] }), { db, clock, operatorId });
+      expect(a.ok && b.ok).toBe(true);
+      expect((await db.select().from(bookingStops)).length).toBe(0);
+    });
+
+    it('defaults a missing planned wait to zero', async () => {
+      const result = await createBooking(
+        validInput({ stops: [{ address: '1 Canary Wharf, London E14 5AB' }] }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(true);
+      const [row] = await db.select().from(bookingStops);
+      expect(row?.plannedWaitMinutes).toBe(0);
+    });
+
+    it('rejects stops on an hourly as-directed booking', async () => {
+      const result = await createBooking(
+        validInput({ serviceType: 'hourly', dropoffAddress: null, stops }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok || result.reason !== 'validation') throw new Error('expected validation');
+      expect(result.issues[0]?.path).toEqual(['stops']);
+    });
+
+    it('rejects more than 8 stops', async () => {
+      const many = Array.from({ length: 9 }, (_, i) => ({
+        address: `${i} Test Street, London E1 6AN`,
+        plannedWaitMinutes: 0,
+      }));
+      const result = await createBooking(validInput({ stops: many }), { db, clock, operatorId });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe('validation');
+    });
+
+    it('rejects a blank stop address, a negative wait, and a wait over 12 hours', async () => {
+      for (const bad of [
+        { address: '', plannedWaitMinutes: 0 },
+        { address: 'X Street, London E1 6AN', plannedWaitMinutes: -1 },
+        { address: 'X Street, London E1 6AN', plannedWaitMinutes: 721 },
+      ]) {
+        const result = await createBooking(validInput({ stops: [bad] }), {
+          db,
+          clock,
+          operatorId,
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.reason).toBe('validation');
+      }
+      expect((await db.select().from(bookingStops)).length).toBe(0);
+    });
+
+    it('writes no booking when a stop is invalid (same transaction)', async () => {
+      const result = await createBooking(
+        validInput({ stops: [{ address: '', plannedWaitMinutes: 0 }] }),
+        { db, clock, operatorId },
+      );
+      expect(result.ok).toBe(false);
+      expect((await db.select().from(bookings)).length).toBe(0);
+    });
   });
 
   it('rejects unknown extra fields', async () => {

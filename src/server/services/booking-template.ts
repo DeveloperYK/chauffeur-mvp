@@ -4,6 +4,7 @@ import type { Database } from '@/server/db';
 import { bookings } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { listStops } from './booking-stops';
 
 /**
  * Load the reusable fields of an existing booking for "Copy booking" when the
@@ -24,5 +25,10 @@ export async function loadBookingTemplate(
   if (!idSchema.safeParse(bookingId).success) return { ok: false, reason: 'booking_not_found' };
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
-  return { ok: true, ref: bookingRef(booking.seq), template: templateFromBooking(booking) };
+  const stops = await listStops(db, booking.id);
+  return {
+    ok: true,
+    ref: bookingRef(booking.seq),
+    template: templateFromBooking({ ...booking, stops }),
+  };
 }
