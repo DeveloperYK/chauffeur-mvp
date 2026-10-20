@@ -7,7 +7,6 @@ const CONTACT = { name: 'Mario Rossi', phone: '+447700900001' };
 function input(state: BookingState, extra: Partial<MobileActionInput> = {}): MobileActionInput {
   return {
     state,
-    isBackfill: false,
     openOfferCount: 0,
     passengerName: 'Eric French',
     execMobile: null,
@@ -40,11 +39,6 @@ describe('lib/mobile-actions mobileActionsFor', () => {
     const messy = mobileActionsFor(input('assigned'), { name: 'M', phone: '+44 7700 900001;x' });
     expect(messy[1]?.href).toBe('tel:+447700900001');
     expect(actions[3]?.label).toBe('Reassign driver');
-  });
-
-  it('assigned backfill job: no reassign (backfill drivers are not on the roster)', () => {
-    const actions = mobileActionsFor(input('assigned', { isBackfill: true }), CONTACT);
-    expect(kinds(actions)).toEqual(['whatsapp', 'call', 'release', 'edit', 'cancel']);
   });
 
   it('assigned without a contact: release becomes the first action', () => {

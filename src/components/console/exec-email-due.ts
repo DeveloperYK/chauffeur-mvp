@@ -8,7 +8,6 @@ import type { ExecNotificationStatus } from '@/server/db/schema';
 export interface ExecEmailDueInput {
   state: string;
   assignedDriverId: string | null;
-  isBackfill: boolean;
   confirmationEmailSentAt: string | null;
   driverDetailsEmailSentAt: string | null;
   changeConfirmationStatus: string;
@@ -48,14 +47,14 @@ const EMAIL_EXPECTED_STATES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Does the operator still owe the exec an email? True when a driver (or
- * backfill) is on the job but the confirmation and/or driver-details email
+ * Does the operator still owe the exec an email? True when a driver is on
+ * the job but the confirmation and/or driver-details email
  * hasn't been sent, or a confirmed exec-relevant change has had no "Booking
  * update" email since. Cancelled bookings never owe anything.
  */
 export function execEmailsDue(b: ExecEmailDueInput): boolean {
   if (b.state === 'cancelled') return false;
-  const hasDriver = b.assignedDriverId != null || b.isBackfill;
+  const hasDriver = b.assignedDriverId != null;
   const confirmationSettled = Boolean(b.confirmationEmailSentAt || b.confirmationEmailWaivedAt);
   const detailsSettled = Boolean(b.driverDetailsEmailSentAt || b.driverDetailsEmailWaivedAt);
   const bothDue =
@@ -102,7 +101,7 @@ export type ExecEmailRow = {
  * tag and the hero pill can never disagree about what is owed.
  */
 export function execEmailRows(booking: ExecEmailDueInput): ExecEmailRow[] {
-  const hasDriver = Boolean(booking.assignedDriverId) || booking.isBackfill;
+  const hasDriver = Boolean(booking.assignedDriverId);
   const flagActive = EMAIL_EXPECTED_STATES.has(booking.state);
   const cancelled = booking.state === 'cancelled';
   const updateDue = updateEmailDue(booking) && !cancelled;

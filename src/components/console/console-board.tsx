@@ -7,7 +7,6 @@ import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Avatar, UnassignedAvatar } from './avatar';
-import { BackfillModal } from './backfill-modal';
 import { bookingHighlights } from './booking-highlights';
 import { CancelModal } from './cancel-modal';
 import { CompleteFormModal } from './complete-form-modal';
@@ -79,7 +78,6 @@ export function ConsoleBoard({
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [panelOpen, setPanelOpen] = useState(Boolean(initialSelectedId));
   const [dispatchOpen, setDispatchOpen] = useState(false);
-  const [backfillOpen, setBackfillOpen] = useState(false);
   const [completeFormOpen, setCompleteFormOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -93,8 +91,7 @@ export function ConsoleBoard({
   // so the board stays near-live without a manual refresh. Paused while an
   // input modal is open so a refresh can't clobber what the operator is typing;
   // the read-only detail panel doesn't pause it, so a watched booking stays live.
-  const inputModalOpen =
-    dispatchOpen || backfillOpen || completeFormOpen || cancelOpen || editOpen || newOpen;
+  const inputModalOpen = dispatchOpen || completeFormOpen || cancelOpen || editOpen || newOpen;
   useAutoRefresh(inputModalOpen);
 
   const operatorById = useMemo(() => new Map(operators.map((o) => [o.id, o])), [operators]);
@@ -143,7 +140,6 @@ export function ConsoleBoard({
         if (cancelOpen) setCancelOpen(false);
         else if (editOpen) setEditOpen(false);
         else if (dispatchOpen) setDispatchOpen(false);
-        else if (backfillOpen) setBackfillOpen(false);
         else if (completeFormOpen) setCompleteFormOpen(false);
         else if (newOpen) setNewOpen(false);
         else if (panelOpen) setPanelOpen(false);
@@ -155,7 +151,7 @@ export function ConsoleBoard({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cancelOpen, editOpen, dispatchOpen, backfillOpen, completeFormOpen, newOpen, panelOpen]);
+  }, [cancelOpen, editOpen, dispatchOpen, completeFormOpen, newOpen, panelOpen]);
 
   const onSelect = (id: string) => {
     setSelectedId(id);
@@ -345,7 +341,6 @@ export function ConsoleBoard({
         isOpen={panelOpen}
         onClose={() => setPanelOpen(false)}
         onDispatch={() => setDispatchOpen(true)}
-        onBackfill={() => setBackfillOpen(true)}
         onCompleteOnBehalf={() => setCompleteFormOpen(true)}
         onEdit={() => setEditOpen(true)}
         onCancel={() => setCancelOpen(true)}
@@ -366,16 +361,6 @@ export function ConsoleBoard({
         onClose={() => setDispatchOpen(false)}
         onSent={(summary) => {
           setDispatchOpen(false);
-          handleMutated(summary);
-        }}
-      />
-
-      <BackfillModal
-        booking={selected}
-        isOpen={backfillOpen}
-        onClose={() => setBackfillOpen(false)}
-        onHandedOff={(summary) => {
-          setBackfillOpen(false);
           handleMutated(summary);
         }}
       />
@@ -498,12 +483,7 @@ function ListRow({
         ) : null}
       </span>
       <span className="driver-cell">
-        {b.isBackfill ? (
-          <>
-            <Lozenge tone="purple">BACKFILL</Lozenge>
-            <span style={{ marginLeft: 6 }}>{b.backfillDriverName ?? 'Backfill driver'}</span>
-          </>
-        ) : driver ? (
+        {driver ? (
           <>
             <Avatar name={driver.name} id={driver.id} size={20} />
             {driver.name}
@@ -699,12 +679,7 @@ function BoardCard({
         </div>
       ) : null}
       <div className="card__meta">
-        {booking.isBackfill ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Lozenge tone="purple">BACKFILL</Lozenge>
-            <Tag>{booking.backfillDriverName ?? 'Backfill driver'}</Tag>
-          </span>
-        ) : driver ? (
+        {driver ? (
           <Tag>{driver.name}</Tag>
         ) : booking.openOffers.length > 0 ? (
           <span

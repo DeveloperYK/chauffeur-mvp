@@ -80,33 +80,6 @@ function formatDate(d: Date): string {
   return formatLondonDay(d);
 }
 
-function carLabel(c: string | null): string {
-  if (!c) return '';
-  const trimmed = c.trim();
-  // Legacy enum aliases so old rows still display nicely.
-  switch (trimmed) {
-    case 'ex':
-      return 'Executive';
-    case 's_class':
-      return 'Mercedes S-Class';
-    case 'mpv':
-      return 'MPV';
-    case 'mini_bus':
-      return 'Mini bus';
-    default:
-      return trimmed;
-  }
-}
-
-/**
- * "Driver Type" (column N): a backfill job ran on an external subcontractor; an
- * internal assignment ran on an employee. Blank until a driver is on the job.
- */
-function driverType(booking: Booking, driver: Driver | null | undefined): string {
-  if (booking.isBackfill) return 'Subcontractor';
-  return driver ? 'Employee' : '';
-}
-
 /** Pence → "£" string with 2 decimals; blank when null. */
 function poundsOrBlank(pence: number | null): string {
   return pence != null ? (pence / 100).toFixed(2) : '';
@@ -166,20 +139,10 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
   const { booking, driver } = input;
   // Car Type (column K): what the PA asked for at booking time, as the client
   // records it in their own workbook. Legacy rows with no request fall back to
-  // the car that actually ran the job — an internal driver's class
-  // (the driver's vehicle class) or the backfill subcontractor's car —
-  // and stay empty until a driver is assigned.
+  // the assigned driver's vehicle class, and stay empty until a driver is on.
   const requested = booking.requestedCarType?.trim() ?? '';
-  const car = requested
-    ? requested
-    : booking.isBackfill
-      ? carLabel(booking.backfillCar)
-      : driver
-        ? VEHICLE_CLASS_LABEL[driver.vehicleClass]
-        : '';
-  // Driver Name (column M): a backfill name lives on the booking; an internal
-  // driver's name is on the driver record.
-  const driverName = booking.isBackfill ? (booking.backfillDriverName ?? '') : (driver?.name ?? '');
+  const car = requested ? requested : driver ? VEHICLE_CLASS_LABEL[driver.vehicleClass] : '';
+  const driverName = driver?.name ?? '';
   const pickup = booking.pickupAt;
 
   return [
@@ -197,8 +160,10 @@ export function rowFromBooking(input: MirrorRowInput): string[] {
     car, // K Car Type
     poundsOrBlank(booking.contractPricePence), // L Contract Price (£) — blank until agreed
     driverName, // M Driver Name
-    driverType(booking, driver), // N Driver Type
-    poundsOrBlank(booking.backfillDriverPayPence), // O Driver Cost (£) — subcontractor pay
+    // N Driver Type: the roster holds employees and subcontractors alike now,
+    // and the client knows which is which — left blank (ADR 0029).
+    '', // N Driver Type
+    poundsOrBlank(booking.subcontractorPricePence), // O Driver Cost (£) — subcontractor price
     poundsOrBlank(booking.carParkPence), // P Car Park (£)
     waitingHoursMinutes(booking.waitingTimeMinutes), // Q Waiting Time (hh:mm)
     booking.dropoffAt ? formatTimeOfDay(booking.dropoffAt) : '', // R Drop Off Time (24hr)

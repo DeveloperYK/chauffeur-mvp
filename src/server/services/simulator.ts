@@ -95,7 +95,7 @@ const SAMPLE_BOOKINGS = [
     customerAccount: 'Johnson & Johnson',
     caseCode: 'JJ-2026-220',
     contractPricePence: 45000,
-    // Agreed subcontractor quote — pre-fills driver pay on "Hand to backfill".
+    // Agreed subcontractor quote (the sheet's Driver Cost column).
     subcontractorPricePence: 25000,
   },
 ] as const;

@@ -11,7 +11,6 @@ import {
 } from '@/server/db/schema';
 import { fixedClock } from '@/server/ports/clock';
 import type { NotificationPort } from '@/server/ports/notifications';
-import { handToBackfill } from '@/server/services/backfill';
 import { clockTick } from '@/server/services/clock-tick';
 import {
   listExecNotifications,
@@ -207,7 +206,7 @@ describe('services/exec-notifications (integration)', () => {
   });
 
   it('returns no_driver when the booking has no driver to name', async () => {
-    // Unassigned booking (no driver, not backfill) — can't rebuild the message.
+    // Unassigned booking (no driver) — can't rebuild the message.
     const [booking] = await db
       .insert(bookings)
       .values(SeedData.bookings.unassigned(operatorId))
@@ -239,22 +238,5 @@ describe('services/exec-notifications (integration)', () => {
     const rows = await listExecNotifications(db, booking.id);
     expect(rows.length).toBe(0);
     expect(notifications.sent.length).toBe(0);
-  });
-
-  it('hand-to-backfill no longer messages the exec (operator sends manually)', async () => {
-    const [booking] = await db
-      .insert(bookings)
-      .values(SeedData.bookings.unassigned(operatorId))
-      .returning();
-    const result = await handToBackfill(
-      booking?.id ?? '',
-      { name: 'Sub Sam', phone: '+447900111222', car: 'Black BMW 5', payPence: 9000 },
-      operatorId,
-      { db, clock: fixedClock('2026-05-18T10:00:00.000Z'), notifications },
-    );
-    expect(result.ok).toBe(true);
-
-    const rows = await listExecNotifications(db, booking?.id ?? '');
-    expect(rows.length).toBe(0);
   });
 });

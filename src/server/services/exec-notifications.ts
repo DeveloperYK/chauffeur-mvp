@@ -66,8 +66,7 @@ export interface ExecNotificationDeps {
 /**
  * Everything needed to render an exec message, independent of channel. `car`
  * (colour + car description) is only used by the `assigned` message; `en_route`
- * just names the driver. Backfill drivers have no `drivers` row, so the caller
- * passes the operator-entered name/car straight through.
+ * just names the driver.
  */
 export interface ExecMessageContext {
   booking: typeof bookings.$inferSelect;
@@ -293,7 +292,7 @@ export function execContextFromDriver(
   };
 }
 
-/** Rebuild the render context from the booking's CURRENT driver/backfill state. */
+/** Rebuild the render context from the booking's CURRENT driver. */
 export async function buildExecContextForBooking(
   db: Database,
   booking: typeof bookings.$inferSelect,
@@ -306,15 +305,6 @@ export async function buildExecContextForBooking(
       .where(eq(drivers.id, booking.assignedDriverId))
       .limit(1);
     if (driver) return execContextFromDriver(booking, kind, driver);
-  }
-  if (booking.isBackfill && booking.backfillDriverName) {
-    return {
-      booking,
-      kind,
-      driverName: booking.backfillDriverName,
-      car: booking.backfillCar ?? '',
-      driverPhone: booking.backfillDriverPhone,
-    };
   }
   return null;
 }
@@ -503,7 +493,7 @@ export async function execEmailDraft(
     const rendered = changeExecEmail(booking);
     return {
       ok: true,
-      hasDriver: booking.assignedDriverId != null || booking.isBackfill,
+      hasDriver: booking.assignedDriverId != null,
       draft: toDraft(booking, rendered, kind),
     };
   }
@@ -605,7 +595,7 @@ export async function sendManualExecEmail(
     .limit(1);
   if (!booking) return { ok: false, reason: 'booking_not_found' };
   if (booking.state === 'cancelled') return { ok: false, reason: 'not_sendable' };
-  if (kind === 'en_route' && !booking.assignedDriverId && !booking.isBackfill) {
+  if (kind === 'en_route' && !booking.assignedDriverId) {
     return { ok: false, reason: 'no_driver' };
   }
 
@@ -748,7 +738,7 @@ const EMAIL_EXPECTED_STATES = [
 /**
  * Bookings whose exec emails need operator attention — the "Emails due" rail
  * view. Two ways in:
- *  - a driver (or backfill) is on the job but the confirmation and/or
+ *  - a driver is on the job but the confirmation and/or
  *    driver-details email hasn't been successfully sent yet — unless the
  *    operator marked it as handled (`*_email_waived_at`, see exec-email-waiver);
  *  - the last exec message failed/bounced (any non-cancelled state). A waiver
@@ -765,7 +755,7 @@ export async function listEmailAttentionBookings(
       or(
         and(
           inArray(bookings.state, [...EMAIL_EXPECTED_STATES]),
-          or(isNotNull(bookings.assignedDriverId), eq(bookings.isBackfill, true)),
+          isNotNull(bookings.assignedDriverId),
         ),
         and(ne(bookings.state, 'cancelled'), eq(bookings.execNotificationStatus, 'failed')),
         and(
@@ -787,7 +777,7 @@ export async function listEmailAttentionBookings(
     if (b.execNotificationStatus === 'failed') return true;
     const s = sends.get(b.id) ?? null;
     if (changeUpdateEmailDue(b, s?.changeUpdateSentAt ?? null)) return true;
-    const hasDriver = b.assignedDriverId != null || b.isBackfill;
+    const hasDriver = b.assignedDriverId != null;
     const confirmationSettled =
       s?.confirmationSentAt != null || b.confirmationEmailWaivedAt != null;
     const detailsSettled = s?.driverDetailsSentAt != null || b.driverDetailsEmailWaivedAt != null;

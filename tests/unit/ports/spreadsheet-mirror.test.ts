@@ -65,11 +65,6 @@ const baseBooking: Booking = {
   changeConfirmedAt: null,
   changeConfirmedMethod: null,
   changeConfirmedByOperatorId: null,
-  isBackfill: false,
-  backfillDriverName: null,
-  backfillDriverPhone: null,
-  backfillCar: null,
-  backfillDriverPayPence: null,
   subcontractorPricePence: null,
   completionByOperator: false,
   execNotificationStatus: 'none',
@@ -99,19 +94,6 @@ describe('rowFromBooking', () => {
     const row = rowFromBooking({ booking: { ...baseBooking, requestedCarType: 'MPV' }, driver });
     expect(SHEET_HEADERS[10]).toBe('Car Type');
     expect(row[10]).toBe('MPV');
-  });
-
-  it('writes the requested car type for a backfill job instead of the subcontractor car', () => {
-    const row = rowFromBooking({
-      booking: {
-        ...baseBooking,
-        requestedCarType: 'Luxury',
-        isBackfill: true,
-        backfillCar: 'Mercedes V-Class',
-      },
-      driver: null,
-    });
-    expect(row[10]).toBe('Luxury');
   });
 
   it('falls back to the assigned driver class when nothing was requested (legacy rows)', () => {
@@ -248,6 +230,22 @@ describe('rowFromBooking', () => {
       driver,
     });
     expect(row[11]).toBe(''); // L Contract Price — blank, not "0.00"
+  });
+});
+
+describe('rowFromBooking driver columns', () => {
+  it('N Driver Type is blank and O Driver Cost carries the subcontractor price', () => {
+    const row = rowFromBooking({
+      booking: { ...baseBooking, subcontractorPricePence: 12050 },
+      driver,
+    });
+    expect(row[13]).toBe(''); // N Driver Type — the roster no longer distinguishes
+    expect(row[14]).toBe('120.50'); // O Driver Cost (£)
+  });
+
+  it('O Driver Cost is blank when no subcontractor price was agreed', () => {
+    const row = rowFromBooking({ booking: baseBooking, driver });
+    expect(row[14]).toBe('');
   });
 });
 

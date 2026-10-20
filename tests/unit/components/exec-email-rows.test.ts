@@ -11,7 +11,6 @@ const LATER = '2026-10-15T11:00:00Z';
 const base = {
   state: 'assigned',
   assignedDriverId: 'drv_1',
-  isBackfill: false,
   confirmationEmailSentAt: null as string | null,
   driverDetailsEmailSentAt: null as string | null,
   changeConfirmationStatus: 'none',
@@ -84,11 +83,6 @@ describe('execEmailRows', () => {
       canSend: false,
       disabledHint: 'Needs a driver on the job',
     });
-  });
-
-  it('treats a backfill car as a driver on the job', () => {
-    const [, details] = execEmailRows({ ...base, assignedDriverId: null, isBackfill: true });
-    expect(details).toMatchObject({ flagged: true, canSend: true });
   });
 
   it('disables every send and clears every flag on a cancelled booking', () => {

@@ -16,16 +16,15 @@ function who(b: ConsoleBooking): string {
   return `${b.passengerFirstName}${b.passengerLastName ? ` ${b.passengerLastName}` : ''}`;
 }
 
-function driverLine(b: ConsoleBooking, driver: ConsoleDriver | undefined): string | null {
+function driverLine(driver: ConsoleDriver | undefined): string | null {
   if (driver) return `${driver.name} · ${driver.carColour} ${driver.car}`;
-  if (b.isBackfill && b.backfillDriverName) return `${b.backfillDriverName} (backfill)`;
   return null;
 }
 
 export function BookingCard({ booking: b, driver, showDay = false }: BookingCardProps) {
   const flag = attentionReason(b);
   const done = b.state === 'completed' || b.state === 'cancelled';
-  const drv = driverLine(b, driver);
+  const drv = driverLine(driver);
   return (
     <Link
       className={`m-card ${flag ? 'm-card--hot' : ''} ${done ? 'm-card--done' : ''}`}

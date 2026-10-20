@@ -74,7 +74,6 @@ describe('services/driver-job-link — generateDriverJobLink (integration)', () 
     opts: {
       assignedDriverId?: string | null;
       method?: 'driver_self' | 'operator_attested';
-      backfill?: boolean;
     } = {},
   ) {
     const assignedDriverId = opts.assignedDriverId ?? null;
@@ -96,9 +95,6 @@ describe('services/driver-job-link — generateDriverJobLink (integration)', () 
         assignedOperatorId: operatorId,
         assignedDriverId,
         assignmentMethod: assignedDriverId ? (opts.method ?? 'operator_attested') : null,
-        isBackfill: opts.backfill ?? false,
-        backfillDriverName: opts.backfill ? 'Dave Sub' : null,
-        backfillDriverPhone: opts.backfill ? '+447911123456' : null,
       })
       .returning();
     if (!row) throw new Error('seed failed');
@@ -213,12 +209,6 @@ describe('services/driver-job-link — generateDriverJobLink (integration)', () 
     const booking = await seed('cancelled', { assignedDriverId: driverA.id });
     const res = await generateDriverJobLink(booking.id, operatorId, deps());
     expect(res).toEqual({ ok: false, reason: 'wrong_state', state: 'cancelled' });
-  });
-
-  it('rejects a backfill booking (no app driver to sign a link for)', async () => {
-    const booking = await seed('assigned', { backfill: true });
-    const res = await generateDriverJobLink(booking.id, operatorId, deps());
-    expect(res).toEqual({ ok: false, reason: 'no_driver' });
   });
 
   it('rejects a bad secret (link verification is the security boundary)', async () => {

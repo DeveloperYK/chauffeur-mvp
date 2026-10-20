@@ -5,7 +5,7 @@ import { whatsappMobileLink } from './whatsapp';
  * The actions the mobile booking screen offers for each state, in order. The
  * first one is the primary (big) button: on a phone the operator should see
  * one obvious thing to do. Mirrors the desktop detail panel's per-state menu
- * minus the desk-only tools (backfill hand-off, completion link, exec emails),
+ * minus the desk-only tools (completion link, exec emails),
  * which the screen points at the full console for.
  */
 
@@ -33,7 +33,6 @@ export interface MobileAction {
 
 export interface MobileActionInput {
   state: BookingState;
-  isBackfill: boolean;
   openOfferCount: number;
   passengerName: string;
   execMobile: string | null;
@@ -102,9 +101,7 @@ function draftsFor(input: MobileActionInput, contact: DriverContact | null): Dra
             ]
           : []),
         { kind: 'release', label: 'Driver pulled out — unassign', tone: 'default' },
-        ...(input.isBackfill
-          ? []
-          : [{ kind: 'dispatch', label: 'Reassign driver', tone: 'default' } as Draft]),
+        { kind: 'dispatch', label: 'Reassign driver', tone: 'default' },
         EDIT,
         CANCEL,
       ];

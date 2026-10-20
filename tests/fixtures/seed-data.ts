@@ -165,7 +165,6 @@ export interface BookingOverrides {
   createdByOperatorId?: string | null;
   assignedOperatorId?: string | null;
   assignedDriverId?: string | null;
-  backfillCar?: string | null;
   assignedAt?: Date | null;
   carParkPence?: number | null;
   waitingTimeMinutes?: number | null;
@@ -177,9 +176,6 @@ export interface BookingOverrides {
   cancelledByOperatorId?: string | null;
   cancellationReason?: string | null;
   flaggedAt?: Date | null;
-  isBackfill?: boolean;
-  backfillDriverName?: string | null;
-  backfillDriverPhone?: string | null;
   completionByOperator?: boolean;
 }
 
@@ -384,7 +380,6 @@ export const BookingFactory = {
     createdByOperatorId: operatorId,
     assignedOperatorId: overrides.assignedOperatorId ?? operatorId,
     assignedDriverId: overrides.assignedDriverId ?? null,
-    backfillCar: overrides.backfillCar ?? null,
     assignedAt: overrides.assignedAt ?? null,
     carParkPence: overrides.carParkPence ?? null,
     waitingTimeMinutes: overrides.waitingTimeMinutes ?? null,
@@ -396,9 +391,6 @@ export const BookingFactory = {
     cancelledByOperatorId: overrides.cancelledByOperatorId ?? null,
     cancellationReason: overrides.cancellationReason ?? null,
     flaggedAt: overrides.flaggedAt ?? null,
-    isBackfill: overrides.isBackfill ?? false,
-    backfillDriverName: overrides.backfillDriverName ?? null,
-    backfillDriverPhone: overrides.backfillDriverPhone ?? null,
     completionByOperator: overrides.completionByOperator ?? false,
   }),
 };

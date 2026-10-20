@@ -86,7 +86,7 @@ export const createBookingSchema = z
       .max(10_000_00)
       .nullable()
       .optional(),
-    // Price agreed for handing the job to a subcontractor (backfill) driver.
+    // Price agreed with a subcontractor driver for this job.
     subcontractorPricePence: z.coerce
       .number()
       .int()

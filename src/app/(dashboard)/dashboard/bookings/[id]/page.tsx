@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * The standalone booking detail page has been consolidated into the board's
  * detail panel (the single, richer operator surface — find a driver, hand to
- * backfill, edit, cancel, exec messages, history). This route now resolves the
+ * edit, cancel, exec messages, history). This route now resolves the
  * booking's London pickup day and redirects to the board with that booking's
  * panel open (`?date=<day>&booking=<id>`), so old links, bookmarks and search
  * results keep working without a second, divergent surface.

@@ -57,14 +57,13 @@ describe('services/change-confirmation (integration)', () => {
   async function seed(opts: {
     status?: 'none' | 'pending' | 'confirmed';
     assigned?: boolean;
-    backfill?: boolean;
     execRelevant?: boolean;
     execEmail?: string | null;
   }) {
     const [row] = await db
       .insert(bookings)
       .values({
-        state: opts.backfill || opts.assigned ? 'assigned' : 'unassigned',
+        state: opts.assigned ? 'assigned' : 'unassigned',
         // Far-future pickup so the minted link's expiry (pickup + 2d) is always
         // ahead of the real clock used by signDriverLink/verifyDriverLink.
         pickupAt: new Date('2099-06-01T10:00:00.000Z'),
@@ -80,10 +79,7 @@ describe('services/change-confirmation (integration)', () => {
         contractPricePence: 30000,
         createdByOperatorId: operatorId,
         assignedOperatorId: operatorId,
-        assignedDriverId: opts.backfill ? null : opts.assigned ? driverId : null,
-        isBackfill: opts.backfill ?? false,
-        backfillDriverName: opts.backfill ? 'Sub Sam' : null,
-        backfillDriverPhone: opts.backfill ? '+447900000777' : null,
+        assignedDriverId: opts.assigned ? driverId : null,
         changeConfirmationStatus: opts.status ?? 'none',
         changeExecRelevant: opts.execRelevant ?? false,
         changePendingSince: opts.status === 'pending' ? new Date() : null,
@@ -129,16 +125,6 @@ describe('services/change-confirmation (integration)', () => {
         appUrl: APP_URL,
       });
       expect(res).toEqual({ ok: false, reason: 'no_pending_change' });
-    });
-
-    it('rejects a backfill job (no app driver) — operator must attest', async () => {
-      const booking = await seed({ status: 'pending', backfill: true });
-      const res = await generateChangeConfirmLink(booking.id, operatorId, {
-        db,
-        secret: SECRET,
-        appUrl: APP_URL,
-      });
-      expect(res).toEqual({ ok: false, reason: 'no_app_driver' });
     });
 
     it('rejects an unknown booking', async () => {

@@ -270,9 +270,8 @@ export const bookings = pgTable(
     // price when the booking call comes in — a booking without one is flagged in
     // the console until it's set.
     contractPricePence: integer('contract_price_pence'),
-    // Price agreed for handing the job to a subcontractor (backfill) driver —
-    // the quote captured at booking time, distinct from backfill_driver_pay_pence
-    // (what the covering driver is actually paid, entered at handoff).
+    // Price agreed with a subcontractor driver for this job — the quote
+    // captured at booking time. Mirrored to the sheet's Driver Cost column.
     subcontractorPricePence: integer('subcontractor_price_pence'),
     // Driver-facing notes. Shown to the driver on the dispatch link page and
     // labelled "Notes for the driver" in the operator UI.
@@ -297,25 +296,9 @@ export const bookings = pgTable(
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
     // How the assigned driver was committed: `driver_self` — the driver tapped
     // their dispatch link; `operator_attested` — the operator phoned them and
-    // marked it confirmed (direct assign / swap). Null for unassigned/backfill.
+    // marked it confirmed (direct assign / swap). Null for unassigned.
     // See docs/shaping/mid-flight-changes.
     assignmentMethod: confirmationMethodEnum('assignment_method'),
-
-    // Backfill (subcontractor) driver — used when no internal driver is
-    // available and the operator hands the job to someone from the WhatsApp
-    // group. The booking moves through assigned → in_progress → completed with
-    // `assignedDriverId` null and these free-text fields recording who covered
-    // it: the driver's identity (name + phone) and the car they bring. Internal
-    // drivers carry their car on the driver profile instead, so this only
-    // applies to backfills. See docs/shaping/backfill-drivers.
-    isBackfill: boolean('is_backfill').notNull().default(false),
-    backfillDriverName: text('backfill_driver_name'),
-    backfillDriverPhone: text('backfill_driver_phone'),
-    backfillCar: text('backfill_car'),
-    // What the backfill (subcontractor) driver is paid for this job, in pence.
-    // Internal drivers are salaried — only backfill drivers are paid per booking,
-    // so this is null for internal jobs and operator-entered at handoff.
-    backfillDriverPayPence: integer('backfill_driver_pay_pence'),
 
     // Completion form. The driver reports arrival + completion wall-clock times,
     // the minutes they waited (entered directly; 0 = arrived on time), and a
