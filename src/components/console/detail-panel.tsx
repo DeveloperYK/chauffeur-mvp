@@ -54,6 +54,15 @@ interface DetailPanelProps {
   onMutated: (toast: string) => void;
 }
 
+/** Minutes between a stop's recorded arrival and departure. */
+function stopWaitMinutes(stop: { arrivedAt: string | null; departedAt: string | null }): number {
+  if (!stop.arrivedAt || !stop.departedAt) return 0;
+  return Math.max(
+    0,
+    Math.round((new Date(stop.departedAt).getTime() - new Date(stop.arrivedAt).getTime()) / 60_000),
+  );
+}
+
 export function DetailPanel({
   booking,
   drivers,
@@ -969,12 +978,27 @@ export function DetailPanel({
                     <div className="ir__v">{fmtTimeWithDay(booking.passengerOnBoardAt)}</div>
                   </div>
                 ) : null}
+                {booking.stops.map((stop, i) =>
+                  stop.arrivedAt && stop.departedAt ? (
+                    <div className="ir" key={stop.seq} data-testid="completion-stop-row">
+                      <div className="ir__k">Stop {i + 1}</div>
+                      <div className="ir__v">
+                        {fmtTimeWithDay(stop.arrivedAt)} → {fmtTimeWithDay(stop.departedAt)}
+                        <span className="muted"> ({stopWaitMinutes(stop)} min waiting)</span>
+                      </div>
+                    </div>
+                  ) : null,
+                )}
                 <div className="ir">
                   <div className="ir__k">Waiting time</div>
                   <div className="ir__v">
                     {booking.waitingTimeMinutes ?? 0} min
                     {booking.passengerOnBoardAt ? (
-                      <span className="muted"> (on board − later of pickup/arrival)</span>
+                      <span className="muted">
+                        {booking.stops.length > 0
+                          ? ' (at the pickup + at each stop)'
+                          : ' (on board − later of pickup/arrival)'}
+                      </span>
                     ) : null}
                   </div>
                 </div>

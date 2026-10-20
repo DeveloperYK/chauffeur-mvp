@@ -11,14 +11,32 @@ import { addDaysToDayString, formatLondonDay, londonWallClockToUtc } from '@/lib
  * the *later* of the booked pickup and the driver's actual arrival, floored at
  * zero. A driver arriving early doesn't start the clock sooner, and a driver
  * arriving late doesn't bill the client for their own lateness.
+ *
+ * A multi-stop journey adds an arrived/left pair per intermediate stop, in
+ * journey order, chained between boarding and the drop-off with the same
+ * day-rollover rule; each stop's `left − arrived` is added to the waiting.
  */
+export interface StopTimeInput {
+  /** Driver arrived at the stop, "HH:MM" (24h, Europe/London). */
+  arrivedTime: string;
+  /** Driver left the stop, "HH:MM" (24h, Europe/London). */
+  leftTime: string;
+}
+
 export interface CompletionTimeInput {
   /** Driver arrived at the pickup, "HH:MM" (24h, Europe/London). */
   arrivalTime: string;
   /** Passenger on board, "HH:MM" (24h, Europe/London). */
   passengerOnBoardTime: string;
+  /** One pair per intermediate stop, in journey order (none for A→B). */
+  stops?: readonly StopTimeInput[] | undefined;
   /** Trip finished (drop-off), "HH:MM" (24h, Europe/London). */
   completionTime: string;
+}
+
+export interface ResolvedStopTimes {
+  arrivedAt: Date;
+  departedAt: Date;
 }
 
 export interface ResolvedCompletionTimes {
@@ -26,9 +44,11 @@ export interface ResolvedCompletionTimes {
   arrivalAt: Date;
   /** Passenger on board (stored as `passenger_on_board_at`). */
   passengerOnBoardAt: Date;
+  /** Per-stop arrival/departure, same order as the input (stored on `booking_stops`). */
+  stopTimes: ResolvedStopTimes[];
   /** Trip completion (stored as `dropoff_at`). */
   dropoffAt: Date;
-  /** Derived chargeable waiting: on-board − max(booked pickup, arrival), ≥ 0. */
+  /** Derived chargeable waiting: pickup wait + Σ (left − arrived) per stop, ≥ 0. */
   waitingTimeMinutes: number;
 }
 
@@ -68,6 +88,11 @@ export function resolveCompletionTimes(
   const onBoard = parseHhmm(input.passengerOnBoardTime);
   const completion = parseHhmm(input.completionTime);
   if (!arrival || !onBoard || !completion) return { ok: false, reason: 'bad_format' };
+  const stopInputs = (input.stops ?? []).map((s) => ({
+    arrived: parseHhmm(s.arrivedTime),
+    left: parseHhmm(s.leftTime),
+  }));
+  if (stopInputs.some((s) => !s.arrived || !s.left)) return { ok: false, reason: 'bad_format' };
 
   const pickupDay = formatLondonDay(pickupAt);
   const dayBefore = addDaysToDayString(pickupDay, -1);
@@ -104,16 +129,30 @@ export function resolveCompletionTimes(
   };
 
   const passengerOnBoardAt = afterAnchor(arrivalAt, onBoard);
-  const dropoffAt = afterAnchor(passengerOnBoardAt, completion);
+
+  // Each stop follows the previous instant; its wait is left − arrived.
+  let cursor = passengerOnBoardAt;
+  let stopWaitingMinutes = 0;
+  const stopTimes: ResolvedStopTimes[] = [];
+  for (const s of stopInputs) {
+    if (!s.arrived || !s.left) return { ok: false, reason: 'bad_format' };
+    const arrivedAt = afterAnchor(cursor, s.arrived);
+    const departedAt = afterAnchor(arrivedAt, s.left);
+    stopWaitingMinutes += Math.round((departedAt.getTime() - arrivedAt.getTime()) / 60_000);
+    stopTimes.push({ arrivedAt, departedAt });
+    cursor = departedAt;
+  }
+  const dropoffAt = afterAnchor(cursor, completion);
 
   // Chargeable waiting starts at the later of the booked pickup and the actual
   // arrival, so a late driver's lost time is never billed to the client.
   const waitingStartMs = Math.max(pickupAt.getTime(), arrivalAt.getTime());
-  const waitingTimeMinutes = Math.max(
+  const pickupWaitingMinutes = Math.max(
     0,
     Math.round((passengerOnBoardAt.getTime() - waitingStartMs) / 60_000),
   );
+  const waitingTimeMinutes = pickupWaitingMinutes + stopWaitingMinutes;
   if (waitingTimeMinutes > MAX_WAITING_MINUTES) return { ok: false, reason: 'waiting_too_long' };
 
-  return { ok: true, arrivalAt, passengerOnBoardAt, dropoffAt, waitingTimeMinutes };
+  return { ok: true, arrivalAt, passengerOnBoardAt, stopTimes, dropoffAt, waitingTimeMinutes };
 }

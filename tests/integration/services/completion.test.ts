@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake';
-import { auditEvents, bookings, consumedTokens, drivers, operators } from '@/server/db/schema';
+import {
+  auditEvents,
+  bookingStops,
+  bookings,
+  consumedTokens,
+  drivers,
+  operators,
+} from '@/server/db/schema';
 import { completionLinkExpiry } from '@/server/domain/durations';
 import { signDriverLink } from '@/server/domain/link-tokens';
 import { fixedClock } from '@/server/ports/clock';
@@ -401,6 +408,102 @@ describe('services/completion (integration)', () => {
         // Passenger "on board" 00:30 rolls past midnight → 13.5h after the
         // 11:00 London pickup, past the 720-min waiting cap.
         { ...input, passengerOnBoardTime: '00:30', completionTime: '01:30' },
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('times_invalid');
+    });
+  });
+
+  describe('multi-stop journeys', () => {
+    const onBehalfDeps = () => ({ ...deps(), mirror: new FakeSpreadsheetMirror() });
+    async function seedStops() {
+      await db.insert(bookingStops).values([
+        { bookingId, seq: 1, address: 'Stop A, London E1 6AN', plannedWaitMinutes: 40 },
+        { bookingId, seq: 2, address: 'Stop B, London E2 7DG', plannedWaitMinutes: 0 },
+      ]);
+    }
+    async function tokenFor() {
+      const gen = await generateCompletionLink(bookingId, operatorId, deps());
+      if (!gen.ok) throw new Error('setup');
+      return new URL(gen.url).pathname.split('/').pop() ?? '';
+    }
+    // Pickup 11:00 London. On board 11:12 (12 min), stop A 11:40–12:25 (45),
+    // stop B 13:00–13:10 (10) → 67 min waiting, drop-off 13:30.
+    const STOP_TIMES = [
+      { arrivedTime: '11:40', leftTime: '12:25' },
+      { arrivedTime: '13:00', leftTime: '13:10' },
+    ];
+
+    it("driver submit records each stop's arrival/departure and sums the waiting", async () => {
+      await seedStops();
+      const token = await tokenFor();
+      const r = await submitCompletionForm(
+        { token, carParkPence: 0, ...FORM_TIMES, completionTime: '13:30', stops: STOP_TIMES },
+        deps(),
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.waitingTimeMinutes).toBe(67);
+      const rows = await db
+        .select()
+        .from(bookingStops)
+        .where(eq(bookingStops.bookingId, bookingId))
+        .orderBy(bookingStops.seq);
+      expect(rows.map((s) => [s.arrivedAt?.toISOString(), s.departedAt?.toISOString()])).toEqual([
+        ['2026-06-01T10:40:00.000Z', '2026-06-01T11:25:00.000Z'],
+        ['2026-06-01T12:00:00.000Z', '2026-06-01T12:10:00.000Z'],
+      ]);
+    });
+
+    it('driver submit rejects a form with the wrong number of stop times (none, or too few)', async () => {
+      await seedStops();
+      const token = await tokenFor();
+      const none = await submitCompletionForm({ token, carParkPence: 0, ...FORM_TIMES }, deps());
+      expect(none.ok).toBe(false);
+      if (!none.ok) expect(none.reason).toBe('times_invalid');
+      const few = await submitCompletionForm(
+        { token, carParkPence: 0, ...FORM_TIMES, stops: STOP_TIMES.slice(0, 1) },
+        deps(),
+      );
+      expect(few.ok).toBe(false);
+      if (!few.ok) expect(few.reason).toBe('times_invalid');
+      const [row] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+      expect(row?.state).toBe('awaiting_driver_form');
+    });
+
+    it('a booking with no stops still rejects stop times (nothing to attach them to)', async () => {
+      const token = await tokenFor();
+      const r = await submitCompletionForm(
+        { token, carParkPence: 0, ...FORM_TIMES, stops: STOP_TIMES.slice(0, 1) },
+        deps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe('times_invalid');
+    });
+
+    it('operator completion on behalf records the stop times and the summed waiting', async () => {
+      await seedStops();
+      const r = await completeFormOnBehalf(
+        bookingId,
+        { carParkPence: 0, ...FORM_TIMES, completionTime: '13:30', stops: STOP_TIMES },
+        operatorId,
+        onBehalfDeps(),
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.booking.state).toBe('completed');
+      expect(r.booking.waitingTimeMinutes).toBe(67);
+      const rows = await db.select().from(bookingStops).orderBy(bookingStops.seq);
+      expect(rows.every((s) => s.arrivedAt && s.departedAt)).toBe(true);
+    });
+
+    it('operator completion on behalf rejects missing stop times', async () => {
+      await seedStops();
+      const r = await completeFormOnBehalf(
+        bookingId,
+        { carParkPence: 0, ...FORM_TIMES },
         operatorId,
         onBehalfDeps(),
       );

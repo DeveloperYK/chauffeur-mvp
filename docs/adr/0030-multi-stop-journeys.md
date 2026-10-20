@@ -1,6 +1,6 @@
 # ADR 0030 — Multi-stop journeys: ordered stops on one booking
 
-**Date:** 2026-10-20 · **Status:** Accepted (slice V1 of 5)
+**Date:** 2026-10-20 · **Status:** Accepted — all five slices shipped 2026-10-20 (#260, #262, #264, #266, V5)
 
 ## Context
 

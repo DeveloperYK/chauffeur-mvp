@@ -482,6 +482,7 @@ async function CompletionPage({
     .from(driversTable)
     .where(eq(driversTable.id, driverId))
     .limit(1);
+  const stops = orderedStops(await listStops(database, booking.id));
 
   return (
     <Stage>
@@ -512,6 +513,38 @@ async function CompletionPage({
           />
           <div className="hint">When the passenger got in the car.</div>
         </div>
+        {stops.map((stop, i) => (
+          <fieldset className="stop-times" key={stop.id} data-testid="completion-stop">
+            <legend>
+              Stop {i + 1} · {stop.address}
+            </legend>
+            <div className="field">
+              <label htmlFor={`stop${i + 1}ArrivedTime`}>
+                Arrived <span className="req">*</span>
+              </label>
+              <input
+                id={`stop${i + 1}ArrivedTime`}
+                className="input"
+                type="time"
+                name={`stop.${i}.arrivedTime`}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor={`stop${i + 1}LeftTime`}>
+                Left <span className="req">*</span>
+              </label>
+              <input
+                id={`stop${i + 1}LeftTime`}
+                className="input"
+                type="time"
+                name={`stop.${i}.leftTime`}
+                required
+              />
+              <div className="hint">Waiting at this stop is charged from these two times.</div>
+            </div>
+          </fieldset>
+        ))}
         <div className="field">
           <label htmlFor="completionTime">
             Completion time <span className="req">*</span>

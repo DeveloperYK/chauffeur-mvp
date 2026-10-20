@@ -133,6 +133,8 @@ export async function completeFormOnBehalfAction(
   input: {
     arrivalTime: string;
     passengerOnBoardTime: string;
+    /** One arrived/left pair per intermediate stop, in journey order. */
+    stops?: { arrivedTime: string; leftTime: string }[];
     completionTime: string;
     carParkPence: number;
   },
@@ -145,6 +147,7 @@ export async function completeFormOnBehalfAction(
     {
       arrivalTime: input.arrivalTime,
       passengerOnBoardTime: input.passengerOnBoardTime,
+      stops: (input.stops ?? []).map((s) => ({ arrivedTime: s.arrivedTime, leftTime: s.leftTime })),
       completionTime: input.completionTime,
       carParkPence: input.carParkPence,
     },

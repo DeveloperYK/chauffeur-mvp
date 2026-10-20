@@ -529,6 +529,20 @@ test('assigned driver: clock → completion link → driver fills the form → a
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Assigned');
 
+  // ── Console: make it a multi-stop journey (one stop, 40 min planned wait) ──
+  await openBookingPanel(page, JJ);
+  await page.locator('.panel.is-open').getByRole('button', { name: 'Edit', exact: true }).click();
+  const stopModal = page.locator('.modal.is-open');
+  await stopModal.getByTestId('add-stop').click();
+  await stopModal
+    .getByLabel('Stop 1 address')
+    .fill('1 Canada Square, Canary Wharf, London E14 5AB');
+  await stopModal.getByLabel('Stop 1 wait minutes').fill('40');
+  await stopModal.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText(/Booking updated/i);
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await gotoSimulator(page);
+
   // ── Clock: assigned → in_progress (no automatic exec message any more) ─
   await clickAndSettle(page, page.getByRole('button', { name: 'Run clock tick' }).click());
   await expectSimState(page, JJ, 'In progress');
@@ -573,7 +587,11 @@ test('assigned driver: clock → completion link → driver fills the form → a
   const nowHhmm = londonNowHhmm();
   await page.locator('#arrivalTime').fill(nowHhmm);
   await page.locator('#passengerOnBoardTime').fill(nowHhmm);
-  await page.locator('#completionTime').fill('12:30');
+  // The stop added above asks for its own arrived/left pair (ADR 0030).
+  await expect(page.getByTestId('completion-stop')).toHaveCount(1);
+  await page.locator('#stop1ArrivedTime').fill(nowHhmm);
+  await page.locator('#stop1LeftTime').fill(hhmmPlusMinutes(nowHhmm, 25));
+  await page.locator('#completionTime').fill(hhmmPlusMinutes(nowHhmm, 90));
   await page.locator('#parkingFeePounds').fill('5');
   await Promise.all([
     page.waitForURL(/status=submitted/),
@@ -583,8 +601,17 @@ test('assigned driver: clock → completion link → driver fills the form → a
   await gotoSimulator(page);
   await expectSimState(page, JJ, 'Awaiting operator review');
 
-  // ── Console: approve → completed ──
+  // ── Console: the review card shows the stop's times and the summed waiting ──
   await openBookingPanel(page, JJ);
+  await expect(page.locator('.panel.is-open [data-testid="completion-stop-row"]')).toHaveCount(1);
+  await expect(page.locator('.panel.is-open [data-testid="completion-stop-row"]')).toContainText(
+    '25 min waiting',
+  );
+  await expect(page.locator('.panel.is-open')).toContainText(
+    '25 min (at the pickup + at each stop)',
+  );
+
+  // ── Console: approve → completed ──
   await page.locator('.panel.is-open').getByRole('button', { name: 'Approve & complete' }).click();
   await expect(page.locator('.toast')).toContainText(/approved/i);
 
