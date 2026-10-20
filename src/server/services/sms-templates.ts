@@ -1,5 +1,6 @@
 import { bookingRef } from '@/lib/booking-ref';
 import { formatLondonDateTimeShort, formatLondonTimeOfDay } from '@/lib/dates';
+import { type RouteStop, routeLines } from '@/lib/route-summary';
 import { travelRefLabel } from '@/lib/travel-ref';
 import type { Booking } from '@/server/db/schema';
 
@@ -97,8 +98,17 @@ export function changeExecSms(booking: Booking): string {
  *   12 King St, London -> Heathrow T5         Pickup: 12 King St, London
  *   Accept: <url>                             As directed - 4 hours
  *                                             Accept: <url>
+ *
+ * A multi-stop transfer lists the journey one point per line:
+ *   12 King St, London
+ *   -> 1 Canary Wharf (wait ~40 min)
+ *   -> Heathrow T5
  */
-export function dispatchSms(booking: Booking, url: string): string {
+export function dispatchSms(
+  booking: Booking,
+  url: string,
+  stops: readonly RouteStop[] = [],
+): string {
   const lines = [
     `${SMS_BRAND_NAME} - New job ${bookingRef(booking.seq)}`,
     formatLondonDateTimeShort(booking.pickupAt),
@@ -109,7 +119,7 @@ export function dispatchSms(booking: Booking, url: string): string {
       `As directed - ${formatHireDuration(booking.expectedDurationMinutes)}`,
     );
   } else {
-    lines.push(`${booking.pickupAddress} -> ${destination(booking)}`);
+    lines.push(...routeLines({ ...booking, stops }));
   }
   const travel = travelRefLabel(booking.travelMode, booking.travelRef);
   if (travel) lines.push(travel);
@@ -128,7 +138,11 @@ export function dispatchSms(booking: Booking, url: string): string {
  *   12 King St, London -> Heathrow T5
  *   Details: <url>
  */
-export function driverJobSms(booking: Booking, url: string): string {
+export function driverJobSms(
+  booking: Booking,
+  url: string,
+  stops: readonly RouteStop[] = [],
+): string {
   const lines = [
     `${SMS_BRAND_NAME} - Your job ${bookingRef(booking.seq)}`,
     formatLondonDateTimeShort(booking.pickupAt),
@@ -139,7 +153,7 @@ export function driverJobSms(booking: Booking, url: string): string {
       `As directed - ${formatHireDuration(booking.expectedDurationMinutes)}`,
     );
   } else {
-    lines.push(`${booking.pickupAddress} -> ${destination(booking)}`);
+    lines.push(...routeLines({ ...booking, stops }));
   }
   const travel = travelRefLabel(booking.travelMode, booking.travelRef);
   if (travel) lines.push(travel);

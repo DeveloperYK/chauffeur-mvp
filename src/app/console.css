@@ -2715,6 +2715,12 @@ a:hover {
   background: transparent;
   border: 1.5px solid var(--ink-3);
 }
+.public-card__job .row .pin.via {
+  background: var(--surface);
+  border: 1.5px solid var(--ink-3);
+  width: 7px;
+  height: 7px;
+}
 .public-card__job .row .addr {
   font-size: 13px;
   line-height: 1.4;

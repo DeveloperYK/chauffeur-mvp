@@ -2,6 +2,7 @@ import { FakeSpreadsheetMirror } from '@/server/adapters/spreadsheet-mirror-fake
 import {
   type BookingState,
   auditEvents,
+  bookingStops,
   bookings,
   dispatchOffers,
   drivers,
@@ -139,6 +140,23 @@ describe('services/driver-job-link — generateDriverJobLink (integration)', () 
     const token = res.url.slice('https://example.test/j/'.length);
     const job = await previewDriverJob(token, { db, secret: SECRET, appUrl: APP_URL });
     expect(job.ok).toBe(true);
+  });
+
+  it("lists the booking's stops in the job message", async () => {
+    const booking = await seed('assigned', { assignedDriverId: driverA.id });
+    await db.insert(bookingStops).values([
+      {
+        bookingId: booking.id,
+        seq: 1,
+        address: '1 Canary Wharf, London E14 5AB',
+        plannedWaitMinutes: 40,
+      },
+    ]);
+    const res = await generateDriverJobLink(booking.id, operatorId, deps());
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.message).toContain('-> 1 Canary Wharf, London E14 5AB (wait ~40 min)');
+    expect(res.message).toContain('-> LHR Terminal 5');
   });
 
   it('builds a branded short link and a WhatsApp message carrying it, to the driver', async () => {
