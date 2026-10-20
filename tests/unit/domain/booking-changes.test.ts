@@ -100,3 +100,13 @@ describe('domain/booking-changes — requested car type', () => {
     expect(isExecFacingChange(['car type'])).toBe(false);
   });
 });
+
+describe('domain/booking-changes — stops (multi-stop journey)', () => {
+  it('is material when the stops changed (the driver was told the route)', () => {
+    expect(isMaterialChange(['stops'])).toBe(true);
+  });
+
+  it('is exec-facing (the exec was told the route in their confirmation)', () => {
+    expect(isExecFacingChange(['stops'])).toBe(true);
+  });
+});

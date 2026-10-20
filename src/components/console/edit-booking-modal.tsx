@@ -4,6 +4,7 @@ import { editBookingAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { milesStringFromMeters } from '@/lib/distance';
 import { EXEC_NOTIFICATION_CHANNEL } from '@/lib/exec-channel';
 import { hasPostcode, isValidUkPostcode, withPostcode } from '@/lib/postcode';
+import { totalPlannedWaitMinutes } from '@/lib/route-summary';
 import { getRouteEstimate } from '@/lib/routes';
 import type { ServiceType } from '@/server/db/schema';
 import { useEffect, useRef, useState, useTransition } from 'react';
@@ -13,6 +14,7 @@ import { CustomerAccountAutocomplete } from './customer-account-autocomplete';
 import { toLocalDateTimeInput } from './format';
 import { Icon } from './icons';
 import { POSTCODE_INVALID_MESSAGE, PostcodeField } from './postcode-field';
+import { type FormStop, StopsEditor, newFormStop } from './stops-editor';
 import type { ConsoleBooking } from './types';
 
 /** "YYYY-MM" of a datetime-local value, or null when not yet a full date. */
@@ -37,6 +39,8 @@ interface EditForm {
   distanceMeters: number | null;
   pickupAddress: string;
   dropoffAddress: string;
+  /** Intermediate stops of a multi-stop transfer (transfer only). */
+  stops: FormStop[];
   /** Typed by the operator only when the address itself has no postcode. */
   pickupPostcode: string;
   dropoffPostcode: string;
@@ -81,6 +85,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
         distanceMeters: booking.distanceMeters,
         pickupAddress: booking.pickupAddress,
         dropoffAddress: booking.dropoffAddress,
+        stops: booking.stops.map((s, i) => newFormStop(i, s)),
         pickupPostcode: '',
         dropoffPostcode: '',
         passengerFirstName: booking.passengerFirstName,
@@ -104,46 +109,62 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
       setError(null);
       setPostcodeErrors({});
       setRouteStatus('idle');
+      setDriveMinutes(null);
     }
   }, [isOpen, booking?.id]);
 
   const serviceType = form?.serviceType;
   const pickupAddress = form?.pickupAddress;
   const dropoffAddress = form?.dropoffAddress;
+  const stopAddressesKey = (form?.stops ?? []).map((s) => s.address.trim()).join('\u0000');
+  const plannedWait = totalPlannedWaitMinutes(form?.stops ?? []);
+  /** Drive time of the last estimate, before planned waits are added. */
+  const [driveMinutes, setDriveMinutes] = useState<number | null>(null);
 
-  // Re-estimate a transfer's distance + drive time when both ends are set.
+  // Re-estimate a transfer's distance + drive time when both ends (and every
+  // stop) are set: one Directions call with the stops as waypoints.
   useEffect(() => {
     if (routeTimer.current) clearTimeout(routeTimer.current);
     if (serviceType !== 'transfer' || !pickupAddress || !dropoffAddress) {
       setRouteStatus('idle');
       return;
     }
-    if (pickupAddress.trim().length < 3 || dropoffAddress.trim().length < 3) {
+    const stopAddresses = stopAddressesKey ? stopAddressesKey.split('\u0000') : [];
+    if (
+      pickupAddress.trim().length < 3 ||
+      dropoffAddress.trim().length < 3 ||
+      stopAddresses.some((a) => a.length < 3)
+    ) {
       setRouteStatus('idle');
       return;
     }
     setRouteStatus('loading');
     routeTimer.current = setTimeout(async () => {
-      const est = await getRouteEstimate(pickupAddress, dropoffAddress);
+      const est = await getRouteEstimate(pickupAddress, dropoffAddress, stopAddresses);
       if (!est) {
         setRouteStatus('failed');
         return;
       }
+      setDriveMinutes(est.durationMinutes);
       setForm((p) =>
-        p && p.serviceType === 'transfer'
-          ? {
-              ...p,
-              distanceMeters: est.distanceMeters,
-              expectedDurationMinutes: est.durationMinutes,
-            }
-          : p,
+        p && p.serviceType === 'transfer' ? { ...p, distanceMeters: est.distanceMeters } : p,
       );
       setRouteStatus('ready');
     }, ROUTE_DEBOUNCE_MS);
     return () => {
       if (routeTimer.current) clearTimeout(routeTimer.current);
     };
-  }, [serviceType, pickupAddress, dropoffAddress]);
+  }, [serviceType, pickupAddress, dropoffAddress, stopAddressesKey]);
+
+  // Duration = estimated drive time + planned waits (no refetch for a wait edit).
+  useEffect(() => {
+    if (driveMinutes == null) return;
+    setForm((p) =>
+      p && p.serviceType === 'transfer'
+        ? { ...p, expectedDurationMinutes: driveMinutes + plannedWait }
+        : p,
+    );
+  }, [driveMinutes, plannedWait]);
 
   if (!booking || !form) return null;
   const set = <K extends keyof EditForm>(k: K, v: EditForm[K]) =>
@@ -156,6 +177,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
             ...p,
             serviceType: next,
             dropoffAddress: next === 'hourly' ? '' : p.dropoffAddress,
+            stops: next === 'hourly' ? [] : p.stops,
             distanceMeters: null,
             expectedDurationMinutes:
               next === 'hourly' ? DEFAULT_HOURLY_MINUTES : DEFAULT_TRANSFER_MINUTES,
@@ -184,6 +206,13 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     setPostcodeErrors({});
     // A manual postcode is mandatory whenever the address lacks one — this is
     // how older bookings saved without a postcode get one on their next edit.
+    const stopPostcodeErrors: Record<string, string> = {};
+    form.stops.forEach((stop, i) => {
+      const needs = stop.address.trim().length > 0 && !hasPostcode(stop.address);
+      if (needs && !isValidUkPostcode(stop.postcode)) {
+        stopPostcodeErrors[`stops.${i}.postcode`] = POSTCODE_INVALID_MESSAGE;
+      }
+    });
     const nextPostcodeErrors = {
       ...(needsPickupPostcode && !isValidUkPostcode(form.pickupPostcode)
         ? { pickupPostcode: POSTCODE_INVALID_MESSAGE }
@@ -191,6 +220,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
       ...(needsDropoffPostcode && !isValidUkPostcode(form.dropoffPostcode)
         ? { dropoffPostcode: POSTCODE_INVALID_MESSAGE }
         : {}),
+      ...stopPostcodeErrors,
     };
     if (Object.keys(nextPostcodeErrors).length > 0) {
       setError('Please fix the highlighted fields.');
@@ -209,6 +239,18 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
     if (form.serviceType === 'transfer' && form.distanceMeters != null) {
       fd.set('distanceMeters', String(form.distanceMeters));
     }
+    // The whole stop list, in journey order, postcodes applied (empty = none).
+    fd.set(
+      'stops',
+      JSON.stringify(
+        form.serviceType === 'transfer'
+          ? form.stops.map((s) => ({
+              address: withPostcode(s.address, s.postcode),
+              plannedWaitMinutes: s.plannedWaitMinutes,
+            }))
+          : [],
+      ),
+    );
     fd.set('passengerFirstName', form.passengerFirstName);
     fd.set('passengerLastName', form.passengerLastName);
     fd.set('execMobile', form.execMobile);
@@ -326,6 +368,11 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
 
             {form.serviceType === 'transfer' ? (
               <>
+                <StopsEditor
+                  stops={form.stops}
+                  onChange={(stops) => set('stops', stops)}
+                  fieldErrors={postcodeErrors}
+                />
                 <div className="field">
                   {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
                   <label>
@@ -341,7 +388,7 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                       {routeStatus === 'loading'
                         ? 'Estimating route…'
                         : miles
-                          ? `≈ ${form.expectedDurationMinutes} min · ${miles} mi`
+                          ? `≈ ${form.expectedDurationMinutes} min · ${miles} mi${plannedWait > 0 ? ` (incl. ${plannedWait} min waiting)` : ''}`
                           : 'Drive time is estimated from the route.'}
                     </div>
                   </div>

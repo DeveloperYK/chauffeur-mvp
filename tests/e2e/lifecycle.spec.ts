@@ -675,6 +675,12 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   await expect(editModal).toBeVisible();
   // Duration is a driver-facing field, so editing it is a material change.
   await editModal.locator('.field', { hasText: 'Duration (min)' }).locator('input').fill('200');
+  // Add an intermediate stop with a planned wait (multi-stop journeys, ADR 0030).
+  await editModal.getByTestId('add-stop').click();
+  await editModal
+    .getByLabel('Stop 1 address')
+    .fill('1 Canada Square, Canary Wharf, London E14 5AB');
+  await editModal.getByLabel('Stop 1 wait minutes').fill('40');
   // LEGO's seeded destination has no postcode (a pre-postcode-rule booking), so
   // the edit form insists on one before it will save.
   await editModal.getByRole('button', { name: 'Save changes' }).click();
@@ -687,6 +693,9 @@ test('mid-flight change: editing an assigned booking flags it, operator attests 
   // board tile and in the rail's "Tell driver of change" count, not just in the panel.
   await openBookingPanel(page, LEGO);
   await expect(page.locator('.panel.is-open')).toContainText('CHANGE — DRIVER NOT CONFIRMED');
+  // The new stop is on the Trip card, with its planned wait.
+  await expect(page.locator('.panel.is-open [data-testid="trip-stop"]')).toHaveCount(1);
+  await expect(page.locator('.panel.is-open [data-testid="trip-stop"]')).toContainText('wait ~40m');
   await expect(page.locator('.card', { hasText: 'LEGO Group' }).first()).toContainText(
     'change not confirmed',
   );

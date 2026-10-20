@@ -1,4 +1,11 @@
-import { type BookingState, auditEvents, bookings, drivers, operators } from '@/server/db/schema';
+import {
+  type BookingState,
+  auditEvents,
+  bookingStops,
+  bookings,
+  drivers,
+  operators,
+} from '@/server/db/schema';
 import { editBooking } from '@/server/services/edit-booking';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -243,5 +250,132 @@ describe('services/edit-booking — mid-flight change flag (integration)', () =>
     expect(row?.changeConfirmedMethod).toBeNull();
     expect(row?.changeConfirmedByOperatorId).toBeNull();
     expect(row?.changeConfirmedAt).toBeNull();
+  });
+
+  describe('stops (multi-stop journey)', () => {
+    const stop = (address: string, plannedWaitMinutes = 0) => ({ address, plannedWaitMinutes });
+
+    it('adding a stop while assigned flags pending and exec-relevant, reporting "stops"', async () => {
+      const b = await seed('assigned');
+      const res = await editBooking(
+        fullEdit(b.id, { stops: [stop('1 Canary Wharf, London E14 5AB', 40)] }),
+        operatorId,
+        { db },
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.changedFields).toEqual(['stops']);
+      expect(res.materialChange).toBe(true);
+      expect(res.booking.changeConfirmationStatus).toBe('pending');
+      expect(res.booking.changeExecRelevant).toBe(true);
+      const rows = await db.select().from(bookingStops).where(eq(bookingStops.bookingId, b.id));
+      expect(rows.map((r) => [r.seq, r.address, r.plannedWaitMinutes])).toEqual([
+        [1, '1 Canary Wharf, London E14 5AB', 40],
+      ]);
+    });
+
+    it('re-sending the same stops is not a change', async () => {
+      const b = await seed('assigned');
+      await db.insert(bookingStops).values({
+        bookingId: b.id,
+        seq: 1,
+        address: 'A Street, London E1 6AN',
+        plannedWaitMinutes: 10,
+      });
+      const res = await editBooking(
+        fullEdit(b.id, { stops: [stop('A Street, London E1 6AN', 10)] }),
+        operatorId,
+        { db },
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.changedFields).toEqual([]);
+      expect(res.materialChange).toBe(false);
+    });
+
+    it('reordering, changing a wait, or removing a stop is a "stops" change and replaces the rows', async () => {
+      const b = await seed('assigned');
+      await db.insert(bookingStops).values([
+        { bookingId: b.id, seq: 1, address: 'A Street, London E1 6AN', plannedWaitMinutes: 10 },
+        { bookingId: b.id, seq: 2, address: 'B Road, London E2 7DG', plannedWaitMinutes: 0 },
+      ]);
+      const reordered = await editBooking(
+        fullEdit(b.id, {
+          stops: [stop('B Road, London E2 7DG'), stop('A Street, London E1 6AN', 10)],
+        }),
+        operatorId,
+        { db },
+      );
+      expect(reordered.ok && reordered.changedFields).toEqual(['stops']);
+      const waitChanged = await editBooking(
+        fullEdit(b.id, {
+          stops: [stop('B Road, London E2 7DG'), stop('A Street, London E1 6AN', 25)],
+        }),
+        operatorId,
+        { db },
+      );
+      expect(waitChanged.ok && waitChanged.changedFields).toEqual(['stops']);
+      const removed = await editBooking(
+        fullEdit(b.id, { stops: [stop('B Road, London E2 7DG')] }),
+        operatorId,
+        { db },
+      );
+      expect(removed.ok && removed.changedFields).toEqual(['stops']);
+      const rows = await db.select().from(bookingStops).where(eq(bookingStops.bookingId, b.id));
+      expect(rows.map((r) => [r.seq, r.address])).toEqual([[1, 'B Road, London E2 7DG']]);
+    });
+
+    it('omitting stops from the edit leaves the existing stops untouched', async () => {
+      const b = await seed('assigned');
+      await db.insert(bookingStops).values({
+        bookingId: b.id,
+        seq: 1,
+        address: 'A Street, London E1 6AN',
+        plannedWaitMinutes: 10,
+      });
+      const res = await editBooking(fullEdit(b.id, { operatorNotes: 'x' }), operatorId, { db });
+      expect(res.ok && res.changedFields).toEqual(['private notes']);
+      expect((await db.select().from(bookingStops)).length).toBe(1);
+    });
+
+    it('switching to hourly clears the stops', async () => {
+      const b = await seed('assigned');
+      await db.insert(bookingStops).values({
+        bookingId: b.id,
+        seq: 1,
+        address: 'A Street, London E1 6AN',
+        plannedWaitMinutes: 10,
+      });
+      const res = await editBooking(
+        fullEdit(b.id, {
+          serviceType: 'hourly',
+          dropoffAddress: null,
+          expectedDurationMinutes: 240,
+        }),
+        operatorId,
+        { db },
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.changedFields).toContain('stops');
+      expect((await db.select().from(bookingStops)).length).toBe(0);
+    });
+
+    it('rejects stops on an hourly edit', async () => {
+      const b = await seed('assigned');
+      const res = await editBooking(
+        fullEdit(b.id, {
+          serviceType: 'hourly',
+          dropoffAddress: null,
+          expectedDurationMinutes: 240,
+          stops: [stop('A Street, London E1 6AN')],
+        }),
+        operatorId,
+        { db },
+      );
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.reason).toBe('validation');
+    });
   });
 });
