@@ -4,6 +4,7 @@ import {
   execEmailDraftAction,
   sendExecEmailAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
+import type { ExecEmailCopyOption } from '@/server/services/exec-notifications';
 import { useEffect, useState, useTransition } from 'react';
 import { Icon } from './icons';
 
@@ -13,6 +14,11 @@ export const EXEC_EMAIL_TITLE: Record<ExecEmailKind, string> = {
   assigned: 'Booking confirmation',
   en_route: 'Driver details',
   changed: 'Booking update',
+};
+
+const COPY_ROLE_LABEL: Record<ExecEmailCopyOption['role'], string> = {
+  pa: 'PA',
+  exec: 'exec',
 };
 
 /** A details-table row in the editor; `id` is a client-only React key. */
@@ -40,6 +46,9 @@ interface SendExecEmailModalProps {
  */
 export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExecEmailModalProps) {
   const [to, setTo] = useState('');
+  const [copyTo, setCopyTo] = useState<ExecEmailCopyOption | null>(null);
+  const [copyTicked, setCopyTicked] = useState(false);
+  const [ccText, setCcText] = useState('');
   const [subject, setSubject] = useState('');
   const [heading, setHeading] = useState('');
   const [intro, setIntro] = useState('');
@@ -60,6 +69,9 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
       .then((res) => {
         if (res.ok && res.draft) {
           setTo(res.draft.to);
+          setCopyTo(res.draft.copyTo);
+          setCopyTicked(res.draft.copyTo !== null && res.draft.cc.includes(res.draft.copyTo.email));
+          setCcText(res.draft.cc.filter((c) => c !== res.draft?.copyTo?.email).join(', '));
           setSubject(res.draft.subject);
           setHeading(res.draft.heading);
           setIntro(res.draft.intro);
@@ -91,6 +103,13 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
       { id: (prev.reduce((m, r) => Math.max(m, r.id), -1) ?? -1) + 1, label: '', value: '' },
     ]);
 
+  const ccList = [
+    ...(copyTo && copyTicked ? [copyTo.email] : []),
+    ...ccText
+      .split(/[,;\s]+/)
+      .map((c) => c.trim())
+      .filter(Boolean),
+  ];
   const incompleteRow = rows.some((r) => !r.label.trim() || !r.value.trim());
   const empty = !intro.trim() && rows.length === 0 && !closing.trim();
   const canSend = !loading && !isPending && !!to && !!subject.trim() && !empty && !incompleteRow;
@@ -103,6 +122,7 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
         bookingId,
         kind,
         to,
+        cc: ccList,
         subject,
         intro,
         rows: rows.map(({ label, value }) => ({ label, value })),
@@ -112,7 +132,8 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
         setError(res.error ?? 'Could not send the email.');
         return;
       }
-      onSent(`${EXEC_EMAIL_TITLE[kind]} email sent to ${to}.`);
+      const copied = ccList.length > 0 ? ` (copied to ${ccList.join(', ')})` : '';
+      onSent(`${EXEC_EMAIL_TITLE[kind]} email sent to ${to}${copied}.`);
     });
   };
 
@@ -154,14 +175,50 @@ export function SendExecEmailModal({ bookingId, kind, onClose, onSent }: SendExe
                 {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
                 <label>To</label>
                 <div className="ctrl">
-                  <input type="email" value={to} onChange={(e) => setTo(e.target.value)} />
+                  <input
+                    type="email"
+                    aria-label="To"
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                  />
+                </div>
+              </div>
+              {copyTo ? (
+                <div className="field" style={{ paddingTop: 0 }}>
+                  <span />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={copyTicked}
+                      onChange={(e) => setCopyTicked(e.target.checked)}
+                    />
+                    Also send to the {COPY_ROLE_LABEL[copyTo.role]} ({copyTo.email})
+                  </label>
+                </div>
+              ) : null}
+              <div className="field">
+                {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
+                <label>CC</label>
+                <div className="ctrl">
+                  <input
+                    type="text"
+                    aria-label="CC"
+                    value={ccText}
+                    placeholder="Other addresses, comma-separated"
+                    onChange={(e) => setCcText(e.target.value)}
+                  />
                 </div>
               </div>
               <div className="field">
                 {/* biome-ignore lint/a11y/noLabelWithoutControl: control nested in .ctrl */}
                 <label>Subject</label>
                 <div className="ctrl">
-                  <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} />
+                  <input
+                    type="text"
+                    aria-label="Subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                  />
                 </div>
               </div>
 

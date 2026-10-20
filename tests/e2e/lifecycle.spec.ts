@@ -260,7 +260,11 @@ test('booking moves through every stage via the simulator + console', async ({ p
   // The draft shows exactly what will be sent — subject + the email's parts
   // (intro, details rows, closing) pre-filled; recipient editable (blank here:
   // the seeded booking has no exec email).
-  await expect(emailModal.locator('input[type="text"]').first()).toHaveValue(/BKNG-/);
+  await expect(emailModal.getByLabel('Subject')).toHaveValue(/BKNG-/);
+  // Recipients: To is blank (no exec or PA email on the seeded booking) and
+  // the CC field is empty, ready for extra addresses.
+  await expect(emailModal.getByLabel('To')).toHaveValue('');
+  await expect(emailModal.getByLabel('CC')).toHaveValue('');
   await expect(emailModal.getByLabel('Value').first()).toHaveValue(/BKNG-/);
   // The email is signed off with the sending operator (read-only in the form).
   await expect(emailModal.getByLabel('Sign-off')).toContainText('Kind regards,');

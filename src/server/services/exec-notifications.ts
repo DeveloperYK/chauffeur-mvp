@@ -130,9 +130,10 @@ async function performEmailSend(
   subject: string,
   text: string,
   html: string,
+  cc: string[] = [],
 ): Promise<SendOutcome> {
   try {
-    const res = await email.sendEmail({ to, subject, text, html });
+    const res = await email.sendEmail({ to, subject, text, html, ...(cc.length ? { cc } : {}) });
     if (res.ok) return { status: 'sent', providerMessageId: res.id, errorReason: null };
     return { status: 'failed', providerMessageId: null, errorReason: res.reason };
   } catch (err) {
@@ -415,11 +416,73 @@ const EXEC_EMAIL_HEADING: Record<ManualEmailKind, string> = {
   changed: 'Booking update confirmed',
 };
 
+/** The other party on the booking the operator can copy with one tick. */
+export interface ExecEmailCopyOption {
+  role: 'pa' | 'exec';
+  email: string;
+}
+
 export interface ExecEmailDraft extends EmailParts {
   to: string;
+  /** Pre-ticked copies: the PA is copied on the driver details by default. */
+  cc: string[];
+  /**
+   * The counterpart to `to` (exec when the PA is addressed, PA when the exec
+   * is), or null when the booking has only one address or they coincide.
+   */
+  copyTo: ExecEmailCopyOption | null;
   subject: string;
   /** Fixed headline for this email kind, shown (not edited) in the form. */
   heading: string;
+}
+
+/** Maximum ad-hoc CC addresses on one send. */
+export const EXEC_EMAIL_CC_MAX = 5;
+
+interface Recipients {
+  to: string;
+  cc: string[];
+  copyTo: ExecEmailCopyOption | null;
+}
+
+/**
+ * Who each email goes to. The booking confirmation (and the update, which
+ * restates it) is the PA's concern — it goes to the PA when their email is on
+ * file, else the exec. The driver details are for the passenger — they go to
+ * the exec, with the PA copied by default. Either side can be ticked on or
+ * off in the send form; this only sets the defaults. Addresses are compared
+ * case-insensitively so a PA who booked for themselves is never offered a
+ * copy of their own email.
+ */
+export function execEmailRecipients(
+  booking: Pick<Booking, 'execEmail' | 'bookedByEmail'>,
+  kind: ManualEmailKind,
+): Recipients {
+  const exec = normaliseEmail(booking.execEmail);
+  const pa = normaliseEmail(booking.bookedByEmail);
+  const same = exec !== '' && exec === pa;
+  if (same || !pa) return { to: exec || pa, cc: [], copyTo: null };
+  if (!exec) return { to: pa, cc: [], copyTo: null };
+  if (kind === 'en_route') return { to: exec, cc: [pa], copyTo: { role: 'pa', email: pa } };
+  return { to: pa, cc: [], copyTo: { role: 'exec', email: exec } };
+}
+
+function normaliseEmail(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+/** Lower-case, de-duplicate, and drop the To address from a CC list. */
+function normaliseCc(cc: string[], to: string): string[] {
+  const toKey = normaliseEmail(to);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of cc) {
+    const key = normaliseEmail(raw);
+    if (!key || key === toKey || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
 }
 
 export type ExecEmailDraftResult =
@@ -458,7 +521,7 @@ export async function execEmailDraft(
 
 function toDraft(booking: Booking, rendered: RenderedEmail, kind: ManualEmailKind): ExecEmailDraft {
   return {
-    to: booking.execEmail ?? '',
+    ...execEmailRecipients(booking, kind),
     subject: rendered.subject,
     heading: EXEC_EMAIL_HEADING[kind],
     ...rendered.parts,
@@ -486,6 +549,10 @@ const manualEmailSchema = z
     bookingId: z.string().uuid(),
     kind: z.enum(['assigned', 'en_route', 'changed']),
     to: z.string().trim().email('Enter a valid email address').max(200),
+    cc: z
+      .array(z.string().trim().email('Enter a valid CC email address').max(200))
+      .max(EXEC_EMAIL_CC_MAX, `No more than ${EXEC_EMAIL_CC_MAX} CC addresses`)
+      .default([]),
     subject: z.string().trim().min(1, 'Subject is required').max(200),
     intro: z.string().trim().max(EXEC_EMAIL_LIMITS.introMax),
     rows: z.array(detailRowSchema).max(EXEC_EMAIL_LIMITS.rowsMax),
@@ -529,6 +596,7 @@ export async function sendManualExecEmail(
   const parsed = manualEmailSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: 'validation', issues: parsed.error.issues };
   const { bookingId, kind, to, subject, intro, rows, closing } = parsed.data;
+  const cc = normaliseCc(parsed.data.cc, to);
 
   const [booking] = await deps.db
     .select()
@@ -553,13 +621,15 @@ export async function sendManualExecEmail(
     ? {
         ...base,
         to,
+        cc,
         subject,
         body: rendered.text,
-        ...(await performEmailSend(deps.email, to, subject, rendered.text, rendered.html)),
+        ...(await performEmailSend(deps.email, to, subject, rendered.text, rendered.html, cc)),
       }
     : {
         ...base,
         to,
+        cc,
         subject,
         body: rendered.text,
         status: 'failed',
@@ -577,7 +647,7 @@ export async function sendManualExecEmail(
     entityId: booking.id,
     action: 'send_exec_email',
     before: null,
-    after: { kind, to, status: row.status },
+    after: { kind, to, cc, status: row.status },
   });
 
   return { ok: true, notification: row };

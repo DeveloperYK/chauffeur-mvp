@@ -260,6 +260,13 @@
       "when": 1792159200000,
       "tag": "0036_exec_email_waivers",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0037_exec_notification_cc",
+      "breakpoints": true
     }
   ]
 }
