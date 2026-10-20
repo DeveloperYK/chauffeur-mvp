@@ -46,6 +46,8 @@ declare global {
       origin: string;
       destination: string;
       travelMode: 'DRIVING';
+      /** Intermediate stops; `stopover: true` yields one leg per segment. */
+      waypoints?: Array<{ location: string; stopover: boolean }>;
     }
     interface DirectionsLeg {
       distance?: { value: number };

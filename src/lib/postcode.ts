@@ -60,6 +60,13 @@ interface AddressFields {
   serviceType: string;
   pickupAddress: string;
   dropoffAddress: string | null | undefined;
+  /** Intermediate stops of a multi-stop transfer; each needs a postcode too. */
+  stops?: readonly { address: string }[] | undefined;
+}
+
+/** Field-error message for the Nth stop (1-based) lacking a postcode. */
+export function stopPostcodeMessage(index: number): string {
+  return `Stop ${index + 1} needs a postcode`;
 }
 
 /**
@@ -71,10 +78,18 @@ export function addressPostcodeErrors(fields: AddressFields): Record<string, str
   const pickup = fields.pickupAddress.trim();
   const dropoff = fields.dropoffAddress?.trim() ?? '';
   const checkDropoff = fields.serviceType === 'transfer' && dropoff.length > 0;
+  const stopErrors: Record<string, string> = {};
+  (fields.stops ?? []).forEach((stop, i) => {
+    const address = stop.address.trim();
+    if (address.length > 0 && !hasPostcode(address)) {
+      stopErrors[`stops.${i}.address`] = stopPostcodeMessage(i);
+    }
+  });
   return {
     ...(pickup.length > 0 && !hasPostcode(pickup)
       ? { pickupAddress: PICKUP_POSTCODE_MESSAGE }
       : {}),
     ...(checkDropoff && !hasPostcode(dropoff) ? { dropoffAddress: DROPOFF_POSTCODE_MESSAGE } : {}),
+    ...stopErrors,
   };
 }

@@ -19,6 +19,7 @@ import type { Booking } from '@/server/db/schema';
 import { DB_TIMEOUT_MS, withDbTimeout } from '@/server/db/timeout';
 import { sampleGeneratorEnabled } from '@/server/feature-flags';
 import { listActionView } from '@/server/services/action-views';
+import { listStopsForBookings } from '@/server/services/booking-stops';
 import {
   type DayCounts,
   driverDispatchData,
@@ -193,7 +194,7 @@ export default async function DashboardHome({
   const unassignedIds = filtered.filter((b) => b.state === 'unassigned').map((b) => b.id);
   // Which of the two operator emails each booking has had — drives the
   // "email not sent" flags on cards and in the panel.
-  const [offersByBooking, emailSends] = await withDbTimeout(
+  const [offersByBooking, emailSends, stopsByBooking] = await withDbTimeout(
     'board details',
     DB_TIMEOUT_MS.page,
     () =>
@@ -203,13 +204,17 @@ export default async function DashboardHome({
           db,
           filtered.map((b) => b.id),
         ),
+        listStopsForBookings(
+          db,
+          filtered.map((b) => b.id),
+        ),
       ]),
     resetDb,
   );
 
   // Serialize for the client console shell.
   const consoleBookings: ConsoleBooking[] = filtered.map((b) =>
-    toConsoleBooking(b, offersByBooking.get(b.id) ?? [], emailSends),
+    toConsoleBooking(b, offersByBooking.get(b.id) ?? [], emailSends, stopsByBooking.get(b.id)),
   );
   const consoleDrivers: ConsoleDriver[] = drivers.map(toConsoleDriver);
   const consoleOperators: ConsoleOperator[] = operatorList.map((o) => ({ id: o.id, name: o.name }));
