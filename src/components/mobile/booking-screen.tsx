@@ -11,7 +11,7 @@ import { EditBookingModal } from '@/components/console/edit-booking-modal';
 import { fmtPrice, passengerName } from '@/components/console/format';
 import { Icon } from '@/components/console/icons';
 import { StateLozenge } from '@/components/console/lozenge';
-import type { ConsoleBooking, ConsoleDriver } from '@/components/console/types';
+import type { ConsoleDriver } from '@/components/console/types';
 import { useAutoRefresh } from '@/components/console/use-auto-refresh';
 import { bookingRef } from '@/lib/booking-ref';
 import { carDescription } from '@/lib/labels';
@@ -72,14 +72,8 @@ function Fact({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-function driverContact(
-  b: ConsoleBooking,
-  driver: ConsoleDriver | undefined,
-): { name: string; phone: string } | null {
+function driverContact(driver: ConsoleDriver | undefined): { name: string; phone: string } | null {
   if (driver) return { name: driver.name, phone: driver.whatsappNumber };
-  if (b.isBackfill && b.backfillDriverName && b.backfillDriverPhone) {
-    return { name: b.backfillDriverName, phone: b.backfillDriverPhone };
-  }
   return null;
 }
 
@@ -105,11 +99,10 @@ export function BookingScreen({ view, me }: BookingScreenProps) {
     () => (b.assignedDriverId ? view.drivers.find((d) => d.id === b.assignedDriverId) : undefined),
     [b.assignedDriverId, view.drivers],
   );
-  const contact = driverContact(b, driver);
+  const contact = driverContact(driver);
   const actions = mobileActionsFor(
     {
       state: b.state,
-      isBackfill: b.isBackfill,
       openOfferCount: b.openOffers.length,
       passengerName: passengerName(b),
       execMobile: b.execMobile,
@@ -279,16 +272,6 @@ export function BookingScreen({ view, me }: BookingScreenProps) {
                 <a href={`tel:${dialable(driver.whatsappNumber)}`}>{driver.whatsappNumber}</a>
               </Fact>
             </>
-          ) : b.isBackfill ? (
-            <>
-              <Fact k="Backfill">{b.backfillDriverName ?? '—'}</Fact>
-              {b.backfillCar ? <Fact k="Car">{b.backfillCar}</Fact> : null}
-              {b.backfillDriverPhone ? (
-                <Fact k="Phone">
-                  <a href={`tel:${dialable(b.backfillDriverPhone)}`}>{b.backfillDriverPhone}</a>
-                </Fact>
-              ) : null}
-            </>
           ) : (
             <Fact k="Driver">Not yet assigned</Fact>
           )}
@@ -337,7 +320,7 @@ export function BookingScreen({ view, me }: BookingScreenProps) {
         </section>
 
         <a className="m-more" href={`/dashboard?booking=${b.id}&console=desktop`}>
-          Backfill hand-off, completion link, exec emails and history are in the full console
+          Completion link, exec emails and history are in the full console
         </a>
       </div>
 

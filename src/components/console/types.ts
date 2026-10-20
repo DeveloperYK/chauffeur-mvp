@@ -80,16 +80,6 @@ export interface ConsoleBooking {
   mirrorStatus: MirrorStatus;
   /** When the last mirror write was attempted (ISO), null if never. */
   mirroredAt: string | null;
-  /** True when the job is covered by a backfill (subcontractor) driver, not the internal roster. */
-  isBackfill: boolean;
-  /** Operator-entered backfill driver name (only when isBackfill). */
-  backfillDriverName: string | null;
-  /** Operator-entered backfill driver phone (only when isBackfill). */
-  backfillDriverPhone: string | null;
-  /** Operator-entered backfill driver's car (only when isBackfill). */
-  backfillCar: string | null;
-  /** What the backfill driver is paid for this job, in pence (only when isBackfill). */
-  backfillDriverPayPence: number | null;
   /** True when the operator entered the completion form on the driver's behalf (skipped review). */
   completionByOperator: boolean;
   carParkPence: number | null;

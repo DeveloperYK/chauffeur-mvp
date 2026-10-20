@@ -14,7 +14,6 @@ import {
   spreadsheetMirror,
 } from '@/server/composition';
 import { listBookingHistory } from '@/server/services/activity';
-import { handToBackfill, updateBackfillPay } from '@/server/services/backfill';
 import {
   type LoadBookingTemplateResult,
   loadBookingTemplate,
@@ -336,8 +335,7 @@ export async function confirmChangeOnBehalfAction(bookingId: string): Promise<Ac
 
 /**
  * Mint a "your booking changed — confirm" link for the assigned driver and
- * return a WhatsApp deep link the operator sends (mirrors dispatch). Backfill
- * jobs have no app driver — the operator attests by phone instead.
+ * return a WhatsApp deep link the operator sends (mirrors dispatch).
  */
 export async function generateChangeConfirmLinkAction(
   bookingId: string,
@@ -409,62 +407,6 @@ export async function releaseDriverAction(bookingId: string): Promise<ActionResu
       result.reason === 'booking_not_found'
         ? 'Booking not found.'
         : 'This booking no longer has a driver to release.';
-    return { ok: false, error };
-  }
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
-export async function handToBackfillAction(
-  bookingId: string,
-  input: { name: string; phone: string; car: string; payPence: number },
-): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!bookingId) return { ok: false, error: 'Missing booking.' };
-
-  const result = await handToBackfill(bookingId, input, op.id, {
-    db: db(),
-    notifications: notifications(),
-    email: email(),
-    mirror: spreadsheetMirror(),
-  });
-  if (!result.ok) {
-    if (result.reason === 'validation') {
-      const msg = result.issues
-        .map((i) => `${i.path.join('.') || 'field'}: ${i.message}`)
-        .slice(0, 3)
-        .join('; ');
-      return { ok: false, error: msg };
-    }
-    const error =
-      result.reason === 'booking_not_found'
-        ? 'Booking not found.'
-        : `Can only hand a booking to backfill from unassigned (it is ${result.state}).`;
-    return { ok: false, error };
-  }
-  revalidatePath('/dashboard');
-  return { ok: true };
-}
-
-export async function updateBackfillPayAction(
-  bookingId: string,
-  payPence: number,
-): Promise<ActionResult> {
-  const op = await requireOperator();
-  if (!bookingId) return { ok: false, error: 'Missing booking.' };
-
-  const result = await updateBackfillPay(bookingId, payPence, op.id, {
-    db: db(),
-    notifications: notifications(),
-    mirror: spreadsheetMirror(),
-  });
-  if (!result.ok) {
-    const error =
-      result.reason === 'validation'
-        ? 'Enter a valid driver pay (between £0.01 and £10,000).'
-        : result.reason === 'booking_not_found'
-          ? 'Booking not found.'
-          : 'This booking is not a backfill job.';
     return { ok: false, error };
   }
   revalidatePath('/dashboard');

@@ -16,9 +16,9 @@ import { SMS_BRAND_NAME } from './sms-templates';
  */
 /**
  * Driver identity as shown to the exec. PCO licence number and contact number
- * are optional: legacy roster rows predate the fields, and backfill
- * (subcontractor) drivers may not have a PCO number on file — the email simply
- * omits the missing rows.
+ * are optional: legacy roster rows predate the fields, and subcontractor
+ * drivers may not have a PCO number on file — the email simply omits the
+ * missing rows.
  */
 type NamedDriver = {
   name: string;

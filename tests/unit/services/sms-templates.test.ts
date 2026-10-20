@@ -59,12 +59,12 @@ describe('SMS templates — brand, reference, structured format', () => {
     expect(body).toContain('Marcus Bell');
   });
 
-  it('names a backfill driver (plain name, no Driver row) in the assigned SMS', () => {
+  it('names the driver from a plain name (no Driver row) in the assigned SMS', () => {
     const body = assignedSms(booking, { name: 'Dave Smith' }, 'BMW 5 Series');
     expect(body).toContain('Driver: Dave Smith (BMW 5 Series)');
   });
 
-  it('names a backfill driver in the en-route SMS', () => {
+  it('names the driver from a plain name in the en-route SMS', () => {
     const body = enRouteSms(booking, { name: 'Dave Smith' });
     expect(body).toContain('Dave Smith');
   });

@@ -15,7 +15,7 @@ export interface CompletionLink {
 
 interface CompletionLinkModalProps {
   booking: ConsoleBooking;
-  /** Whoever is driving — internal or backfill. Null if somehow unassigned. */
+  /** The assigned driver. Null if somehow unassigned. */
   driverName: string | null;
   link: CompletionLink | null;
   onClose: () => void;

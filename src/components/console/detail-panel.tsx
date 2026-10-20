@@ -17,7 +17,6 @@ import {
   retryMirrorAction,
   setContractPriceAction,
   setWaitingChargeAction,
-  updateBackfillPayAction,
   waiveExecEmailAction,
 } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
@@ -46,7 +45,6 @@ interface DetailPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onDispatch: () => void;
-  onBackfill: () => void;
   onCompleteOnBehalf: () => void;
   onEdit: () => void;
   onCancel: () => void;
@@ -63,7 +61,6 @@ export function DetailPanel({
   isOpen,
   onClose,
   onDispatch,
-  onBackfill,
   onCompleteOnBehalf,
   onEdit,
   onCancel,
@@ -76,8 +73,6 @@ export function DetailPanel({
   const [completionLink, setCompletionLink] = useState<CompletionLink | null>(null);
   const [changeLink, setChangeLink] = useState<CompletionLink | null>(null);
   const [jobLink, setJobLink] = useState<CompletionLink | null>(null);
-  const [editingPay, setEditingPay] = useState(false);
-  const [payDraft, setPayDraft] = useState('');
   const [editingCharge, setEditingCharge] = useState(false);
   const [chargeDraft, setChargeDraft] = useState('');
   const [editingPrice, setEditingPrice] = useState(false);
@@ -99,8 +94,6 @@ export function DetailPanel({
       setEmailModalKind(null);
       setCompletionLink(null);
       setChangeLink(null);
-      setEditingPay(false);
-      setPayDraft('');
       setError(null);
     }
   }, [isOpen, booking?.id]);
@@ -118,14 +111,10 @@ export function DetailPanel({
   const driver = booking.assignedDriverId
     ? drivers.find((d) => d.id === booking.assignedDriverId)
     : null;
-  // Whoever is driving this job, internal or backfill — so the post-assignment
-  // actions (call / message) are identical regardless. Backfill jobs have no
-  // Driver row, just the operator-entered name + phone on the booking.
+  // The assigned driver's contact for the post-assignment actions (call / message).
   const contact: { name: string; phone: string } | null = driver
     ? { name: driver.name, phone: driver.whatsappNumber }
-    : booking.isBackfill && booking.backfillDriverName && booking.backfillDriverPhone
-      ? { name: booking.backfillDriverName, phone: booking.backfillDriverPhone }
-      : null;
+    : null;
   const assignee = booking.assignedOperatorId
     ? operators.find((o) => o.id === booking.assignedOperatorId)
     : null;
@@ -134,11 +123,7 @@ export function DetailPanel({
   const carTypeMismatch = driver
     ? carTypeMismatchNote(booking.requestedCarType, driver.vehicleClass)
     : null;
-  const vehicle = booking.isBackfill
-    ? booking.backfillCar
-    : driver
-      ? carDescription(driver.car, driver.carColour)
-      : null;
+  const vehicle = driver ? carDescription(driver.car, driver.carColour) : null;
   const hasNotes = !!booking.notes && booking.notes.trim().length > 0;
   const hasOperatorNotes = !!booking.operatorNotes && booking.operatorNotes.trim().length > 0;
   const hasCompletion =
@@ -219,30 +204,6 @@ export function DetailPanel({
       () => assignBookingOperatorAction(booking.id, me.id),
       `Assigned to ${me.name.split(' ')[0]}.`,
     );
-  const startEditPay = () => {
-    setPayDraft(
-      booking.backfillDriverPayPence != null ? String(booking.backfillDriverPayPence / 100) : '',
-    );
-    setError(null);
-    setEditingPay(true);
-  };
-  const savePay = () => {
-    const pounds = Number.parseFloat(payDraft);
-    if (!Number.isFinite(pounds) || pounds <= 0) {
-      setError('Enter a valid driver pay (more than £0).');
-      return;
-    }
-    setError(null);
-    startTransition(async () => {
-      const result = await updateBackfillPayAction(booking.id, Math.round(pounds * 100));
-      if (!result.ok) {
-        setError(result.error ?? 'Could not update the driver pay.');
-        return;
-      }
-      setEditingPay(false);
-      onMutated('Backfill driver pay updated.');
-    });
-  };
   const startEditPrice = () => {
     setPriceDraft('');
     setError(null);
@@ -438,9 +399,6 @@ export function DetailPanel({
                 <Icon.Search />{' '}
                 {booking.openOffers.length > 0 ? 'Offer to more drivers' : 'Find a driver'}
               </button>
-              <button type="button" className="btn" onClick={onBackfill}>
-                <Icon.Person /> Hand to backfill
-              </button>
               <button type="button" className="btn" onClick={onEdit}>
                 <Icon.Pencil /> Edit
               </button>
@@ -480,11 +438,9 @@ export function DetailPanel({
             <button type="button" className="btn" onClick={releaseDriver} disabled={isPending}>
               <Icon.Reset /> Driver pulled out — unassign
             </button>
-            {!booking.isBackfill ? (
-              <button type="button" className="btn" onClick={onDispatch}>
-                <Icon.Person /> Reassign driver
-              </button>
-            ) : null}
+            <button type="button" className="btn" onClick={onDispatch}>
+              <Icon.Person /> Reassign driver
+            </button>
             <button type="button" className="btn" onClick={onEdit}>
               <Icon.Pencil /> Edit
             </button>
@@ -501,7 +457,7 @@ export function DetailPanel({
                 <Icon.Phone /> Call driver
               </a>
             ) : null}
-            {driver && !booking.isBackfill ? (
+            {driver ? (
               <button
                 type="button"
                 className="btn btn--danger"
@@ -645,7 +601,6 @@ export function DetailPanel({
           <div className="dp-hero">
             <div className="dp-hero__lozenges">
               <StateLozenge state={booking.state} lg />
-              {booking.isBackfill ? <Lozenge tone="purple">BACKFILL</Lozenge> : null}
               {booking.flaggedAt ? (
                 <Lozenge tone="red">
                   <Icon.Flag style={{ width: 10, height: 10, marginRight: 4 }} />
@@ -902,22 +857,7 @@ export function DetailPanel({
               <div className="ir">
                 <div className="ir__k">Driver</div>
                 <div className="ir__v">
-                  {booking.isBackfill ? (
-                    <div className="ir__row">
-                      <Avatar
-                        name={booking.backfillDriverName ?? 'Backfill'}
-                        id={booking.id}
-                        size={22}
-                      />
-                      <span>{booking.backfillDriverName ?? 'Backfill driver'}</span>
-                      <Lozenge tone="purple">BACKFILL</Lozenge>
-                      {booking.backfillDriverPhone ? (
-                        <span className="ir__sub mono" style={{ marginLeft: 4 }}>
-                          {booking.backfillDriverPhone}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : driver ? (
+                  {driver ? (
                     <>
                       <div className="ir__row">
                         <Avatar name={driver.name} id={driver.id} size={22} />
@@ -952,56 +892,6 @@ export function DetailPanel({
                   )}
                 </div>
               </div>
-              {booking.isBackfill ? (
-                <div className="ir">
-                  <div className="ir__k">Backfill pay</div>
-                  <div className="ir__v">
-                    {editingPay ? (
-                      <div className="ir__row">
-                        <div className="money" style={{ maxWidth: 140 }}>
-                          <div className="pfx">£</div>
-                          <input
-                            type="number"
-                            step="1"
-                            min={0}
-                            value={payDraft}
-                            onChange={(e) => setPayDraft(e.target.value)}
-                            // biome-ignore lint/a11y/noAutofocus: focus the field when the inline editor opens
-                            autoFocus
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          className="link-btn"
-                          onClick={savePay}
-                          disabled={isPending}
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          className="link-btn"
-                          onClick={() => setEditingPay(false)}
-                          disabled={isPending}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="ir__row">
-                        <span>
-                          {booking.backfillDriverPayPence != null
-                            ? fmtPrice(booking.backfillDriverPayPence)
-                            : '—'}
-                        </span>
-                        <button type="button" className="link-btn" onClick={startEditPay}>
-                          Edit
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : null}
             </div>
           </section>
 

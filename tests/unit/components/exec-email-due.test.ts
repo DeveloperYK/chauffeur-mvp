@@ -9,7 +9,6 @@ import { describe, expect, it } from 'vitest';
 const base = {
   state: 'assigned',
   assignedDriverId: 'drv_1',
-  isBackfill: false,
   confirmationEmailSentAt: null as string | null,
   driverDetailsEmailSentAt: null as string | null,
   changeConfirmationStatus: 'none',
@@ -42,10 +41,6 @@ describe('execEmailsDue', () => {
         driverDetailsEmailSentAt: '2026-09-07T10:05:00Z',
       }),
     ).toBe(false);
-  });
-
-  it('counts a backfill driver as a driver on the job', () => {
-    expect(execEmailsDue({ ...base, assignedDriverId: null, isBackfill: true })).toBe(true);
   });
 
   it('is not due while the booking is unassigned', () => {
