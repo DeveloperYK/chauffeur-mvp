@@ -398,3 +398,62 @@ describe('services/email-templates — operator sign-off', () => {
     expect(e.text).toContain('<b>Al</b>');
   });
 });
+
+describe('services/email-templates — multi-stop route block', () => {
+  const stops = [
+    { seq: 1, address: '1 Canary Wharf, London E14 5AB', plannedWaitMinutes: 40 },
+    { seq: 2, address: 'Kings Cross Station, London N1 9AL', plannedWaitMinutes: 0 },
+  ];
+  const labels = (rows: { label: string }[]) => rows.map((r) => r.label);
+
+  it('confirmation email lists each stop between Pickup and Destination, with its planned wait', () => {
+    const e = assignedEmail(booking(), stops);
+    expect(labels(e.parts.rows)).toEqual([
+      'Reference',
+      'Passenger',
+      'Date & time',
+      'Pickup',
+      'Stop 1',
+      'Stop 2',
+      'Destination',
+    ]);
+    const stop1 = e.parts.rows.find((r) => r.label === 'Stop 1');
+    expect(stop1?.value).toBe('1 Canary Wharf, London E14 5AB — wait ~40 min');
+    expect(e.parts.rows.find((r) => r.label === 'Stop 2')?.value).toBe(
+      'Kings Cross Station, London N1 9AL',
+    );
+    expect(e.html).toContain('wait ~40 min');
+  });
+
+  it('driver-details and booking-update emails list the stops too', () => {
+    const d = driverDetailsEmail(booking(), { name: 'Marcus Bell' }, 'Black Mercedes', null, stops);
+    const u = changeExecEmail(booking(), stops);
+    for (const e of [d, u]) {
+      const ls = labels(e.parts.rows);
+      expect(ls.indexOf('Stop 1')).toBeGreaterThan(ls.indexOf('Pickup'));
+      expect(ls.indexOf('Stop 2')).toBeLessThan(ls.indexOf('Destination'));
+    }
+  });
+
+  it('keeps the travel row directly after Pickup, before the stops', () => {
+    const e = assignedEmail(booking({ travelMode: 'flight', travelRef: 'BA268' }), stops);
+    const ls = labels(e.parts.rows);
+    expect(ls.indexOf('Flight')).toBe(ls.indexOf('Pickup') + 1);
+    expect(ls.indexOf('Stop 1')).toBe(ls.indexOf('Flight') + 1);
+  });
+
+  it('renders no stop rows when the journey has none', () => {
+    expect(labels(assignedEmail(booking(), []).parts.rows)).not.toContain('Stop 1');
+    expect(labels(assignedEmail(booking()).parts.rows)).not.toContain('Stop 1');
+  });
+
+  it('orders stops by seq and HTML-escapes a stop address', () => {
+    const e = assignedEmail(booking(), [
+      { seq: 2, address: 'B <b>Road</b>', plannedWaitMinutes: 0 },
+      { seq: 1, address: 'A Street', plannedWaitMinutes: 0 },
+    ]);
+    expect(e.parts.rows.find((r) => r.label === 'Stop 1')?.value).toBe('A Street');
+    expect(e.html).toContain('B &lt;b&gt;Road&lt;/b&gt;');
+    expect(e.html).not.toContain('<b>Road</b>');
+  });
+});
