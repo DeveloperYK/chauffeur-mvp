@@ -596,6 +596,7 @@ export interface ExecMessageEntry {
   channel: 'sms' | 'email';
   kind: 'assigned' | 'en_route' | 'changed';
   to: string;
+  cc: string[];
   body: string;
   status: 'sent' | 'delivered' | 'failed' | 'bounced' | 'complained' | 'superseded';
   errorReason: string | null;
@@ -613,6 +614,7 @@ export async function execNotificationsAction(bookingId: string): Promise<ExecMe
       channel: r.channel,
       kind: r.kind,
       to: r.to,
+      cc: r.cc,
       body: r.body,
       status: r.status,
       errorReason: r.errorReason,
@@ -656,6 +658,7 @@ export async function sendExecEmailAction(input: {
   bookingId: string;
   kind: ManualEmailKind;
   to: string;
+  cc: string[];
   subject: string;
   intro: string;
   rows: { label: string; value: string }[];

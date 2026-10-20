@@ -26,6 +26,22 @@ describe('ResendEmailAdapter mapping', () => {
     expect(r).toEqual({ ok: true, id: 're_test_123' });
   });
 
+  it('passes CC recipients to Resend as an array, and omits the key when there are none', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = (async (_url: unknown, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+      return new Response(JSON.stringify({ id: 're_1' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+    const a = new ResendEmailAdapter({ ...base, fetchImpl });
+    await a.sendEmail({ ...valid, cc: ['exec@example.com', 'pa@example.com'] });
+    await a.sendEmail(valid);
+    expect(bodies[0]?.cc).toEqual(['exec@example.com', 'pa@example.com']);
+    expect(bodies[1]).not.toHaveProperty('cc');
+  });
+
   it('maps a non-2xx response to http_<status>', async () => {
     const fetchImpl = (async () => new Response('bad', { status: 422 })) as unknown as typeof fetch;
     const a = new ResendEmailAdapter({ ...base, fetchImpl });

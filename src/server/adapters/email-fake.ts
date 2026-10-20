@@ -20,6 +20,9 @@ export class FakeEmailAdapter implements EmailPort {
     if (!msg.to.includes('@')) {
       return { ok: false, reason: 'invalid_to' };
     }
+    if (msg.cc?.some((addr) => !addr.includes('@'))) {
+      return { ok: false, reason: 'invalid_cc' };
+    }
     if (!msg.subject) {
       return { ok: false, reason: 'empty_subject' };
     }

@@ -9,6 +9,8 @@ describe('FakeEmailAdapter specifics', () => {
     const adapter = new FakeEmailAdapter();
     await adapter.sendEmail({ to: 'e@x.com', subject: 's', text: 't' });
     expect(adapter.sent.length).toBe(1);
+    await adapter.sendEmail({ to: 'e@x.com', cc: ['c@x.com'], subject: 's', text: 't' });
+    expect(adapter.sent[1]?.cc).toEqual(['c@x.com']);
 
     adapter.simulateFailure('http_500');
     const failed = await adapter.sendEmail({ to: 'e@x.com', subject: 's', text: 't' });

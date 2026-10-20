@@ -31,6 +31,26 @@ export function emailContractTests(createAdapter: () => EmailPort, cleanup?: () 
       }
     });
 
+    it('accepts CC recipients alongside the To address', async () => {
+      const result = await adapter.sendEmail({
+        to: 'pa@example.com',
+        cc: ['exec@example.com', 'office@example.com'],
+        subject: 'JJ Chauffeuring - BKNG-00001',
+        text: 'Your booking is confirmed.',
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects a CC address with no @ as invalid_cc', async () => {
+      const result = await adapter.sendEmail({
+        to: 'pa@example.com',
+        cc: ['not-an-email'],
+        subject: 's',
+        text: 't',
+      });
+      expect(result).toEqual({ ok: false, reason: 'invalid_cc' });
+    });
+
     it('rejects a recipient with no @ as invalid_to', async () => {
       const result = await adapter.sendEmail({ to: 'not-an-email', subject: 's', text: 't' });
       expect(result).toEqual({ ok: false, reason: 'invalid_to' });
