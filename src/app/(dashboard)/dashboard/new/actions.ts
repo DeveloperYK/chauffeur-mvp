@@ -53,6 +53,22 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
       ? null
       : Number.parseInt(String(distanceRaw), 10);
 
+  const stopsRaw = formData.get('stops');
+  let stops: unknown = [];
+  if (stopsRaw != null && String(stopsRaw) !== '') {
+    try {
+      stops = JSON.parse(String(stopsRaw));
+    } catch {
+      return {
+        error: 'Please fix the highlighted fields.',
+        fieldErrors: { stops: 'Invalid stops' },
+      };
+    }
+  }
+  if (!Array.isArray(stops)) {
+    return { error: 'Please fix the highlighted fields.', fieldErrors: { stops: 'Invalid stops' } };
+  }
+
   const raw = {
     serviceType: String(formData.get('serviceType') ?? 'transfer'),
     pickupAt: String(formData.get('pickupAt') ?? ''),
@@ -60,6 +76,7 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
     distanceMeters,
     pickupAddress: String(formData.get('pickupAddress') ?? ''),
     dropoffAddress: String(formData.get('dropoffAddress') ?? ''),
+    stops,
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? '') || null,
     execMobile: String(formData.get('execMobile') ?? ''),
@@ -82,7 +99,15 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
 
   // Every address must carry a postcode (drivers navigate by it). Checked here,
   // at the operator-form boundary, so simulator/seed data is unaffected.
-  const postcodeErrors = addressPostcodeErrors(raw);
+  const postcodeErrors = addressPostcodeErrors({
+    ...raw,
+    stops: stops.filter(
+      (s): s is { address: string } =>
+        typeof s === 'object' &&
+        s !== null &&
+        typeof (s as { address?: unknown }).address === 'string',
+    ),
+  });
   if (Object.keys(postcodeErrors).length > 0) {
     return { error: 'Please fix the highlighted fields.', fieldErrors: postcodeErrors };
   }

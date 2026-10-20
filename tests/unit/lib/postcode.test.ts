@@ -91,6 +91,15 @@ describe('addressPostcodeErrors', () => {
     expect(addressPostcodeErrors(ok)).toEqual({});
   });
 
+  it('accepts stops that carry a postcode and flags each one that does not, by index', () => {
+    expect(
+      addressPostcodeErrors({
+        ...ok,
+        stops: [{ address: '1 Canary Wharf, London E14 5AB' }, { address: 'Somewhere, London' }],
+      }),
+    ).toEqual({ 'stops.1.address': 'Stop 2 needs a postcode' });
+  });
+
   it('ignores the drop-off for an hourly hire', () => {
     expect(addressPostcodeErrors({ ...ok, serviceType: 'hourly', dropoffAddress: '' })).toEqual({});
     expect(

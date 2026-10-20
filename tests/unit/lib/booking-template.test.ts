@@ -16,6 +16,7 @@ const completedTransfer = {
   distanceMeters: 24_500,
   pickupAddress: 'The Connaught, Carlos Place, London W1K 2AL',
   dropoffAddress: 'Heathrow Terminal 5, Departures',
+  stops: [],
   passengerFirstName: 'Alexander',
   passengerLastName: 'Pemberton',
   execMobile: '+447911123456',
@@ -33,6 +34,24 @@ const completedTransfer = {
 };
 
 describe('templateFromBooking', () => {
+  it('carries the stops (address + planned wait) in seq order', () => {
+    const t = templateFromBooking({
+      ...completedTransfer,
+      stops: [
+        { seq: 2, address: 'Two, London E2 7DG', plannedWaitMinutes: 0 },
+        { seq: 1, address: 'One, London E1 6AN', plannedWaitMinutes: 40 },
+      ],
+    });
+    expect(t.stops).toEqual([
+      { address: 'One, London E1 6AN', plannedWaitMinutes: 40 },
+      { address: 'Two, London E2 7DG', plannedWaitMinutes: 0 },
+    ]);
+  });
+
+  it('copies an empty stop list when the source has none', () => {
+    expect(templateFromBooking({ ...completedTransfer, stops: [] }).stops).toEqual([]);
+  });
+
   it('carries over the people, route, codes, price and notes of a transfer', () => {
     expect(templateFromBooking(completedTransfer)).toEqual({
       serviceType: 'transfer',
@@ -43,6 +62,7 @@ describe('templateFromBooking', () => {
       distanceMeters: 24_500,
       pickupAddress: 'The Connaught, Carlos Place, London W1K 2AL',
       dropoffAddress: 'Heathrow Terminal 5, Departures',
+      stops: [],
       passengerFirstName: 'Alexander',
       passengerLastName: 'Pemberton',
       execMobile: '+447911123456',

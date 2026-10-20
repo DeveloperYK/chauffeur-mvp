@@ -501,6 +501,32 @@ export const execNotifications = pgTable(
   ],
 );
 
+/**
+ * Intermediate stops of a multi-stop transfer, in `seq` order between the
+ * booking's pickup and destination. `plannedWaitMinutes` is the operator's
+ * scheduling estimate ("wait ~40 min"); `arrivedAt` / `departedAt` are what
+ * the driver recorded on completion and feed the summed waiting charge.
+ * Hourly as-directed bookings never have stops. See docs/shaping/multi-stop.
+ */
+export const bookingStops = pgTable(
+  'booking_stops',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    address: text('address').notNull(),
+    placeId: text('place_id'),
+    plannedWaitMinutes: integer('planned_wait_minutes').notNull().default(0),
+    arrivedAt: timestamp('arrived_at', { withTimezone: true }),
+    departedAt: timestamp('departed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('booking_stops_booking_seq_idx').on(t.bookingId, t.seq)],
+);
+
 // ─── Inferred types ─────────────────────────────────────────────────────────
 
 export type BookingState = (typeof bookingStateEnum.enumValues)[number];
@@ -516,6 +542,8 @@ export type Driver = typeof drivers.$inferSelect;
 export type NewDriver = typeof drivers.$inferInsert;
 export type Booking = typeof bookings.$inferSelect;
 export type NewBooking = typeof bookings.$inferInsert;
+export type BookingStop = typeof bookingStops.$inferSelect;
+export type NewBookingStop = typeof bookingStops.$inferInsert;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type NewAuditEvent = typeof auditEvents.$inferInsert;
 export type OfferStatus = (typeof offerStatusEnum.enumValues)[number];

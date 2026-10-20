@@ -3,11 +3,13 @@ import type {
   ConsoleBooking,
   ConsoleDriver,
   ConsoleOperator,
+  ConsoleStop,
 } from '@/components/console/types';
 import type { Database } from '@/server/db';
-import { type Booking, bookings } from '@/server/db/schema';
+import { type Booking, type BookingStop, bookings } from '@/server/db/schema';
 import { waitingFee } from '@/server/domain/waiting-fee';
 import { eq } from 'drizzle-orm';
+import { listStopsForBookings } from './booking-stops';
 import {
   driverDispatchData,
   listBookingsByState,
@@ -29,10 +31,21 @@ import { listOperators } from './operators';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function toConsoleStop(s: BookingStop): ConsoleStop {
+  return {
+    seq: s.seq,
+    address: s.address,
+    plannedWaitMinutes: s.plannedWaitMinutes,
+    arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
+    departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+  };
+}
+
 export function toConsoleBooking(
   b: Booking,
   openOffers: OpenOfferDriver[] = [],
   emailSends?: Map<string, ExecEmailSends>,
+  stops: BookingStop[] = [],
 ): ConsoleBooking {
   const fee = waitingFee(b.waitingTimeMinutes);
   const sends = emailSends?.get(b.id);
@@ -50,6 +63,7 @@ export function toConsoleBooking(
     requestedCarType: b.requestedCarType,
     pickupAddress: b.pickupAddress,
     dropoffAddress: b.dropoffAddress ?? '',
+    stops: stops.map(toConsoleStop),
     passengerFirstName: b.passengerFirstName,
     passengerLastName: b.passengerLastName,
     execMobile: b.execMobile,
@@ -138,14 +152,15 @@ export async function loadBookingView(db: Database, id: string): Promise<Booking
   if (!UUID.test(id)) return null;
   const [row] = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
   if (!row) return null;
-  const [offers, sends, people, dispatch] = await Promise.all([
+  const [offers, sends, people, dispatch, stops] = await Promise.all([
     openOffersForBookings(db, row.state === 'unassigned' ? [row.id] : []),
     execEmailSendMap(db, [row.id]),
     roster(db),
     driverDispatchData(db),
+    listStopsForBookings(db, [row.id]),
   ]);
   return {
-    booking: toConsoleBooking(row, offers.get(row.id) ?? [], sends),
+    booking: toConsoleBooking(row, offers.get(row.id) ?? [], sends, stops.get(row.id)),
     drivers: people.drivers,
     operators: people.operators,
     assignments: dispatch.windows,
@@ -162,9 +177,17 @@ export interface DayView {
 export async function loadDayView(db: Database, day: string): Promise<DayView> {
   const [rows, people] = await Promise.all([listBookingsForDay(db, day), roster(db)]);
   const unassignedIds = rows.filter((b) => b.state === 'unassigned').map((b) => b.id);
-  const offers = await openOffersForBookings(db, unassignedIds);
+  const [offers, stops] = await Promise.all([
+    openOffersForBookings(db, unassignedIds),
+    listStopsForBookings(
+      db,
+      rows.map((b) => b.id),
+    ),
+  ]);
   return {
-    bookings: rows.map((b) => toConsoleBooking(b, offers.get(b.id) ?? [])),
+    bookings: rows.map((b) =>
+      toConsoleBooking(b, offers.get(b.id) ?? [], undefined, stops.get(b.id)),
+    ),
     drivers: people.drivers,
     operators: people.operators,
   };
@@ -185,12 +208,20 @@ export async function loadAttentionView(db: Database): Promise<DayView> {
   const byId = new Map<string, Booking>();
   for (const b of [...open, ...review, ...notTold]) byId.set(b.id, b);
   const rows = [...byId.values()].sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime());
-  const offers = await openOffersForBookings(
-    db,
-    rows.filter((b) => b.state === 'unassigned').map((b) => b.id),
-  );
+  const [offers, stops] = await Promise.all([
+    openOffersForBookings(
+      db,
+      rows.filter((b) => b.state === 'unassigned').map((b) => b.id),
+    ),
+    listStopsForBookings(
+      db,
+      rows.map((b) => b.id),
+    ),
+  ]);
   return {
-    bookings: rows.map((b) => toConsoleBooking(b, offers.get(b.id) ?? [])),
+    bookings: rows.map((b) =>
+      toConsoleBooking(b, offers.get(b.id) ?? [], undefined, stops.get(b.id)),
+    ),
     drivers: people.drivers,
     operators: people.operators,
   };

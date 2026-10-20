@@ -24,6 +24,7 @@ import { carTypeMismatchNote } from '@/lib/car-type-match';
 import { formatMiles } from '@/lib/distance';
 import { VEHICLE_CLASS_SHORT, carDescription } from '@/lib/labels';
 import { hasPostcode } from '@/lib/postcode';
+import { formatPlannedWait } from '@/lib/route-summary';
 import { travelRefLabel } from '@/lib/travel-ref';
 import { whatsappWebLink } from '@/lib/whatsapp';
 import { useEffect, useState, useTransition } from 'react';
@@ -749,13 +750,9 @@ export function DetailPanel({
               <span>Trip</span>
             </header>
             <div className="ic__body">
-              <div className="route">
-                <div className="route__pins">
+              <div className="route" data-testid="trip-route">
+                <div className="route__row">
                   <span className="route__pin" />
-                  <span className="route__line" />
-                  <span className="route__pin route__pin--to" />
-                </div>
-                <div className="route__cells">
                   <div className="route__cell">
                     <div className="route__lbl">Pickup</div>
                     <div className="route__addr">{booking.pickupAddress}</div>
@@ -763,6 +760,26 @@ export function DetailPanel({
                       <span className="route__nopc">No postcode — edit to add</span>
                     )}
                   </div>
+                </div>
+                {booking.stops.map((stop, i) => (
+                  <div className="route__row" key={stop.seq} data-testid="trip-stop">
+                    <span className="route__pin route__pin--via" />
+                    <div className="route__cell">
+                      <div className="route__lbl">
+                        Stop {i + 1}
+                        {stop.plannedWaitMinutes > 0
+                          ? ` · wait ~${formatPlannedWait(stop.plannedWaitMinutes)}`
+                          : ''}
+                      </div>
+                      <div className="route__addr">{stop.address}</div>
+                      {hasPostcode(stop.address) ? null : (
+                        <span className="route__nopc">No postcode — edit to add</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="route__row route__row--last">
+                  <span className="route__pin route__pin--to" />
                   <div className="route__cell">
                     <div className="route__lbl">Drop-off</div>
                     <div className="route__addr">{booking.dropoffAddress}</div>

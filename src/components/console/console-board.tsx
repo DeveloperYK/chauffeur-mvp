@@ -2,6 +2,7 @@
 import { undoCancelAction } from '@/app/(dashboard)/dashboard/console-actions';
 import { bookingRef } from '@/lib/booking-ref';
 import { templateFromBooking } from '@/lib/booking-template';
+import { formatPlannedWait, routeSummary } from '@/lib/route-summary';
 import { UNDO_CANCEL_WINDOW_MS } from '@/lib/undo-window';
 import type { BookingState } from '@/server/db/schema';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -471,8 +472,8 @@ function ListRow({
         </div>
       </span>
       <span className="list__route">
-        <span className="list__route-line">
-          {truncate(b.pickupAddress, 28)} → {truncate(b.dropoffAddress, 28)}
+        <span className="list__route-line" title={routeSummary(b)}>
+          {routeSummary(b, { maxLabel: 28 })}
         </span>
         {highlights.length > 0 ? (
           <div className="list__route-highlights">
@@ -668,6 +669,12 @@ function BoardCard({
       <div className="card__route">
         <span className="pin" />
         <span className="addr">{truncate(booking.pickupAddress, 44)}</span>
+        {booking.stops.map((s) => (
+          <span key={s.seq} className="card__via" title={s.address}>
+            via {truncate(s.address.split(',')[0] ?? s.address, 32)}
+            {s.plannedWaitMinutes > 0 ? ` · wait ${formatPlannedWait(s.plannedWaitMinutes)}` : ''}
+          </span>
+        ))}
         <span className="pin to" />
         <span className="addr">{truncate(booking.dropoffAddress, 44)}</span>
       </div>
