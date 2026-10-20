@@ -12,6 +12,7 @@ import type { NotificationPort } from '@/server/ports/notifications';
 import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq, isNull } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
+import { listStops } from './booking-stops';
 import { mirrorBooking } from './mirror';
 import { recordDispatchOffer, resolveOffersOnAccept } from './offers';
 import { createShortLink } from './short-links';
@@ -85,7 +86,7 @@ async function mintDispatchLinkFor(
   // Branded short link for messages (the long signed URL is the destination).
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
   // The manual WhatsApp message reuses the same formatted body as the SMS.
-  const message = dispatchSms(booking, shortUrl);
+  const message = dispatchSms(booking, shortUrl, await listStops(deps.db, booking.id));
   const whatsappUrl = whatsappWebLink(driver.whatsappNumber, message);
 
   await recordAuditEvent(deps.db, {

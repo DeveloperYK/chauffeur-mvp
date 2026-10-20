@@ -75,3 +75,20 @@ describe('driverJobCalendarUrl', () => {
     expect(url.searchParams.get('text')).toBe('JJ Chauffeuring BKNG-00042 — Eric');
   });
 });
+
+describe('driverJobCalendarUrl — multi-stop route', () => {
+  const stops = [
+    { seq: 1, address: '1 Canary Wharf, London E14 5AB', plannedWaitMinutes: 40 },
+    { seq: 2, address: 'Kings Cross Station, London N1 9AL', plannedWaitMinutes: 0 },
+  ];
+
+  it('lists the stops with their planned waits between pickup and destination', () => {
+    const out = driverJobCalendarUrl(booking, JOB_URL, stops);
+    const text = decodeURIComponent(out.replace(/\+/g, ' '))
+      .replace(/\\,/g, ',')
+      .replace(/\r\n /g, '');
+    expect(text).toContain('-> 1 Canary Wharf, London E14 5AB (wait ~40 min)');
+    expect(text).toContain('-> Kings Cross Station, London N1 9AL');
+    expect(text).toContain('-> LHR Terminal 5');
+  });
+});

@@ -8,6 +8,7 @@ import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
 import { eq } from 'drizzle-orm';
 import { recordAuditEvent } from './audit';
+import { listStops } from './booking-stops';
 import { createShortLink } from './short-links';
 import { driverJobSms } from './sms-templates';
 
@@ -87,7 +88,7 @@ export async function generateDriverJobLink(
   const appBase = deps.appUrl.replace(/\/+$/, '');
   const url = `${appBase}/j/${token}`;
   const shortUrl = `${appBase}/s/${await createShortLink(deps.db, url)}`;
-  const message = driverJobSms(booking, shortUrl);
+  const message = driverJobSms(booking, shortUrl, await listStops(deps.db, booking.id));
   const whatsappUrl = whatsappWebLink(driver.whatsappNumber, message);
 
   await recordAuditEvent(deps.db, {

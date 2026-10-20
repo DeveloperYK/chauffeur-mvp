@@ -1,4 +1,5 @@
 import { bookingRef } from '@/lib/booking-ref';
+import { type RouteStop, routeLines } from '@/lib/route-summary';
 import { travelRefLabel } from '@/lib/travel-ref';
 import type { Booking } from '@/server/db/schema';
 
@@ -19,16 +20,20 @@ function calendarStamp(d: Date): string {
     .replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function driverJobCalendarUrl(booking: Booking, jobUrl: string): string {
+export function driverJobCalendarUrl(
+  booking: Booking,
+  jobUrl: string,
+  stops: readonly RouteStop[] = [],
+): string {
   const passenger = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
   const start = booking.pickupAt;
   const end = new Date(start.getTime() + booking.expectedDurationMinutes * 60_000);
   const route =
     booking.serviceType === 'hourly'
-      ? `${booking.pickupAddress} — As directed`
-      : `${booking.pickupAddress} -> ${booking.dropoffAddress ?? 'As directed'}`;
+      ? [`${booking.pickupAddress} — As directed`]
+      : routeLines({ ...booking, stops });
 
-  const detailLines = [route];
+  const detailLines = [...route];
   const travel = travelRefLabel(booking.travelMode, booking.travelRef);
   if (travel) detailLines.push(travel);
   detailLines.push(`Job details: ${jobUrl}`);
