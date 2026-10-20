@@ -28,6 +28,7 @@ export const DRIVER_FACING_CHANGE_LABELS = [
   'flight/train',
   'car type',
   'notes',
+  'stops',
 ] as const;
 
 const DRIVER_FACING = new Set<string>(DRIVER_FACING_CHANGE_LABELS);
@@ -49,7 +50,12 @@ export function isMaterialChange(changedFields: readonly string[]): boolean {
  * service type) are not. NOTE: these must track the labels in
  * `services/edit-booking.ts`.
  */
-export const EXEC_FACING_CHANGE_LABELS = ['pickup time', 'pickup address', 'drop-off'] as const;
+export const EXEC_FACING_CHANGE_LABELS = [
+  'pickup time',
+  'pickup address',
+  'drop-off',
+  'stops',
+] as const;
 
 const EXEC_FACING = new Set<string>(EXEC_FACING_CHANGE_LABELS);
 
