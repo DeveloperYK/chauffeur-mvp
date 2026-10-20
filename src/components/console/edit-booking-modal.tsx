@@ -587,7 +587,9 @@ export function EditBookingModal({ booking, isOpen, onClose, onSaved }: EditBook
                     placeholder="Email"
                   />
                 </div>
-                <div className="hint">If filled in: name plus a phone or an email.</div>
+                <div className="hint">
+                  Name and email are required — the confirmation goes to the PA.
+                </div>
               </div>
             </div>
           </div>

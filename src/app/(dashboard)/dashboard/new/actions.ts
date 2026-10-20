@@ -1,4 +1,5 @@
 'use server';
+import { bookedByErrors } from '@/lib/booked-by-rule';
 import { formatLondonDay, parseMonthString } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { fieldErrorsFromIssues } from '@/lib/form-errors';
@@ -110,6 +111,12 @@ export async function createBookingAction(formData: FormData): Promise<CreateBoo
   });
   if (Object.keys(postcodeErrors).length > 0) {
     return { error: 'Please fix the highlighted fields.', fieldErrors: postcodeErrors };
+  }
+
+  // The PA's name + email are mandatory on the operator form (ADR 0031).
+  const paErrors: Record<string, string> = bookedByErrors(raw);
+  if (Object.keys(paErrors).length > 0) {
+    return { error: 'Please fix the highlighted fields.', fieldErrors: paErrors };
   }
 
   const { db } = getDb(url);
