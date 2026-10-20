@@ -579,6 +579,7 @@ async function ChangeConfirmPage({
   }
 
   const { booking, driver } = result;
+  const stops = await listStops(db(), booking.id);
   const passengerLabel = `${booking.passengerFirstName} ${booking.passengerLastName ?? ''}`.trim();
 
   return (
@@ -615,6 +616,18 @@ async function ChangeConfirmPage({
             {booking.pickupAddress}
           </div>
         </div>
+        {orderedStops(stops).map((stop, i) => (
+          <div className="row" key={stop.id} data-testid="change-stop">
+            <span className="pin via" />
+            <div className="addr">
+              <div className="lbl">
+                Stop {i + 1}
+                {stop.plannedWaitMinutes > 0 ? ` · wait ~${stop.plannedWaitMinutes} min` : ''}
+              </div>
+              {stop.address}
+            </div>
+          </div>
+        ))}
         {booking.dropoffAddress ? (
           <div className="row">
             <span className="pin to" />

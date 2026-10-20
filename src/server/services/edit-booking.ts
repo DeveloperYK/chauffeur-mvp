@@ -1,7 +1,7 @@
 import { parsePickupInput } from '@/lib/dates';
 import { optionalPhoneSchema } from '@/lib/phone';
 import type { Database } from '@/server/db';
-import { type Booking, bookings } from '@/server/db/schema';
+import { type Booking, type BookingStop, bookings } from '@/server/db/schema';
 import { isExecFacingChange, isMaterialChange } from '@/server/domain/booking-changes';
 import type { Clock } from '@/server/ports/clock';
 import { systemClock } from '@/server/ports/clock';
@@ -9,6 +9,13 @@ import type { SpreadsheetMirrorPort } from '@/server/ports/spreadsheet-mirror';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAuditEvent } from './audit';
+import {
+  type ParsedStop,
+  listStops,
+  refineStopsForServiceType,
+  replaceStops,
+  stopsInputSchema,
+} from './booking-stops';
 import {
   normalizedBookedBy,
   normalizedTravelPair,
@@ -42,6 +49,10 @@ export const editBookingSchema = z
     distanceMeters: z.coerce.number().int().min(0).max(2_000_000).optional().nullable(),
     pickupAddress: z.string().min(3).max(500),
     dropoffAddress: z.string().max(500).optional().nullable(),
+    // Intermediate stops in journey order. Omitted = leave the existing stops
+    // as they are; an array (even empty) replaces them. Must be empty/omitted
+    // for hourly (enforced below); switching to hourly clears existing stops.
+    stops: stopsInputSchema.optional(),
     passengerFirstName: z.string().min(1).max(80),
     passengerLastName: z.string().max(80).optional().nullable(),
     execMobile: optionalPhoneSchema,
@@ -107,6 +118,7 @@ export const editBookingSchema = z
     }
     refineTravelRef(data, ctx);
     refineBookedBy(data, ctx);
+    refineStopsForServiceType(data, ctx);
   });
 
 export type EditBookingInput = z.infer<typeof editBookingSchema>;
@@ -194,6 +206,13 @@ export async function editBooking(
     ...bookedBy,
   });
 
+  // Stops: compare the ordered (address, wait) list when the form sent one, or
+  // when the booking is becoming hourly (which cannot carry stops).
+  const existingStops = await listStops(deps.db, existing.id);
+  const nextStops: readonly ParsedStop[] | null = isHourly ? [] : (data.stops ?? null);
+  const stopsChanged = nextStops !== null && !sameStops(existingStops, nextStops);
+  if (stopsChanged) changedFields.push('stops');
+
   // Nothing changed — return the booking untouched, no audit, no mirror.
   if (changedFields.length === 0) {
     return { ok: true, booking: existing, changedFields, materialChange: false };
@@ -254,6 +273,8 @@ export async function editBooking(
     return { ok: false, reason: 'not_editable', state: existing.state };
   }
 
+  if (stopsChanged && nextStops) await replaceStops(deps.db, updated.id, nextStops);
+
   await recordAuditEvent(deps.db, {
     actorType: 'operator',
     actorId: operatorId,
@@ -272,6 +293,7 @@ export async function editBooking(
 type EditableFields = Omit<
   EditBookingInput,
   | 'bookingId'
+  | 'stops'
   | 'dropoffAddress'
   | 'distanceMeters'
   | 'travelMode'
@@ -292,6 +314,15 @@ type EditableFields = Omit<
   bookedByPhone: string | null;
   bookedByEmail: string | null;
 };
+
+/** Same journey: same count, and each position has the same address + wait. */
+function sameStops(existing: readonly BookingStop[], next: readonly ParsedStop[]): boolean {
+  if (existing.length !== next.length) return false;
+  return existing.every(
+    (s, i) =>
+      s.address === next[i]?.address && s.plannedWaitMinutes === (next[i]?.plannedWaitMinutes ?? 0),
+  );
+}
 
 function minuteOf(d: Date): number {
   return Math.floor(d.getTime() / 60_000);

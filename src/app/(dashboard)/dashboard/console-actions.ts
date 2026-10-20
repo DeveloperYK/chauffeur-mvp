@@ -483,6 +483,17 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
       ? null
       : Number.parseInt(String(distanceRaw), 10);
 
+  const stopsRaw = formData.get('stops');
+  let stops: unknown = undefined;
+  if (stopsRaw != null && String(stopsRaw) !== '') {
+    try {
+      stops = JSON.parse(String(stopsRaw));
+    } catch {
+      return { ok: false, error: 'Invalid stops.' };
+    }
+    if (!Array.isArray(stops)) return { ok: false, error: 'Invalid stops.' };
+  }
+
   const raw = {
     bookingId: String(formData.get('bookingId') ?? ''),
     serviceType: String(formData.get('serviceType') ?? 'transfer'),
@@ -491,6 +502,7 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
     distanceMeters,
     pickupAddress: String(formData.get('pickupAddress') ?? ''),
     dropoffAddress: String(formData.get('dropoffAddress') ?? ''),
+    ...(stops !== undefined ? { stops } : {}),
     passengerFirstName: String(formData.get('passengerFirstName') ?? ''),
     passengerLastName: String(formData.get('passengerLastName') ?? '') || null,
     execMobile: String(formData.get('execMobile') ?? ''),
@@ -510,7 +522,13 @@ export async function editBookingAction(formData: FormData): Promise<EditBooking
   };
 
   // Every address must carry a postcode — see createBookingAction.
-  const postcodeErrors = Object.values(addressPostcodeErrors(raw));
+  const stopAddresses = (Array.isArray(stops) ? stops : []).filter(
+    (s): s is { address: string } =>
+      typeof s === 'object' &&
+      s !== null &&
+      typeof (s as { address?: unknown }).address === 'string',
+  );
+  const postcodeErrors = Object.values(addressPostcodeErrors({ ...raw, stops: stopAddresses }));
   if (postcodeErrors.length > 0) return { ok: false, error: postcodeErrors.join('; ') };
 
   const result = await editBooking(raw, op.id, { db: db(), mirror: spreadsheetMirror() });
